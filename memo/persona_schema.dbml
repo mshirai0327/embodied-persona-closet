@@ -1,0 +1,119 @@
+
+Table users {
+  id String [pk]
+  name String
+  email String [unique]
+  created_at DateTime [default: `now()`]
+}
+
+Table personas {
+  id String [pk]
+  name String 
+  created_at DateTime [default: `now()`]
+}
+
+// Hub table for statuses. Linked 1:1 to Persona.
+Table persona_statuses {
+  status_id String [pk]
+  created_at DateTime [default: `now()`]
+  persona_id String [unique, ref: - personas.id] // 1:1 Relation
+}
+
+
+// Lv1-1: 完全不変・定量可能
+Table quantity_unchange_statuses {
+  id String [pk]
+  persona_id String [unique, ref: - personas.id]
+  
+  birth_date DateTime [note: '生年月日']
+  gender String [note: '性別']
+  blood_type String [note: '血液型']
+  chronotype String [note: 'クロノタイプ（朝型/夜型）']
+  bitterness_sense Int [note: '苦味感受性の強さ']
+  intelligence Int [note: '相対的な知能。世代の中での割合を意味する。']
+}
+
+// Lv1-2: 完全不変・定量困難
+Table semiquantity_unchange_statuses {
+  id String [pk]
+  persona_id String [unique, ref: - personas.id]
+  
+  ethics Int [note: '倫理観 (0-100)']
+  passion Int [note: '情熱・エネルギー (0-100)']
+  curiosity Int [note: '好奇心 (0-100)']
+  aggressiveness Int [note: '攻撃性・対立時の反応 (0-100)']
+  extroversion Int [note: '外向性・社交性 (0-100)']
+}
+
+// Lv2: 不可逆的変化・定量可能 (History 1:N)
+Table quantity_irreversible_statuses {
+  id String [pk]
+  version Int [default: 1]
+  persona_status_id String [ref: > persona_statuses.status_id] // 1:N Relation
+  
+  height Float [note: '身長 (cm)']
+  bone_density Float [note: '骨密度(g/cm^2)']
+  grip_strength Float [note: '最大筋力（握力）(kg)']
+  voice_pitch Float [note: '声の高さ（基本周波数）(Hz) 85-300']
+  eyesight Float [note: '視力 0.1-2.0']
+  hearing_ability Float [note: '聴力 (db) 0-70db']
+  recorded_at DateTime [note: 'システム上の記録日時']
+  recorded_for_persona DateTime [note: 'personaにとっての記録日時。過去の時間も入る。']
+}
+
+// Lv3-1: 可変・定量可能 (History 1:N)
+Table quantity_reversible_statuses {
+  id String [pk]
+  version Int [default: 1]
+  persona_status_id String [ref: > persona_statuses.status_id] // 1:N Relation
+  
+  value Json [note: 'JSON Array: [{label, value, unit}]']
+  recorded_at DateTime [note: '記録日時']
+}
+
+// Lv3-2: 可変・定量困難 (History 1:N)
+Table semiquantity_reversible_statuses {
+  id String [pk]
+  version Int [default: 1]
+  persona_status_id String [ref: > persona_statuses.status_id] // 1:N Relation
+  
+  value Json [note: 'JSON Array: [{label, value, unit}]']
+  recorded_at DateTime [note: '記録日時']
+}
+
+Table chats {
+  id String [pk]
+  title String
+  user_id String [ref: > users.id]
+  persona_id String [ref: > personas.id]
+  created_at DateTime
+  updated_at DateTime
+}
+
+Table chat_logs {
+  id String [pk]
+  chat_id String [ref: > chats.id]
+  user_id String [ref: > users.id]
+  persona_id String [ref: > personas.id]
+  role String
+  content String
+  created_at DateTime
+}
+
+Table reflection_events {
+  id String [pk]
+  persona_id String [ref: > personas.id]
+  thought String
+  status_update Json
+  prompt String
+  permanent_memory String
+  created_at DateTime
+}
+
+Table event_logs {
+  id String [pk]
+  type String
+  content String
+  value Float
+  created_at DateTime
+}

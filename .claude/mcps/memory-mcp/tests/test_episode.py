@@ -6,6 +6,7 @@ import pytest
 from src.memory_mcp.config import MemoryConfig
 from src.memory_mcp.episode import EpisodeManager
 from src.memory_mcp.store import MemoryStore
+from tests.conftest import DummyEmbeddingFunction
 
 
 @pytest.fixture
@@ -16,6 +17,7 @@ async def memory_store():
         collection_name="test_memories",
     )
     store = MemoryStore(config)
+    store._embedding_fn = DummyEmbeddingFunction()
     await store.connect()
     yield store
     await store.disconnect()

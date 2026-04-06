@@ -40,6 +40,7 @@ def _open_capture(source: int | str) -> cv2.VideoCapture:
     if isinstance(source, str):
         cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
         if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
             return cap
         cap.release()
     return cv2.VideoCapture(source)

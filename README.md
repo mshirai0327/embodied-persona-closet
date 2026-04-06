@@ -47,6 +47,7 @@ memory-mcp を使いこなすためのスキル群とフック。記憶を「刻
 cron による定期的な自律行動。欲望システムと連携して内発的動機で動く。
 
 - `autonomous-action.sh` — 完成版の自律行動スクリプト
+- `.claude/scripts/update-discussion-memo.ts` — 当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に自動追記（22-23時帯）
 - `.claude/templates/desires.template.conf` — 欲望の種類と発火間隔の設定
 - `.claude/templates/schedule.template.conf` — 曜日・時間帯による間引き制御
 - `.claude/templates/ROUTINES.template.md` — 定期巡回タスクの定義テンプレート

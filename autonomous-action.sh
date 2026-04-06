@@ -101,9 +101,11 @@ done
 if [ -n "$OVERRIDE_DATE" ]; then
   HOUR=$((10#$(date -j -f "%Y-%m-%d %H:%M" "$OVERRIDE_DATE" +%H 2>/dev/null || date -d "$OVERRIDE_DATE" +%H)))
   MINUTE=$((10#$(date -j -f "%Y-%m-%d %H:%M" "$OVERRIDE_DATE" +%M 2>/dev/null || date -d "$OVERRIDE_DATE" +%M)))
+  CURRENT_DATE_ISO=$(date -j -f "%Y-%m-%d %H:%M" "$OVERRIDE_DATE" +%F 2>/dev/null || date -d "$OVERRIDE_DATE" +%F)
 else
   HOUR=$((10#$(date +%H)))
   MINUTE=$((10#$(date +%M)))
+  CURRENT_DATE_ISO=$(date +%F)
 fi
 
 # timeout コマンド検出（GNU coreutils or macOS built-in）
@@ -215,6 +217,17 @@ if [ "$SKIP_SCHEDULE" = false ] && { [ "$HOUR" -eq 22 ] || [ "$HOUR" -eq 23 ]; }
   echo "[$BEDTIME_TS] BEDTIME_HEALTH: 就寝前ヘルスチェック実行" >> "$LOG_FILE"
   bun run "$SCRIPT_DIR/.claude/scripts/system-health.ts" --notify >> "$LOG_FILE" 2>&1 || \
     echo "[$BEDTIME_TS] BEDTIME_HEALTH: 通知失敗" >> "$LOG_FILE"
+fi
+
+if [ "$SKIP_SCHEDULE" = false ] && { [ "$HOUR" -eq 22 ] || [ "$HOUR" -eq 23 ]; }; then
+  DISCUSSION_MEMO_TS=$(date +%Y-%m-%d_%H:%M:%S)
+  echo "[$DISCUSSION_MEMO_TS] DISCUSSION_MEMO: 自動追記実行" >> "$LOG_FILE"
+  DISCUSSION_MEMO_ARGS=(bun run "$SCRIPT_DIR/.claude/scripts/update-discussion-memo.ts" --date "$CURRENT_DATE_ISO")
+  if [ "$DRY_RUN" = true ]; then
+    DISCUSSION_MEMO_ARGS+=("--dry-run")
+  fi
+  "${DISCUSSION_MEMO_ARGS[@]}" >> "$LOG_FILE" 2>&1 || \
+    echo "[$DISCUSSION_MEMO_TS] DISCUSSION_MEMO: 追記失敗" >> "$LOG_FILE"
 fi
 
 if [ "$SKIP_SCHEDULE" = false ]; then

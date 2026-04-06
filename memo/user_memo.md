@@ -14,3 +14,7 @@ Saas化したい気持ちがある.DBなどのファイルを、外部化する�
 https://github.com/mshirai0327/self-reflection-chatbot/issues
 githubを自由に見て、私の過去の記録を調査してもらいたい
 
+直すべきこと
+PC温度測定
+MCPが落ちる問題
+PCのカメラを使えないか

@@ -122,3 +122,5 @@ TODO.md
 # 経験ファイル（ダウンストリーム固有）
 *.exp.md
 BODY.md
+
+memo/discussionMemo/*.md

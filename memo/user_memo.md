@@ -19,3 +19,6 @@ reflectaではchatsテーブルにuserIdとpersonaIdを二つ設けていた。�
 
 人間は環境の下で生きている。
 スミレにも環境を知ってもらう必要があるのではないだろうか
+
+https://github.com/mshirai0327/self-reflection-chatbot/issues
+githubを自由に見て、私の過去の記録を調査してもらいたい

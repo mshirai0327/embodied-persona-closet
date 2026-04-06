@@ -16,8 +16,8 @@
 #   autonomous-action.sh --dry-run --date "2026-02-20 03:00" --force-routine  # 組み合わせ可
 #   autonomous-action.sh --slack --session-id UUID --model sonnet --settings PATH -p "message"  # Slack経由（webhook.tsから呼出）
 
-export HOME="${HOME:-/Users/$(whoami)}"
-export PATH="${HOME}/.asdf/shims:/opt/homebrew/bin:${PATH:-/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
+export HOME="${HOME:-/home/$(whoami)}"
+export PATH="${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/.asdf/shims:/opt/homebrew/bin:${PATH:-/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

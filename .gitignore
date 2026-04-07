@@ -111,16 +111,3 @@ tmp/*
 # Working directories (.keep is tracked)
 .claude/workingDirs/*
 !.claude/workingDirs/.keep
-
-# ダウンストリーム固有ファイル（アップストリームにはpushしない）
-ROUTINES.md
-SOUL.md
-state.md
-FLASH.md
-TODO.md
-
-# 経験ファイル（ダウンストリーム固有）
-*.exp.md
-BODY.md
-
-memo/discussionMemo/*.md

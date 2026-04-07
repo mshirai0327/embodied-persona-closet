@@ -34,5 +34,15 @@ if [ -f "$PROJECT_DIR/state.md" ]; then
   echo ""
 fi
 
+# --- USB webcam アタッチ（WSL2） ---
+if grep -qi "microsoft" /proc/version 2>/dev/null; then
+  BUSID=$(powershell.exe -NonInteractive -NoProfile -Command "usbipd list" 2>/dev/null \
+    | grep -i "Camera" | grep -i "Shared" | awk '{print $1}' | head -1)
+  if [ -n "$BUSID" ]; then
+    powershell.exe -NonInteractive -NoProfile -Command "usbipd attach --wsl --busid $BUSID" > /dev/null 2>&1
+    echo "[session-boot] webcam attached: busid=$BUSID"
+  fi
+fi
+
 # --- 身支度の案内 ---
 echo "SOUL.md と state.md は自動注入済み。BOOT_SHUTDOWN.md の身支度手順に従い、残りを実行してください。"

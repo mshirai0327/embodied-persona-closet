@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/memory-mcp", "memory-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}"
+      }
+    },
+    "tts": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/tts-mcp", "tts-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}",
+        "ELEVENLABS_API_KEY": "your-api-key",
+        "VOICEVOX_URL": "http://localhost:50021",
+        "VOICEVOX_SPEAKER": "10",
+        "TTS_PLAYBACK": "auto"
+      }
+    },
+    "usb-webcam": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/usb-webcam-mcp", "usb-webcam-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}"
+      }
+    },
+    "system-temperature": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/system-temperature-mcp", "system-temperature-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}"
+      }
+    }
+  }
+}

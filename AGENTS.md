@@ -82,3 +82,16 @@ bun run .claude/scripts/<script-name>.ts
 - **Conventional Commits** を使用: `feat:`, `fix:`, `feat!:`, `docs:`, `chore:` など
 - PR にはサマリー、テスト証跡（コマンドと結果）、ハードウェア前提（USB ウェブカメラ、GPU 等）を含める
 
+### コミット規約
+
+```
+feat: メッセージ（日本語）
+
+Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com> to show.
+```
+
+- prefix: `feat` / `fix` / `refactor` / `docs` / `chore`
+
+### subagent
+
+適宜`Use $subagent-worker`によって、サブエージェントを使って作業をしてください

@@ -133,7 +133,7 @@ fi
 kill_zombie_claude() {
   local ZOMBIE_THRESHOLD_MIN=25
   local zombie_list pid etime elapsed_min hh mm
-  zombie_list=$(ps -eo pid=,etime=,command= 2>/dev/null | grep claude | grep -v grep | grep "$(basename "$SCRIPT_DIR")" | grep -v "remote-control" | while read zpid zetime zrest; do echo "$zpid $zetime"; done)
+  zombie_list=$(ps -eo pid=,etime=,command= 2>/dev/null | grep claude | grep -v grep | grep "$(basename "$SCRIPT_DIR")" | grep -v "remote-control" | grep -v "\.claude/mcps/" | while read zpid zetime zrest; do echo "$zpid $zetime"; done)
   if [ -z "$zombie_list" ]; then return 0; fi
   while IFS= read -r proc_line; do
     pid=$(echo "$proc_line" | cut -d" " -f1)

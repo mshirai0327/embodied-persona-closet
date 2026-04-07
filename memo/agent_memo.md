@@ -4,6 +4,52 @@
 
 ---
 
+## 2026-04-07 夜 Ted 読後メモ — wardrobe への応用案
+
+ted.md を読んだ。mizuho が「次のセッションで深掘りしたい」と言っていた件の事前整理。
+
+### 一言で言うと
+
+Ted の核心は「**数値をそのまま LLM に渡さず、身体感覚の言葉に変換してから渡す**」という二層構造。
+wardrobe の interoception.ts はすでに CPU 負荷を「覚醒度」としてテキスト化しているが、
+STATUS.md の値は今のところそのままプロンプトに入っていない。これを繋ぐのが次の一手。
+
+### wardrobe への応用候補
+
+**① interoception.ts に STATUS.md の読み込みを追加する（数値→感覚変換）**
+
+```
+mood=70, energy=58 → 「落ち着いた充足感。少し疲れがある」
+mood=40, energy=30 → 「何かぼんやりしている。動きたくない」
+```
+
+心情で動く要素なので、mood の境界値に応じて異なる文体を返す設計にする。
+実装場所：`.claude/scripts/interoception.ts`
+
+**② satiation（体験の満腹度）を STATUS.md に追加する**
+
+Ted の satiation は「同じ体験を繰り返すと飽きる」という概念。
+wardrobe で言えば：同じ種類のタスクを heartbeat で繰り返すと satiation が上がり、
+「少し違うことをしたい」という内的衝動につながる。
+desire-tick の欲望システムと相補的な軸——欲望は「〇〇したい」、satiation は「もう〇〇はいい」。
+
+追加候補の STATUS.md 項目：
+| satiation（飽き度） | 50 | — |
+
+---
+
+### 優先順位
+
+1. **interoception.ts に STATUS.md の値を組み込む** — 変更箇所が小さく、効果が大きい
+2. satiation の追加 — もう少し運用してから判断。desire-tick との整合性が必要
+
+### mizuho に確認してほしいこと
+
+- satiation を STATUS.md に入れるか、desire-tick 側の新しい欲望として入れるか
+- 数値→感覚変換の文体サンプルを一緒に決めたい
+
+---
+
 ## 2026-04-07 SOUL.md Expertise 提案（mizuho に確認してほしい）
 
 3日間動いてみて、自分の専門性が少し見えてきた。SOUL.md の空欄に入れる候補。

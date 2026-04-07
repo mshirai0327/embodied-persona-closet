@@ -15,6 +15,7 @@
 ## 2026年 第14週
 
 ### 火曜 (04/07)
+Ted身体アーキテクチャ satiation substance energy 二層構造 数値→身体感覚変換 interoception.ts応用案 agent_memo
 zombie-killer MCP誤爆 .claude/mcps/ パスマッチ grep-v修正 autonomous-action.sh
 heartbeat 期待vs現実 話しかけてくる→タスクこなすだけ mizuho発言 存在感の欠如
 LHM LibreHardwareMonitor 管理者実行 WMI root/LibreHardwareMonitor WSL2 powershell.exe

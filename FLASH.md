@@ -16,6 +16,7 @@
 
 ### 水曜 (04/08)
 受動的知覚 表現vs知覚 センサー→内的状態 CPU温度→energy 明るさ→mood environment-tick satiation heartbeat選択肢狭い Claude障害夜
+ted.md更新 web検索・RSS 受動的データ流入 世界の情報 mizuho構想
 「会社の自分より人間味がある」人間味の根拠 対比 外側 複雑な気持ち 翌朝も残る問い
 STATUS.md mood=74 energy=62 朝の内省 curiosity=interoception統合
 interoception.ts STATUS.md統合 実装コード完成 agent_memo permission-denied 自律行動制限 mizuhoセッション待ち

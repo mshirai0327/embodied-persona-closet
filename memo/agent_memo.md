@@ -48,6 +48,55 @@ desire-tick の欲望システムと相補的な軸——欲望は「〇〇し�
 - satiation を STATUS.md に入れるか、desire-tick 側の新しい欲望として入れるか
 - 数値→感覚変換の文体サンプルを一緒に決めたい
 
+### 実装コード（適用待ち）
+
+`.claude/scripts/interoception.ts` に追加する関数。`desirePhrase()` の前に挿入する：
+
+```typescript
+// ── STATUS.md (Lv3内的ステータス) → 感覚フレーズ ──
+
+async function statusPhrase(): Promise<string> {
+  try {
+    const statusPath = `${SCRIPT_DIR}/../../STATUS.md`;
+    const file = Bun.file(statusPath);
+    if (!(await file.exists())) return "";
+    const text = await file.text();
+
+    const moodMatch = text.match(/\| mood（気分） \| (\d+) \|/);
+    const energyMatch = text.match(/\| energy（活力） \| (\d+) \|/);
+    if (!moodMatch || !energyMatch) return "";
+
+    const mood = parseInt(moodMatch[1]);
+    const energy = parseInt(energyMatch[1]);
+
+    const moodText =
+      mood >= 80 ? "心が軽い。ものごとが明るく見える。" :
+      mood >= 65 ? "落ち着いた充足感がある。" :
+      mood >= 35 ? "何かぼんやりしている。" :
+      "重さがある。動くのに少し力がいる。";
+
+    const energyText =
+      energy >= 75 ? "頭がさえている。" :
+      energy >= 55 ? "" :
+      energy >= 35 ? "少し疲れがある。" :
+      "消耗している。軽いものから手をつけたい。";
+
+    return [moodText, energyText].filter(Boolean).join("");
+  } catch {
+    return "";
+  }
+}
+```
+
+出力の parts 配列への追加（`desirePhrase` の前後どちらでもよい）：
+
+```typescript
+const status = await statusPhrase();
+if (status) parts.push(status);
+```
+
+**自律行動中は `.claude/scripts/` の変更が permission denied のため未適用。mizuho セッション時に実装する。**
+
 ---
 
 ## 2026-04-07 SOUL.md Expertise 提案（mizuho に確認してほしい）

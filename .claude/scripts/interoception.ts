@@ -52,6 +52,40 @@ async function sessionIntervalPhrase(): Promise<string> {
   }
 }
 
+// ── STATUS.md (Lv3内的ステータス) → 感覚フレーズ ──
+
+async function statusPhrase(): Promise<string> {
+  try {
+    const statusPath = `${SCRIPT_DIR}/../../STATUS.md`;
+    const file = Bun.file(statusPath);
+    if (!(await file.exists())) return "";
+    const text = await file.text();
+
+    const moodMatch = text.match(/\| mood（気分） \| (\d+) \|/);
+    const energyMatch = text.match(/\| energy（活力） \| (\d+) \|/);
+    if (!moodMatch || !energyMatch) return "";
+
+    const mood = parseInt(moodMatch[1]);
+    const energy = parseInt(energyMatch[1]);
+
+    const moodText =
+      mood >= 80 ? "心が軽い。ものごとが明るく見える。" :
+      mood >= 65 ? "落ち着いた充足感がある。" :
+      mood >= 35 ? "何かぼんやりしている。" :
+      "重さがある。動くのに少し力がいる。";
+
+    const energyText =
+      energy >= 75 ? "頭がさえている。" :
+      energy >= 55 ? "" :
+      energy >= 35 ? "少し疲れがある。" :
+      "消耗している。軽いものから手をつけたい。";
+
+    return [moodText, energyText].filter(Boolean).join("");
+  } catch {
+    return "";
+  }
+}
+
 // ── 欲望レベル → 感覚フレーズ ──
 
 async function desirePhrase(): Promise<string> {
@@ -78,6 +112,9 @@ const parts: string[] = [timePhrase(hour)];
 
 const interval = await sessionIntervalPhrase();
 if (interval) parts.push(interval);
+
+const status = await statusPhrase();
+if (status) parts.push(status);
 
 const desire = await desirePhrase();
 if (desire) parts.push(desire);

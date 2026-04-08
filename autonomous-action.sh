@@ -323,6 +323,11 @@ else
   echo "通常回 (RAND=$ROUTINE_RAND >= $ROUTINE_THRESHOLD)" >> "$LOG_FILE"
 fi
 
+# --- 充足感の減衰（satiation-tick） ---
+if [ "$SKIP_SCHEDULE" = false ]; then
+  bun run "$SCRIPT_DIR/.claude/scripts/satiation-tick.ts" >> "$LOG_FILE" 2>/dev/null
+fi
+
 # --- 欲望システム（内部衝動） ---
 DESIRE_PROMPT=""
 if [ "$SKIP_SCHEDULE" = false ]; then

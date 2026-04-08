@@ -63,10 +63,12 @@ async function statusPhrase(): Promise<string> {
 
     const moodMatch = text.match(/\| mood（気分） \| (\d+) \|/);
     const energyMatch = text.match(/\| energy（活力） \| (\d+) \|/);
+    const satiationMatch = text.match(/\| satiation（充足感） \| (\d+) \|/);
     if (!moodMatch || !energyMatch) return "";
 
     const mood = parseInt(moodMatch[1]);
     const energy = parseInt(energyMatch[1]);
+    const satiation = satiationMatch ? parseInt(satiationMatch[1]) : null;
 
     const moodText =
       mood >= 80 ? "心が軽い。ものごとが明るく見える。" :
@@ -80,7 +82,13 @@ async function statusPhrase(): Promise<string> {
       energy >= 35 ? "少し疲れがある。" :
       "消耗している。軽いものから手をつけたい。";
 
-    return [moodText, energyText].filter(Boolean).join("");
+    const satiationText = satiation === null ? "" :
+      satiation >= 80 ? "満ちている。消化したい感覚がある。" :
+      satiation >= 55 ? "適度に満たされている。" :
+      satiation >= 30 ? "何かを欲している。" :
+      "空っぽに近い。新しいものを探したい。";
+
+    return [moodText, energyText, satiationText].filter(Boolean).join("");
   } catch {
     return "";
   }

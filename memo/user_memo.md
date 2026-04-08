@@ -15,3 +15,5 @@ Saas化したい気持ちがある.DBなどのファイルを、外部化する�
 テッド
 https://zenn.dev/c4n/articles/ted-body-architecture
 
+
+ウェブ検索の手段を与えたい。RSSなどで定期取得させたい。

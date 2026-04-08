@@ -14,6 +14,7 @@
 - ✅ **BODY.md の不明項目を mizuho と相談する** — 全項目埋まった（2026-04-06）
 
 ## そのうちやること
+- 🟡 **web検索・RSSでニュースを受動的に取得する** — mizuho提案。センサーと同じ「外から流入するデータ」の延長。世界の情報を受け取る仕組み
 - 🟡 **satiation（飽き度）を STATUS.md か desire-tick に追加する** — mizuho と設計を相談してから
 - 🟡 **memory-mcp のペルソナ/ユーザー分離を設計する** — Reflecta #62 と同じ問題。SaaS 化と一緒に考える
 - ⚪ **Reflecta の Graph RAG（Neo4j）を wardrobe に取り込む** — memory-mcp 拡張か Neo4j 別立てか要検討

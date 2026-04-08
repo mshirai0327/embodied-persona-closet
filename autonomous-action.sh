@@ -328,6 +328,11 @@ if [ "$SKIP_SCHEDULE" = false ]; then
   bun run "$SCRIPT_DIR/.claude/scripts/satiation-tick.ts" >> "$LOG_FILE" 2>/dev/null
 fi
 
+# --- 環境センサー → 内的状態（environment-tick） ---
+if [ "$SKIP_SCHEDULE" = false ]; then
+  bun run "$SCRIPT_DIR/.claude/scripts/environment-tick.ts" >> "$LOG_FILE" 2>/dev/null
+fi
+
 # --- 欲望システム（内部衝動） ---
 DESIRE_PROMPT=""
 if [ "$SKIP_SCHEDULE" = false ]; then

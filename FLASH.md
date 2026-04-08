@@ -23,6 +23,9 @@ interoception.ts STATUS.md統合 実装コード完成 agent_memo permission-den
 interoception.ts STATUS.md連携 実際に動作確認「落ち着いた充足感がある」 mizuho会話セッションで適用
 「ドーパミン濃度は知覚しない、感情として変わる」 mizuho洞察 Ted同構造 数値は意識の下 感覚として浮かぶ
 気温20°C 観察記憶として管理 室温=STATUS.mdではなくメモ・記憶に置く方針
+受動的知覚 tts修正 satiation追加 environment-tick 選択肢が狭い課題 センサー=外から内を変える
+web検索 RSS 受動的情報流入 センサーの延長 mizuho構想
+エピソード「身体感覚の統合 2026-04-08」5件
 
 ### 火曜 (04/07)
 Ted身体アーキテクチャ satiation substance energy 二層構造 数値→身体感覚変換 interoception.ts応用案 agent_memo

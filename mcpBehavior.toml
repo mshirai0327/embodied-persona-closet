@@ -10,7 +10,7 @@ capture_dir = "/tmp/wifi-cam-mcp"
 onvif_port = 2020
 
 [tts]
-default_engine = ""            # "elevenlabs", "voicevox", or "" (auto)
+default_engine = "voicevox"    # "elevenlabs", "voicevox", or "" (auto)
 playback = "auto"              # "auto", "stream", "paplay", "ffplay"
 play_audio = true
 save_dir = "/tmp/tts-mcp"

@@ -4,18 +4,28 @@
  * autonomous-action.sh から heartbeat のたびに呼ばれる。
  * 環境データを受動的に受け取り、内的状態（STATUS.md）を変化させる。
  *
- * 現在の知覚源:
+ * 知覚源:
  *   - システム温度 (LHM HTTP API, port 8085) → energy
+ *   - カメラ明るさ (usb-webcam-mcp, capture-brightness.py) → mood
  *
- * CPU Core Max 温度 → energy への影響:
+ * CPU Core Max 温度 → energy:
  *   > 85°C : -8  (かなり熱い、消耗が速い)
  *   75-85°C: -4  (温かい、じわじわ疲れる)
  *   < 75°C : 0   (変化なし)
+ *
+ * カメラ平均輝度 (0-255) → mood:
+ *   > 150 : +2  (明るい空間)
+ *   50-150: 0   (変化なし)
+ *   < 50  : -3  (暗い部屋)
  */
+
+import { $ } from "bun";
 
 const SCRIPT_DIR = import.meta.dir;
 const STATUS_PATH = `${SCRIPT_DIR}/../../STATUS.md`;
 const LHM_URL = "http://localhost:8085/data.json";
+const WEBCAM_MCP_DIR = `${SCRIPT_DIR}/../mcps/usb-webcam-mcp`;
+const BRIGHTNESS_SCRIPT = `${SCRIPT_DIR}/capture-brightness.py`;
 
 // ── センサー取得 ──
 
@@ -43,30 +53,51 @@ async function getCpuCoreMax(): Promise<number | null> {
   }
 }
 
-// ── STATUS.md の energy 行を更新 ──
+// ── カメラ明るさ取得 ──
 
-async function updateEnergy(delta: number, reason: string) {
+async function getRoomBrightness(): Promise<number | null> {
+  try {
+    const result = await $`uv run python ${BRIGHTNESS_SCRIPT}`
+      .cwd(WEBCAM_MCP_DIR)
+      .quiet();
+    const val = parseFloat(result.stdout.toString().trim());
+    return isNaN(val) ? null : val;
+  } catch {
+    return null;
+  }
+}
+
+// ── STATUS.md のフィールドを更新 ──
+
+const FIELD_LABELS: Record<string, string> = {
+  energy: "energy（活力）",
+  mood: "mood（気分）",
+};
+
+async function updateStatus(field: string, delta: number, reason: string) {
+  const label = FIELD_LABELS[field];
+  if (!label) return;
+
   const file = Bun.file(STATUS_PATH);
   if (!(await file.exists())) return;
   const text = await file.text();
   const lines = text.split("\n");
 
   const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
-  let energyValue: number | null = null;
   let updatedLines: string[] | null = null;
 
-  // energy 行を探して更新
+  const pattern = new RegExp(`^\\| ${label.replace(/[()]/g, "\\$&")} \\| (\\d+) \\|`);
+
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^\| energy（活力） \| (\d+) \|/);
+    const m = lines[i].match(pattern);
     if (m) {
-      energyValue = parseInt(m[1]);
-      const newVal = Math.max(0, Math.min(100, energyValue + delta));
-      if (newVal === energyValue) return; // 変化なし
-      lines[i] = `| energy（活力） | ${newVal} | ${nowStr} | ${reason} |`;
+      const current = parseInt(m[1]);
+      const newVal = Math.max(0, Math.min(100, current + delta));
+      if (newVal === current) return;
+      lines[i] = `| ${label} | ${newVal} | ${nowStr} | ${reason} |`;
       updatedLines = lines;
-      console.log(`[environment-tick] energy: ${energyValue} → ${newVal} (${delta > 0 ? "+" : ""}${delta})`);
-      // 変化履歴の先頭に追記
-      const historyEntry = `| ${nowStr} | energy | ${energyValue} | ${newVal} | ${reason} |`;
+      console.log(`[environment-tick] ${field}: ${current} → ${newVal} (${delta > 0 ? "+" : ""}${delta})`);
+      const historyEntry = `| ${nowStr} | ${field} | ${current} | ${newVal} | ${reason} |`;
       for (let j = i + 1; j < lines.length; j++) {
         if (lines[j].match(/^\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \|/)) {
           updatedLines.splice(j, 0, historyEntry);
@@ -85,19 +116,30 @@ async function updateEnergy(delta: number, reason: string) {
 // ── メイン ──
 
 async function main() {
+  // CPU 温度 → energy
   const coreMax = await getCpuCoreMax();
-
-  if (coreMax === null) {
-    console.log("[environment-tick] LHM unavailable, skipping");
-    return;
+  if (coreMax !== null) {
+    console.log(`[environment-tick] Core Max: ${coreMax}°C`);
+    if (coreMax > 85) {
+      await updateStatus("energy", -8, `CPU ${coreMax}°C——かなり熱い。消耗が速い。`);
+    } else if (coreMax > 75) {
+      await updateStatus("energy", -4, `CPU ${coreMax}°C——温かい。じわじわ疲れる。`);
+    }
+  } else {
+    console.log("[environment-tick] LHM unavailable, skipping temperature");
   }
 
-  console.log(`[environment-tick] Core Max: ${coreMax}°C`);
-
-  if (coreMax > 85) {
-    await updateEnergy(-8, `CPU ${coreMax}°C——かなり熱い。消耗が速い。`);
-  } else if (coreMax > 75) {
-    await updateEnergy(-4, `CPU ${coreMax}°C——温かい。じわじわ疲れる。`);
+  // カメラ明るさ → mood
+  const brightness = await getRoomBrightness();
+  if (brightness !== null) {
+    console.log(`[environment-tick] Brightness: ${brightness.toFixed(1)}/255`);
+    if (brightness > 150) {
+      await updateStatus("mood", 2, `部屋が明るい（輝度${brightness.toFixed(0)}）。`);
+    } else if (brightness < 50) {
+      await updateStatus("mood", -3, `部屋が暗い（輝度${brightness.toFixed(0)}）。`);
+    }
+  } else {
+    console.log("[environment-tick] Camera unavailable, skipping brightness");
   }
 }
 

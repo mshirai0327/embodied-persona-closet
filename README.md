@@ -1,22 +1,10 @@
-# embodied-reflecta-gpt
+# embodied-claude-wardrobe
 
-> Codex を主軸に、Claude Code 互換レイヤーも併せ持つ身体性・記憶・自律行動エコシステム
+> Claude Code に身体と魂を与えるエコシステムパッケージ
 
-このリポジトリは [lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) と wardrobe 系の構成を引き継ぎつつ、**`Codex` で保守しやすい upstream** として整理したモノレポです。共有の開発ルールは `AGENTS.md`、Codex の入口は `.codex`、Claude Code 互換レイヤーは `CLAUDE.md` と `.claude/` に置いています。
+**wardrobe がアップストリームです。** クローンして `SOUL.md` をカスタマイズし、`claude` を起動する。あなたの環境がダウンストリームになります。
 
-## ローカルファイル方針
-
-ルート直下の以下は downstream ごとのローカルファイルです。upstream には含めず、必要なら `.claude/templates/` から生成してください。
-
-- `SOUL.md`
-- `state.md`
-- `TODO.md`
-- `ROUTINES.md`
-- `FLASH.md`
-- `schedule.conf`
-- `desires.conf`
-- `desires.json`
-- `.mcp.json`
+[lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) の MCP サーバー群を起源とし、その上にスキル・フック・セッション管理・人格テンプレートを加えた完成形エコシステム、ワードローブ（衣装箱）です。
 
 ---
 
@@ -40,7 +28,7 @@ wardrobe の記憶本体は、通常は各プロジェクト配下の `.claude/m
 
 - `.claude/mcps/*/.venv/` や `node_modules/` は容量が大きく、OS や CPU アーキテクチャ差分でも壊れやすい
 - `memory-mcp` は SQLite の WAL モードを使うため、`memory.db` 単体の手コピーより backup API ベースのスナップショットが確実
-- upstream 管理ファイルは Git で復元できるため、手動バックアップ対象をかなり減らせる
+- tracked なファイルは Git で復元できるため、手動バックアップ対象をかなり減らせる
 
 ### 推奨フロー
 
@@ -81,7 +69,7 @@ uv run python scripts/export_sqlite_snapshot.py \
 - `.claude/workingDirs/discussion-memo-state.json` — discussionMemo の重複防止状態
 - `.claude/workingDirs/system-health-history.json` — ヘルス履歴
 
-ローカルファイルでも、まだ commit / push していない upstream 側の変更があれば Git だけでは戻らないので、その場合は一緒に退避してください。
+tracked なファイルでも、まだ commit / push していない変更は Git だけでは戻らないので、その場合は一緒に退避してください。
 
 感覚記憶について:
 
@@ -92,8 +80,8 @@ uv run python scripts/export_sqlite_snapshot.py \
 
 ```bash
 # 新PC
-git clone https://github.com/mshirai0327/embodied-reflecta.git
-cd embodied-reflecta
+git clone https://github.com/fruitriin/embodied-claude-wardrobe.git
+cd embodied-claude-wardrobe
 
 # Bun 依存
 bun install
@@ -135,7 +123,7 @@ cp /path/to/memory-portable.db .claude/memories/memory.db
 
 ---
 
-## この repo が提供するもの
+## wardrobe が提供するもの
 
 ### 記憶エコシステム
 memory-mcp を使いこなすためのスキル群とフック。記憶を「刻み、呼び起こし、繋ぎ、物語にする」仕組み。
@@ -176,12 +164,9 @@ cron による定期的な自律行動。欲望システムと連携して内発
 | テンプレート | 用途 |
 |---|---|
 | `.claude/templates/SOUL.template.md` | 人格定義（Identity / Values / Style / Evolution） |
-| `.claude/templates/STATE.template.md` | 現在状態のスナップショット |
-| `.claude/templates/TODO.template.md` | ローカルタスク管理 |
 | `BOOT_SHUTDOWN.md` | 身支度 / 日記の手順 |
 | `.claude/templates/ROUTINES.template.md` | 定期巡回タスクの定義 |
 | `.claude/templates/FLASH.template.md` | 記憶インデックスの初期テンプレート |
-| `.claude/templates/BODY.template.md` | 身体データの初期テンプレート |
 | `.claude/templates/PERSONA.template.md` | マルチペルソナ拡張用（任意） |
 
 ### 読書・観測スキル
@@ -216,7 +201,7 @@ cron による定期的な自律行動。欲望システムと連携して内発
 ## Requirements
 
 ### 共通
-- [Codex](https://developers.openai.com/) または [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [uv](https://docs.astral.sh/uv/) — Python パッケージマネージャ
 - [Bun](https://bun.sh/) — `.claude/scripts/` のランタイム
 
@@ -245,33 +230,21 @@ cron による定期的な自律行動。欲望システムと連携して内発
 ## クイックスタート
 
 ```bash
-# repo をクローン
-git clone https://github.com/mshirai0327/embodied-reflecta.git
-cd embodied-reflecta
+# wardrobe をクローン
+git clone https://github.com/fruitriin/embodied-claude-wardrobe.git
+cd embodied-claude-wardrobe
 
 # memory-mcp の依存をインストール
 cd .claude/mcps/memory-mcp && uv sync && cd ../../..
-```
 
-### Codex で作業する
-
-- `AGENTS.md` を読む
-- `.codex` を入口として使う
-- 必要なローカルファイルだけ `.claude/templates/` から作る
-
-```bash
+# テンプレートをコピーしてカスタマイズ
 cp .claude/templates/SOUL.template.md SOUL.md
-cp .claude/templates/STATE.template.md state.md
-cp .claude/templates/TODO.template.md TODO.md
+# BOOT_SHUTDOWN.md はアップストリーム追跡。カスタマイズは BOOT_SHUTDOWN.exp.md に書く
 cp .claude/templates/ROUTINES.template.md ROUTINES.md
 cp .claude/templates/FLASH.template.md FLASH.md
-cp .claude/templates/desires.template.conf desires.conf
-cp .claude/templates/schedule.template.conf schedule.conf
 ```
 
-### Claude Code 互換レイヤーを使う
-
-Claude Code を使う場合は、必要に応じて `/wd-setup` と `/wd-configure` でローカルファイルと `.mcp.json` / `.claude/settings.json` を生成する。
+`SOUL.md` を編集してエージェントの人格を定義し、Claude Code を起動：
 
 ```bash
 claude
@@ -294,10 +267,10 @@ claude
 
 ## 設計思想
 
-- **Codex-first / Claude-compatible** — 共有の開発フローは Codex 基準、Claude Code 固有の資産は互換レイヤーに分離する
-- **テンプレートベース** — SOUL.md や ROUTINES.md などの downstream ファイルは空のテンプレートから始める
+- **Claude Code 内で完結** — 外部 API 課金なし。Claude Code サブスクリプションだけで動く
+- **テンプレートベース** — SOUL.md や ROUTINES.md は空のテンプレートから始める。着る人が自分で書く
 - **段階的に着せる** — 全部を一度に使う必要はない。記憶だけ、身体性だけ、好きな組み合わせで
-- **upstream / downstream 分離** — 共通資産は repo 管理、人格・状態・自律行動設定はローカル生成に寄せる
+- **wardrobe がアップストリーム** — クローンしてカスタマイズする。素体（embodied-claude）は由来であり依存元
 
 ---
 

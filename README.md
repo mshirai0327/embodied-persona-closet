@@ -22,6 +22,25 @@ memmoryMCPを差し替えなくても周辺エコシステムはインターフ�
 
 wardrobe の記憶本体は、通常は各プロジェクト配下の `.claude/memories/memory.db` に保存されます。
 
+別マシンへ環境を移したいときは、リポジトリ全体を ZIP で固めて運ぶより、`git clone` でコードを再取得し、必要なローカルデータだけをバックアップして復元するほうが安全です。
+
+理由:
+
+- `.claude/mcps/*/.venv/` や `node_modules/` は容量が大きく、OS や CPU アーキテクチャ差分でも壊れやすい
+- `memory-mcp` は SQLite の WAL モードを使うため、`memory.db` 単体の手コピーより backup API ベースのスナップショットが確実
+- tracked なファイルは Git で復元できるため、手動バックアップ対象をかなり減らせる
+
+### 推奨フロー
+
+1. まず、保持したい tracked 変更は commit / push する
+2. 次に、`memory.db` の portable snapshot を作る
+3. `.env` などの ignore 対象や、未 push のローカルファイルだけを別途バックアップする
+4. 新PCで `git clone` する
+5. 依存関係を再インストールする
+6. snapshot とローカル設定を戻す
+
+### 1. 記憶DBを安全にエクスポートする
+
 別マシンや別 wardrobe プロジェクトへ記憶を持っていくときは、`memory.db` をそのまま雑にコピーするより、`memory-mcp` 付属のエクスポートスクリプトでスナップショットを切るほうが安全です。
 
 ```bash
@@ -32,15 +51,73 @@ uv run python scripts/export_sqlite_snapshot.py \
 
 このスクリプトは SQLite backup API を使って、WAL の内容も含めた一貫した `.db` ファイルを作ります。できた `/tmp/memory-portable.db` を移植先の `.claude/memories/memory.db` に置けば、そのまま使えます。
 
-一緒に持っていくと便利なもの:
+### 2. 一緒にバックアップするとよいもの
+
+最低限:
+
+- `/tmp/memory-portable.db` — 記憶の正本
+- `.env` — API キーや認証情報
+- `.claude/settings.local.json` — ローカル設定
+
+必要に応じて:
 
 - `FLASH.md` — 記憶の逆引き索引
 - `memo/discussionMemo/` — 日次の会話要約
+- `SOUL.md` — 人格定義
+- `state.md` / `STATUS.md` — 現在状態
+- `desires.conf` / `schedule.conf` / `desires.json` — 自律行動まわりの設定と状態
+- `.claude/workingDirs/discussion-memo-state.json` — discussionMemo の重複防止状態
+- `.claude/workingDirs/system-health-history.json` — ヘルス履歴
+
+tracked なファイルでも、まだ commit / push していない変更は Git だけでは戻らないので、その場合は一緒に退避してください。
 
 感覚記憶について:
 
 - 視覚記憶は低解像度の `image_data` が DB 内に入る
 - 音声記憶は `sensory_data.file_path` で元ファイルを参照するので、必要なら音声ファイルも別途移す
+
+### 3. 新PCで復元する
+
+```bash
+# 新PC
+git clone https://github.com/fruitriin/embodied-claude-wardrobe.git
+cd embodied-claude-wardrobe
+
+# Bun 依存
+bun install
+
+# 必要な MCP だけ再構築
+cd .claude/mcps/memory-mcp && uv sync && cd ../../..
+```
+
+その後、バックアップしたファイルを戻します。
+
+```bash
+mkdir -p .claude/memories
+cp /path/to/memory-portable.db .claude/memories/memory.db
+```
+
+必要なら以下も戻してください。
+
+- `.env`
+- `.claude/settings.local.json`
+- `FLASH.md`
+- `memo/discussionMemo/`
+- `SOUL.md`
+- `state.md`
+- `STATUS.md`
+- `desires.conf`
+- `schedule.conf`
+- `desires.json`
+
+### 4. 持っていかなくてよいもの
+
+通常は以下をコピーしなくてよいです。
+
+- `node_modules/`
+- `.claude/mcps/*/.venv/`
+- `.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`
+- `.claude/logs/*.log`
 
 詳細は `.claude/mcps/memory-mcp/README.md` の `Portable SQLite Export` 節を参照。
 

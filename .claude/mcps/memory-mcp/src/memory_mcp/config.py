@@ -9,6 +9,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _find_project_root(start: Path) -> Path | None:
+    """Find the nearest ancestor that looks like a wardrobe project root."""
+    current = start.resolve()
+
+    while True:
+        if (current / "CLAUDE.md").exists():
+            return current
+
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
 @dataclass(frozen=True)
 class MemoryConfig:
     """Memory storage configuration."""
@@ -23,18 +37,14 @@ class MemoryConfig:
     def from_env(cls) -> "MemoryConfig":
         """Create config from environment variables."""
         # プロジェクトディレクトリ配下に記憶を保存する
-        # CLAUDE_PROJECT_DIR → cwd の親（memory-mcp/ から起動される場合）→ cwd
+        # CLAUDE_PROJECT_DIR → cwd の祖先にある CLAUDE.md → ホーム配下
         project_dir = os.getenv("CLAUDE_PROJECT_DIR")
         if project_dir:
             default_path = str(Path(project_dir) / ".claude" / "memories" / "memory.db")
         else:
-            # CLAUDE_PROJECT_DIR がない場合、CLAUDE.md マーカーで親ディレクトリを探す
-            cwd = Path.cwd()
-            # memory-mcp/ から起動された場合、親に CLAUDE.md があればプロジェクトルート
-            if (cwd.parent / "CLAUDE.md").exists():
-                default_path = str(cwd.parent / ".claude" / "memories" / "memory.db")
-            elif (cwd / "CLAUDE.md").exists():
-                default_path = str(cwd / ".claude" / "memories" / "memory.db")
+            project_root = _find_project_root(Path.cwd())
+            if project_root is not None:
+                default_path = str(project_root / ".claude" / "memories" / "memory.db")
             else:
                 default_path = str(Path.home() / ".claude" / "memories" / "memory.db")
 

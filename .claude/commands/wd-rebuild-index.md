@@ -22,7 +22,7 @@ FLASH.md（記憶インデックス）を記憶 DB から再構築してくだ�
 - FLASH ファイル:
   - デフォルト（persona_id なし）: プロジェクトルートの `FLASH.md`
   - ペルソナ別: `FLASH-{persona短縮名}.md`
-- 記憶 DB パス: memories/memory.db
+- 記憶 DB パス: .claude/memories/memory.db
 - 対象期間: [ARGUMENTS があればここに入れる。なければ「全期間」]
 
 ## 手順
@@ -37,7 +37,7 @@ bun:sqlite で記憶を10件ずつ読む:
 ```bash
 bun -e "
 import { Database } from 'bun:sqlite';
-const db = new Database('memories/memory.db');
+const db = new Database('.claude/memories/memory.db');
 const rows = db.query('SELECT id, timestamp, content, importance, emotion, category FROM memories ORDER BY timestamp ASC LIMIT 10 OFFSET <N>').all();
 for (const r of rows) console.log(JSON.stringify(r));
 "

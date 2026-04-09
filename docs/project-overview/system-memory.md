@@ -26,7 +26,7 @@
 
 ### ファイル
 - **FLASH.md** — 記憶の逆引き索引。LLM の後方予測の弱さを補う。今週は曜日単位、古くなるにつれ粗くなる
-- **memories/memory.db** — SQLite 記憶データベース（保護対象）
+- **.claude/memories/memory.db** — SQLite 記憶データベース（保護対象）
 
 ## 設計思想
 

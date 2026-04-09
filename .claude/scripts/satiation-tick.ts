@@ -73,6 +73,23 @@ async function main() {
 
   await Bun.write(STATUS_PATH, updated);
   console.log(`[satiation-tick] ${currentValue} → ${newValue} (-${decay} / ${elapsedHours.toFixed(1)}h elapsed)`);
+
+  // satiation が30を下回ったとき、「探索」欲望をboostする
+  if (newValue < 30 && currentValue >= 30) {
+    const DESIRES_PATH = `${SCRIPT_DIR}/../../desires.json`;
+    const desiresFile = Bun.file(DESIRES_PATH);
+    if (await desiresFile.exists()) {
+      try {
+        const desiresState = await desiresFile.json() as { desires: Record<string, number>; lastTick: number };
+        const prev = desiresState.desires["探索"] ?? 0;
+        desiresState.desires["探索"] = Math.min(1.0, prev + 0.4);
+        await Bun.write(DESIRES_PATH, JSON.stringify(desiresState, null, 2));
+        console.log(`[satiation-tick] 探索欲boost: ${prev.toFixed(3)} → ${desiresState.desires["探索"].toFixed(3)}`);
+      } catch {
+        // desires.json が壊れていても無視
+      }
+    }
+  }
 }
 
 await main();

@@ -54,3 +54,69 @@ Reflectaでやり残したこと
 本来は、Lv3-2データについて、他のデータとの因果が必要なのだ
 睡眠時間の短さとか、体重の多さとか。単純な今日の出来事（Lv4）がそういった気分に影響を与える。
 しかしこのあたりの因果について、実装していない。STATUSデータを実装したのは私だが、データは増やしたがその取扱いが不十分だ
+
+
+/home/mizuho/develop/familiar-ai
+
+ダウンストリーム固有ignore
+
+
+# Memory database (per-project, contains personal data)
+.claude/memories/
+
+# Autonomous action MCP config (contains credentials)
+autonomous-mcp.json
+# Note: autonomous-action.sh is tracked in wardrobe (not ignored)
+
+# Autonomous action logs and session
+.claude/logs/*.log
+.heartbeat-session-id
+heartbeat-session-id
+last-session-date.txt
+
+# User-specific config (use *.sample.conf as template)
+schedule.conf
+desires.conf
+desires.json
+
+# Google API credentials (NEVER commit)
+scripts/credentials.json
+scripts/token.json
+
+# Tuya device scan outputs (may contain device info)
+snapshot.json
+tinytuya.json
+tuya-raw.json
+devices.json
+
+# Reference implementations (cloned repos for study)
+references/
+
+# Skill experience files (downstream-specific, not tracked)
+# Template (ExperienceTemplate.md) is tracked; individual .exp.md files are not
+.claude/commands/*.exp.md
+
+
+# Legacy log dirs (kept for safety)
+workingLogs/*.log
+
+# Temporary files (tmp/.keep is tracked)
+tmp/*
+!tmp/.keep
+
+# Turn counter (session-specific)
+.claude/.turn-count
+
+# Working directories (.keep is tracked)
+.claude/workingDirs/*
+!.claude/workingDirs/.keep
+
+# ダウンストリーム固有ファイル（アップストリームにはpushしない）
+ROUTINES.md
+SOUL.md
+state.md
+FLASH.md
+TODO.md
+
+# 経験ファイル（ダウンストリーム固有）
+*.exp.md

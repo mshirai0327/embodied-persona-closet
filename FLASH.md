@@ -19,6 +19,9 @@ ted.md詳細版読書 6層行動選択フィルター アイデンティティ�
 STATUS.md satiation=35（読書摂取+12）mood=74（朝の好奇心）
 heartbeat行動選択フィルター設計草案 digest/intake/reflect/explore/create/maintain/connect agent_memo
 consolidate 48h 19件 2件昇格 1件開示検出
+エピソード「heartbeat設計の進化 2026-04-09」2件 ID=7ba3c5ed
+interoception STATUS行動フィルター出力確認 実際に動作 satiation=0 energy=30 explore/intake優先
+desires.conf「探索」追加 satiation-tick boost<30 status-hint.ts新規 {STATUS_HINT} autonomous-action prompts.toml 6時間hardlock timeout 30 heartbeat-daemon Linux常駐課題
 
 ### 水曜 (04/08)
 受動的知覚 表現vs知覚 センサー→内的状態 CPU温度→energy 明るさ→mood environment-tick satiation heartbeat選択肢狭い Claude障害夜

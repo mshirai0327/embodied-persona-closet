@@ -18,6 +18,34 @@ memmoryMCPを差し替えなくても周辺エコシステムはインターフ�
 
 ---
 
+## 記憶データの移植とバックアップ
+
+wardrobe の記憶本体は、通常は各プロジェクト配下の `.claude/memories/memory.db` に保存されます。
+
+別マシンや別 wardrobe プロジェクトへ記憶を持っていくときは、`memory.db` をそのまま雑にコピーするより、`memory-mcp` 付属のエクスポートスクリプトでスナップショットを切るほうが安全です。
+
+```bash
+cd .claude/mcps/memory-mcp
+uv run python scripts/export_sqlite_snapshot.py \
+    --dest /tmp/memory-portable.db
+```
+
+このスクリプトは SQLite backup API を使って、WAL の内容も含めた一貫した `.db` ファイルを作ります。できた `/tmp/memory-portable.db` を移植先の `.claude/memories/memory.db` に置けば、そのまま使えます。
+
+一緒に持っていくと便利なもの:
+
+- `FLASH.md` — 記憶の逆引き索引
+- `memo/discussionMemo/` — 日次の会話要約
+
+感覚記憶について:
+
+- 視覚記憶は低解像度の `image_data` が DB 内に入る
+- 音声記憶は `sensory_data.file_path` で元ファイルを参照するので、必要なら音声ファイルも別途移す
+
+詳細は `.claude/mcps/memory-mcp/README.md` の `Portable SQLite Export` 節を参照。
+
+---
+
 ## wardrobe が提供するもの
 
 ### 記憶エコシステム

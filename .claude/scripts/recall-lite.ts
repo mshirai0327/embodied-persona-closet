@@ -12,10 +12,9 @@
  */
 
 import { Database } from "bun:sqlite";
+import { resolveMemoryDbPath } from "./memory-db-path";
 
-const DB_PATH =
-  process.env.MEMORY_DB_PATH ||
-  `${process.env.HOME}/.claude/memories/memory.db`;
+const DB_PATH = resolveMemoryDbPath({ scriptDir: import.meta.dir });
 
 interface MemoryRow {
   id: string;

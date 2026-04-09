@@ -23,10 +23,11 @@
 ### スクリプト
 - **recall-watcher.ts** — リアルタイム想起ウォッチャー。`ccconv talk --watch` のパイプから発言を受け取り、キーワード抽出 → memory MCP recall → バッファ書き出し
 - **recall-lite.ts** — 軽量自動想起。bun:sqlite で直接検索（embedding 不使用）。3軸: 直近重要記憶・高頻度アクセス・未完了タスク。autonomous-action.sh から注入
+- **export_sqlite_snapshot.py** — `memory.db` の一貫した SQLite スナップショットを出力。WAL を含めて別マシン・別プロジェクトへ移植するときに使う
 
 ### ファイル
 - **FLASH.md** — 記憶の逆引き索引。LLM の後方予測の弱さを補う。今週は曜日単位、古くなるにつれ粗くなる
-- **memories/memory.db** — SQLite 記憶データベース（保護対象）
+- **.claude/memories/memory.db** — SQLite 記憶データベース（保護対象）
 
 ## 設計思想
 
@@ -73,6 +74,16 @@ recall-watcher.ts (バックグラウンド常駐)
     → 身支度手順を注入
     → SOUL.md 再読 → recall_divergent → 文脈復元
 ```
+
+### 移植フロー
+```
+別の wardrobe に記憶を引っ越したい
+  → export_sqlite_snapshot.py で snapshot を作る
+  → 移植先の .claude/memories/memory.db に配置
+  → 必要なら FLASH.md / memo/discussionMemo/ もコピー
+```
+
+`memory-mcp` は SQLite WAL モードを使うため、`memory.db` だけを手でコピーするより backup API ベースのスナップショット出力を推奨する。
 
 ## 関連するシステム
 

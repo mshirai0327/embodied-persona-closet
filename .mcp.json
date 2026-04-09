@@ -12,10 +12,10 @@
       "args": ["run", "--directory", ".claude/mcps/tts-mcp", "tts-mcp"],
       "env": {
         "CLAUDE_PROJECT_DIR": "${PWD}",
-        "ELEVENLABS_API_KEY": "your-api-key",
         "VOICEVOX_URL": "http://localhost:50021",
         "VOICEVOX_SPEAKER": "10",
-        "TTS_PLAYBACK": "auto"
+        "TTS_PLAYBACK": "auto",
+        "TTS_DEFAULT_ENGINE": "voicevox"
       }
     },
     "usb-webcam": {

@@ -323,6 +323,16 @@ else
   echo "通常回 (RAND=$ROUTINE_RAND >= $ROUTINE_THRESHOLD)" >> "$LOG_FILE"
 fi
 
+# --- 充足感の減衰（satiation-tick） ---
+if [ "$SKIP_SCHEDULE" = false ]; then
+  bun run "$SCRIPT_DIR/.claude/scripts/satiation-tick.ts" >> "$LOG_FILE" 2>/dev/null
+fi
+
+# --- 環境センサー → 内的状態（environment-tick） ---
+if [ "$SKIP_SCHEDULE" = false ]; then
+  bun run "$SCRIPT_DIR/.claude/scripts/environment-tick.ts" >> "$LOG_FILE" 2>/dev/null
+fi
+
 # --- 欲望システム（内部衝動） ---
 DESIRE_PROMPT=""
 if [ "$SKIP_SCHEDULE" = false ]; then
@@ -354,6 +364,15 @@ if [ "$SKIP_SCHEDULE" = false ]; then
   RECALL_LITE_TEXT=$(bun run "$SCRIPT_DIR/.claude/scripts/recall-lite.ts" 2>/dev/null)
   if [ -n "$RECALL_LITE_TEXT" ]; then
     echo "[recall-lite] $(echo "$RECALL_LITE_TEXT" | head -n1)" >> "$LOG_FILE"
+  fi
+fi
+
+# --- STATUS.md 行動ヒント（status-hint） ---
+STATUS_HINT_TEXT=""
+if [ "$SKIP_SCHEDULE" = false ]; then
+  STATUS_HINT_TEXT=$(bun run "$SCRIPT_DIR/.claude/scripts/status-hint.ts" 2>/dev/null)
+  if [ -n "$STATUS_HINT_TEXT" ]; then
+    echo "[status-hint] $STATUS_HINT_TEXT" >> "$LOG_FILE"
   fi
 fi
 
@@ -396,6 +415,12 @@ if [ -n "$RECALL_LITE_TEXT" ]; then
 $RECALL_LITE_TEXT"
 fi
 
+STATUS_HINT_SECTION=""
+if [ -n "$STATUS_HINT_TEXT" ]; then
+  STATUS_HINT_SECTION="
+$STATUS_HINT_TEXT"
+fi
+
 MORNING_SECTION=""
 if [ "$IS_FIRST_SESSION_TODAY" = true ]; then
   _MORNING=$(LOAD_PROMPT morning_section)
@@ -424,6 +449,7 @@ if [ -n "$_PROMPT_TEMPLATE" ]; then
     TIME_RULE="$TIME_RULE" \
     INTEROCEPTION_SECTION="$INTEROCEPTION_SECTION" \
     RECALL_LITE_SECTION="$RECALL_LITE_SECTION" \
+    STATUS_HINT_SECTION="$STATUS_HINT_SECTION" \
     bun -e "
 const tmpl = process.env.TMPL;
 const result = tmpl
@@ -432,7 +458,8 @@ const result = tmpl
   .replace('{DESIRE_SECTION}', process.env.DESIRE_SECTION ?? '')
   .replace('{TIME_RULE}', process.env.TIME_RULE ?? '')
   .replace('{INTEROCEPTION}', process.env.INTEROCEPTION_SECTION ?? '')
-  .replace('{RECALL_LITE}', process.env.RECALL_LITE_SECTION ?? '');
+  .replace('{RECALL_LITE}', process.env.RECALL_LITE_SECTION ?? '')
+  .replace('{STATUS_HINT}', process.env.STATUS_HINT_SECTION ?? '');
 process.stdout.write(result);
 " 2>/dev/null)
 fi
@@ -452,7 +479,7 @@ ${DESIRE_SECTION}
 ## 補足ルール
 - ${TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査せよ
-${INTEROCEPTION_SECTION}${RECALL_LITE_SECTION}"
+${INTEROCEPTION_SECTION}${RECALL_LITE_SECTION}${STATUS_HINT_SECTION}"
 fi
 
 cd "$SCRIPT_DIR"

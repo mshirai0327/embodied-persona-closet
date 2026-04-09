@@ -5,6 +5,8 @@ import { existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { parseArgs } from "util";
 
+import { resolveMemoryDbPath } from "./memory-db-path";
+
 interface MemoryRow {
   id: string;
   content: string;
@@ -28,9 +30,7 @@ const STATE_PATH = resolve(
   PROJECT_ROOT,
   ".claude/workingDirs/discussion-memo-state.json"
 );
-const DEFAULT_DB_PATH =
-  process.env.MEMORY_DB_PATH ||
-  `${process.env.HOME}/.claude/memories/memory.db`;
+const DEFAULT_DB_PATH = resolveMemoryDbPath({ scriptDir: import.meta.dir });
 const MAX_RECENT_MEMORIES = 200;
 const MAX_DETAIL_LINES = 8;
 

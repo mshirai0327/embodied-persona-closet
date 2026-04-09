@@ -7,6 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  typecheck-scripts:
+    name: Typecheck Bun scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check scripts
+        run: bun run typecheck:scripts
+
   test-memory-mcp:
     name: Test memory-mcp
     runs-on: ubuntu-latest

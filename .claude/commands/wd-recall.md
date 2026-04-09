@@ -39,7 +39,7 @@ Agent ツールで以下のプロンプトを渡す（model: haiku）:
    または bun:sqlite で直接検索:
    bun -e "
    import { Database } from 'bun:sqlite';
-   const db = new Database('memories/memory.db');
+   const db = new Database('.claude/memories/memory.db');
    const rows = db.query(\"SELECT timestamp, substr(content,1,300) FROM memories WHERE content LIKE '%キーワード%' ORDER BY timestamp DESC LIMIT 10\").all();
    for (const r of rows) console.log(r.timestamp.slice(0,10), r['substr(content,1,300)']);
    "

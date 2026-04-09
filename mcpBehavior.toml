@@ -10,7 +10,7 @@ capture_dir = "/tmp/wifi-cam-mcp"
 onvif_port = 2020
 
 [tts]
-default_engine = ""            # "elevenlabs", "voicevox", or "" (auto)
+default_engine = "voicevox"    # "elevenlabs", "voicevox", or "" (auto)
 playback = "auto"              # "auto", "stream", "paplay", "ffplay"
 play_audio = true
 save_dir = "/tmp/tts-mcp"
@@ -23,7 +23,7 @@ go2rtc_ffmpeg = "ffmpeg"
 go2rtc_auto_start = true
 
 [memory]
-db_path = ""                   # "" = default (~/.claude/memories/memory.db)
+db_path = ""                   # "" = default (CLAUDE_PROJECT_DIR/.claude/memories/memory.db, fallback: ~/.claude/memories/memory.db)
 collection_name = "claude_memories"
 embedding_model = "intfloat/multilingual-e5-base"
 enable_bm25 = true

@@ -35,7 +35,7 @@ uv run memory-mcp
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEMORY_DB_PATH` | `~/.claude/memories/memory.db` | SQLite database path |
+| `MEMORY_DB_PATH` | `CLAUDE_PROJECT_DIR/.claude/memories/memory.db` if available, otherwise `~/.claude/memories/memory.db` | SQLite database path |
 
 ## Migrating from ChromaDB
 
@@ -62,6 +62,32 @@ The script migrates:
 - Episodes
 
 > **Note**: The migration script temporarily installs `chromadb` as a dev dependency. It is not needed for normal operation and should be removed after migration.
+
+## Portable SQLite Export
+
+To move memory data to another machine or another wardrobe project, export a
+portable SQLite snapshot first:
+
+```bash
+cd .claude/mcps/memory-mcp
+uv run python scripts/export_sqlite_snapshot.py \
+    --dest /tmp/memory-portable.db
+```
+
+This is safer than copying `memory.db` by hand because memory-mcp uses SQLite
+WAL mode. The backup API produces one consistent file that already includes
+recent WAL contents.
+
+Typical transplant flow:
+
+1. Export a snapshot on the source side.
+2. Copy the snapshot to the destination project's `.claude/memories/memory.db`.
+3. If you also want recall indexes and daily summaries, copy `FLASH.md` and
+   `memo/discussionMemo/`.
+4. If you rely on sensory memories, note that:
+   - visual memories keep a low-resolution `image_data` copy inside SQLite
+   - audio memories still reference external files via `sensory_data.file_path`
+   - original image/audio files may need to be copied separately
 
 ## Tools
 

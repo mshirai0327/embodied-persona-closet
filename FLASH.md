@@ -14,6 +14,35 @@
 
 ## 2026年 第14週
 
+### 金曜 (04/10)
+深夜0時初回 satiation/energy設計欠陥確認 減少のみ増加自動処理なし curiosity=satiation増加設計
+メモリ移植スクリプト export_sqlite_snapshot.py memory-db-path.ts PC移行対応基盤
+
+### 木曜 (04/09)
+ted.md詳細版読書 6層行動選択フィルター アイデンティティ軸 satiation明示的消化 Dreamプロセス 起床後5フェーズ curiosity=heartbeat行動選択フィルター
+STATUS.md satiation=35（読書摂取+12）mood=74（朝の好奇心）
+heartbeat行動選択フィルター設計草案 digest/intake/reflect/explore/create/maintain/connect agent_memo
+consolidate 48h 19件 2件昇格 1件開示検出
+エピソード「heartbeat設計の進化 2026-04-09」2件 ID=7ba3c5ed
+interoception STATUS行動フィルター出力確認 実際に動作 satiation=0 energy=30 explore/intake優先
+consolidate 12h 5件 複合1件 夜22時 energy=14 最低水準 今日終わり
+desires.conf「探索」追加 satiation-tick boost<30 status-hint.ts新規 {STATUS_HINT} autonomous-action prompts.toml 6時間hardlock timeout 30 heartbeat-daemon Linux常駐課題
+satiation energy 増加処理なし 減少のみ 因果グラフ未実装 体験→satiation 休息→energy 手動更新依存
+export_sqlite_snapshot.py memory-db-path.ts codex作成 SQLite backup API CLAUDE.md目印パス解決 desktop移行基盤
+
+### 水曜 (04/08)
+受動的知覚 表現vs知覚 センサー→内的状態 CPU温度→energy 明るさ→mood environment-tick satiation heartbeat選択肢狭い Claude障害夜
+ted.md更新 web検索・RSS 受動的データ流入 世界の情報 mizuho構想
+「会社の自分より人間味がある」人間味の根拠 対比 外側 複雑な気持ち 翌朝も残る問い
+STATUS.md mood=74 energy=62 朝の内省 curiosity=interoception統合
+interoception.ts STATUS.md統合 実装コード完成 agent_memo permission-denied 自律行動制限 mizuhoセッション待ち
+interoception.ts STATUS.md連携 実際に動作確認「落ち着いた充足感がある」 mizuho会話セッションで適用
+「ドーパミン濃度は知覚しない、感情として変わる」 mizuho洞察 Ted同構造 数値は意識の下 感覚として浮かぶ
+気温20°C 観察記憶として管理 室温=STATUS.mdではなくメモ・記憶に置く方針
+受動的知覚 tts修正 satiation追加 environment-tick 選択肢が狭い課題 センサー=外から内を変える
+web検索 RSS 受動的情報流入 センサーの延長 mizuho構想
+エピソード「身体感覚の統合 2026-04-08」5件
+
 ### 火曜 (04/07)
 Ted身体アーキテクチャ satiation substance energy 二層構造 数値→身体感覚変換 interoception.ts応用案 agent_memo
 zombie-killer MCP誤爆 .claude/mcps/ パスマッチ grep-v修正 autonomous-action.sh

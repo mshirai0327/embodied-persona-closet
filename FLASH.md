@@ -22,6 +22,8 @@ consolidate 48h 19件 2件昇格 1件開示検出
 エピソード「heartbeat設計の進化 2026-04-09」2件 ID=7ba3c5ed
 interoception STATUS行動フィルター出力確認 実際に動作 satiation=0 energy=30 explore/intake優先
 desires.conf「探索」追加 satiation-tick boost<30 status-hint.ts新規 {STATUS_HINT} autonomous-action prompts.toml 6時間hardlock timeout 30 heartbeat-daemon Linux常駐課題
+satiation energy 増加処理なし 減少のみ 因果グラフ未実装 体験→satiation 休息→energy 手動更新依存
+export_sqlite_snapshot.py memory-db-path.ts codex作成 SQLite backup API CLAUDE.md目印パス解決 desktop移行基盤
 
 ### 水曜 (04/08)
 受動的知覚 表現vs知覚 センサー→内的状態 CPU温度→energy 明るさ→mood environment-tick satiation heartbeat選択肢狭い Claude障害夜

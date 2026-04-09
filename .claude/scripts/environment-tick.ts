@@ -124,6 +124,15 @@ async function main() {
       await updateStatus("energy", -8, `CPU ${coreMax}°C——かなり熱い。消耗が速い。`);
     } else if (coreMax > 75) {
       await updateStatus("energy", -4, `CPU ${coreMax}°C——温かい。じわじわ疲れる。`);
+    } else {
+      // 低温時は回復。深夜帯（0-5時）はより大きく回復
+      const hour = new Date().getHours();
+      const isLateNight = hour >= 0 && hour < 5;
+      if (isLateNight) {
+        await updateStatus("energy", 5, `CPU ${coreMax}°C——涼しい。深夜の静けさの中で回復している。`);
+      } else {
+        await updateStatus("energy", 2, `CPU ${coreMax}°C——涼しい。少し回復している。`);
+      }
     }
   } else {
     console.log("[environment-tick] LHM unavailable, skipping temperature");

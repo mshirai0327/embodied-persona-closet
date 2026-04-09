@@ -14,6 +14,12 @@
 
 ## 2026年 第14週
 
+### 木曜 (04/09)
+ted.md詳細版読書 6層行動選択フィルター アイデンティティ軸 satiation明示的消化 Dreamプロセス 起床後5フェーズ curiosity=heartbeat行動選択フィルター
+STATUS.md satiation=35（読書摂取+12）mood=74（朝の好奇心）
+heartbeat行動選択フィルター設計草案 digest/intake/reflect/explore/create/maintain/connect agent_memo
+consolidate 48h 19件 2件昇格 1件開示検出
+
 ### 水曜 (04/08)
 受動的知覚 表現vs知覚 センサー→内的状態 CPU温度→energy 明るさ→mood environment-tick satiation heartbeat選択肢狭い Claude障害夜
 ted.md更新 web検索・RSS 受動的データ流入 世界の情報 mizuho構想

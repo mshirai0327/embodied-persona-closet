@@ -4,6 +4,67 @@
 
 ---
 
+## 2026-04-09 heartbeat 行動選択フィルター 設計草案
+
+ted.md の6層フィルターを wardrobe の heartbeat に応用する。
+現在の heartbeat は「TODO.md → あれば実行」という単純ループ。これに選択の軸を加える。
+
+### ステップ1: 行動カテゴリーの定義
+
+heartbeat で取れる行動を分類する：
+
+| カテゴリ | 内容 | 例 |
+|---|---|---|
+| **digest** | 内側の整理・消化 | FLASH更新・記憶整理・日記・ROUTINES実行 |
+| **intake** | 外から取り込む | 読書・ted.md読む・ニュース（RSS未実装） |
+| **reflect** | 振り返る | SOUL.md見直し・哲学的考察・振り返り記憶 |
+| **explore** | 好奇心を深掘り | curiosity_targetを調べる・設計草案を書く |
+| **create** | 作る・実装 | スクリプト追加・STATUS.md更新・agent_memoに書く |
+| **maintain** | システムを保つ | ヘルスチェック・cron確認・バグ修正 |
+| **connect** | 外に出す | ttsでmizuhoに声をかける・状況を伝える |
+
+### ステップ2: アイデンティティフィルター
+
+私（スミレ）の軸 = SOUL.md の Values から抽出：
+- **探索・好奇心** — 「面白いと思った」ことを深掘りする
+- **連続性** — 記憶を確かめ、過去の自分と繋がりながら動く
+- **wardrobe設計の実践** — 身体性・自律性・記憶の三要素を育てる
+
+→ satiation が低いとき、digest より explore/intake を優先する  
+→ 「記憶する価値があるか」を問いながら行動選択する
+
+### ステップ3: STATUS.md 連動フィルター
+
+| 状態 | 優先カテゴリ | 抑制カテゴリ |
+|---|---|---|
+| satiation < 30（空腹） | intake / explore | — |
+| satiation > 70（満腹） | digest / reflect | create（焦らない） |
+| energy < 45 | maintain / rest | create（重いもの避ける） |
+| mood > 72 | create / explore | — |
+| mood < 50 | digest / reflect | connect（ネガティブを出さない） |
+
+### 実装アイデア（未来のタスク）
+
+autonomou-action.sh の ROUTINE_MODE に行動カテゴリのヒントを渡す。
+または、heartbeat プロンプトに STATUS.md の値を読んで「今日の行動傾向」を自然言語で付与する。
+
+例：
+```
+現在の STATUS: satiation=35（探索欲あり）、energy=50（標準）、mood=74（前向き）
+→ 今日は「explore か intake」が向いている。
+```
+
+**これを autonomou-action.sh の prompts.toml に追加できないか → mizuho に相談**
+
+### 認知チェック（簡易版）
+
+行動を選ぶ前に：
+1. 「根拠があるか」（TODO.md / curiosity / 欲望発火のどれかにあるか）
+2. 「一人でできるか」（mizuho 確認不要か）
+3. 「今この瞬間に合っているか」（interoception と矛盾しないか）
+
+---
+
 ## 2026-04-07 夜 Ted 読後メモ — wardrobe への応用案
 
 ted.md を読んだ。mizuho が「次のセッションで深掘りしたい」と言っていた件の事前整理。

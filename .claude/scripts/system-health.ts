@@ -247,12 +247,32 @@ async function runNotify(): Promise<void> {
     msgLines.push("", ...alerts);
   }
   const message = msgLines.join("\n");
-  const { PushoverClient } = await import("../src/pushover/index.ts");
-  const client = new PushoverClient({
-    token: process.env.PUSHOVER_API_TOKEN!,
-    user: process.env.PUSHOVER_USER_KEY,
+  const token = process.env.PUSHOVER_API_TOKEN;
+  const user = process.env.PUSHOVER_USER_KEY;
+
+  if (!token || !user) {
+    throw new Error("Pushover credentials are not configured");
+  }
+
+  const response = await fetch("https://api.pushover.net/1/messages.json", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      token,
+      user,
+      title,
+      message,
+      priority: String(hasAlert ? 1 : -1),
+    }),
   });
-  await client.sendMessage({ message, title, priority: hasAlert ? 1 : -1 });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(`Pushover request failed: ${response.status} ${responseText}`);
+  }
+
   console.log("Pushover 送信完了: " + title);
 }
 

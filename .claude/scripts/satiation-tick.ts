@@ -17,8 +17,8 @@
 import { readStatusSnapshot, setStatusValue } from "./status-store";
 
 const SCRIPT_DIR = import.meta.dir;
-const DECAY_PER_HOUR = 3;
-const INTAKE_PER_HOUR = 3;
+const DECAY_PER_HOUR = 2;
+const INTAKE_PER_HOUR = 5; // トータルで回復傾向に向かわせるのための調整
 const INTAKE_CAP = 80;
 const DESIRES_PATH = process.env.WARDROBE_DESIRES_PATH?.trim() ?? `${SCRIPT_DIR}/../../desires.json`;
 
@@ -47,9 +47,9 @@ async function main() {
 
   const stateText =
     newValue >= 80 ? "満ちている。消化したい感覚がある。" :
-    newValue >= 55 ? "適度に満たされている。" :
-    newValue >= 30 ? "何かを欲している。" :
-    "空っぽに近い。新しいものを探したい。";
+      newValue >= 55 ? "適度に満たされている。" :
+        newValue >= 30 ? "何かを欲している。" :
+          "空っぽに近い。新しいものを探したい。";
 
   const adjustmentParts = [`時間経過による自動減衰（-${decay}）`];
   if (intake > 0) {

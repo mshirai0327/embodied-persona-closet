@@ -11,7 +11,8 @@
  * CPU Core Max 温度 → energy:
  *   > 85°C : -8  (かなり熱い、消耗が速い)
  *   75-85°C: -4  (温かい、じわじわ疲れる)
- *   < 75°C : 0   (変化なし)
+ *   < 75°C : +2  (涼しい、少し回復)
+ *   深夜0-5時かつ < 75°C: +5 (静かな時間帯の回復)
  *
  * カメラ平均輝度 (0-255) → mood:
  *   > 150 : +2  (明るい空間)
@@ -21,8 +22,9 @@
 
 import { $ } from "bun";
 
+import { adjustStatusValue } from "./status-store";
+
 const SCRIPT_DIR = import.meta.dir;
-const STATUS_PATH = `${SCRIPT_DIR}/../../STATUS.md`;
 const LHM_URL = "http://localhost:8085/data.json";
 const WEBCAM_MCP_DIR = `${SCRIPT_DIR}/../mcps/usb-webcam-mcp`;
 const BRIGHTNESS_SCRIPT = `${SCRIPT_DIR}/capture-brightness.py`;
@@ -69,48 +71,14 @@ async function getRoomBrightness(): Promise<number | null> {
 
 // ── STATUS.md のフィールドを更新 ──
 
-const FIELD_LABELS: Record<string, string> = {
-  energy: "energy（活力）",
-  mood: "mood（気分）",
-};
+async function updateStatus(field: "energy" | "mood", delta: number, reason: string) {
+  const result = await adjustStatusValue(field, delta, { reason });
+  if (!result || !result.changed) return;
 
-async function updateStatus(field: string, delta: number, reason: string) {
-  const label = FIELD_LABELS[field];
-  if (!label) return;
-
-  const file = Bun.file(STATUS_PATH);
-  if (!(await file.exists())) return;
-  const text = await file.text();
-  const lines = text.split("\n");
-
-  const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
-  let updatedLines: string[] | null = null;
-
-  const pattern = new RegExp(`^\\| ${label.replace(/[()]/g, "\\$&")} \\| (\\d+) \\|`);
-
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(pattern);
-    if (m) {
-      const current = parseInt(m[1]);
-      const newVal = Math.max(0, Math.min(100, current + delta));
-      if (newVal === current) return;
-      lines[i] = `| ${label} | ${newVal} | ${nowStr} | ${reason} |`;
-      updatedLines = lines;
-      console.log(`[environment-tick] ${field}: ${current} → ${newVal} (${delta > 0 ? "+" : ""}${delta})`);
-      const historyEntry = `| ${nowStr} | ${field} | ${current} | ${newVal} | ${reason} |`;
-      for (let j = i + 1; j < lines.length; j++) {
-        if (lines[j].match(/^\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \|/)) {
-          updatedLines.splice(j, 0, historyEntry);
-          break;
-        }
-      }
-      break;
-    }
-  }
-
-  if (updatedLines) {
-    await Bun.write(STATUS_PATH, updatedLines.join("\n"));
-  }
+  const actualDelta = result.nextValue - result.previousValue;
+  console.log(
+    `[environment-tick] ${field}: ${result.previousValue} → ${result.nextValue} (${actualDelta > 0 ? "+" : ""}${actualDelta})`
+  );
 }
 
 // ── メイン ──

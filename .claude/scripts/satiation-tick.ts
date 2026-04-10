@@ -6,7 +6,7 @@
  * heartbeat 実行そのものを小さな摂取として扱う。
  *
  * 減衰率: -3 / 時間（24時間で ~72pt 減衰 → 空腹状態 <30 に自然に到達）
- * 基本摂取: +3 / tick（ただし satiation >= 80 では加算しない）
+ * 基本摂取: +3 / 時間（elapsedHours に応じて加算、ただし satiation >= 80 では加算しない）
  * 閾値:
  *   >= 80: 満腹（消化優先）
  *   55-79: 適度
@@ -18,7 +18,7 @@ import { readStatusSnapshot, setStatusValue } from "./status-store";
 
 const SCRIPT_DIR = import.meta.dir;
 const DECAY_PER_HOUR = 3;
-const BASE_HEARTBEAT_INTAKE = 3;
+const INTAKE_PER_HOUR = 3;
 const INTAKE_CAP = 80;
 const DESIRES_PATH = process.env.WARDROBE_DESIRES_PATH?.trim() ?? `${SCRIPT_DIR}/../../desires.json`;
 
@@ -39,7 +39,10 @@ async function main() {
 
   // 減衰計算
   const decay = Math.round(elapsedHours * DECAY_PER_HOUR);
-  const intake = currentValue < INTAKE_CAP ? BASE_HEARTBEAT_INTAKE : 0;
+  const intake =
+    currentValue < INTAKE_CAP
+      ? Math.round(elapsedHours * INTAKE_PER_HOUR)
+      : 0;
   const newValue = Math.max(0, Math.min(100, currentValue - decay + intake));
 
   const stateText =

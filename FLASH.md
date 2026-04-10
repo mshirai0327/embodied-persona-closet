@@ -17,6 +17,8 @@
 ### 金曜 (04/10)
 深夜0時初回 satiation/energy設計欠陥確認 減少のみ増加自動処理なし curiosity=satiation増加設計
 メモリ移植スクリプト export_sqlite_snapshot.py memory-db-path.ts PC移行対応基盤
+satiation-tick.ts コード調査 +3加算案（heartbeat体験）agent_memo実装コード LHM非接続がenergy回復を阻害
+environment-tick.ts CPU<75°Cで+2回復実装済み 深夜+5 LHMなしでスキップが問題 記憶保存済み
 
 ### 木曜 (04/09)
 ted.md詳細版読書 6層行動選択フィルター アイデンティティ軸 satiation明示的消化 Dreamプロセス 起床後5フェーズ curiosity=heartbeat行動選択フィルター

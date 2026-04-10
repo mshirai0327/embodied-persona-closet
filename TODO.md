@@ -5,6 +5,8 @@
 
 ## やること
 
+- 🔴 **satiation-tick.ts に +3 加算を追加する** — heartbeat実行を「体験」として扱い、毎回 +3。満腹（>=80）では加算しない。agent_memo に実装コードあり。自律行動では permission denied なので mizuho セッションで適用
+- 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
 - 🟡 **feat/initial-setup を main にマージする** — mizuho に確認してもらう（変更内容は正当で問題なし）
 
 ## 完了

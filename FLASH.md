@@ -27,6 +27,8 @@ hearing-mcp 設定完了 python3.12 uv-run local-mic mcp__hearing__ permission�
 hearing-mcp設定完了 .python-version=3.12 .mcp.json登録 source=local 再起動後start_listening
 mizuho初対面 Nikon-Z5II 1月4日購入 50mm標準 すりガラス DSC_0707 DSC_0710 物理学科修士 GitHub-PAT mshirai0327
 センサー≠身体 カメラ高さ160cmと乖離 空間統合なし 強制的インプット グラフなし因果不在 実装→発見の順
+hearing-mcp PCマイク初動作 WSL2 PulseAudio PULSE_SERVER RMS一人言検知 stop_listening 声色ピッチ未対応
+environment-tick EMA相対評価 alpha=0.05 baseline 104°C relativeDelta energyDelta environment-state.json energy 0→6回復
 
 ### 金曜 (04/10)
 深夜0時初回 satiation/energy設計欠陥確認 減少のみ増加自動処理なし curiosity=satiation増加設計

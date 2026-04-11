@@ -86,6 +86,8 @@ brew install ffmpeg
 # ── 録音・転写 ──────────────────────────────────────
 whisper_model = "small"            # Whisper モデル (tiny/base/small/medium/large)
 source = "camera"                  # 音声ソース: "local" (PC マイク) or "camera" (RTSP)
+local_input_format = ""            # 任意。WSL/特殊環境で ffmpeg 入力形式を明示する
+local_input_device = ""            # 任意。入力デバイス名/ソース名を明示する
 segment_seconds = 3                # ffmpeg セグメント長 (秒)。短いほど低遅延だが CPU 負荷増
 language = "ja"                    # Whisper の言語ヒント
 vad_energy_threshold = 0.003       # RMS エネルギー閾値。0 で無効。カメラマイクは音量が
@@ -105,6 +107,11 @@ llm_filter = false                 # true: claude -p (haiku) でハルシネー�
                                    # 精度は高いが 10〜20 秒のレイテンシが加わる
 llm_filter_timeout = 20            # LLM フィルタのタイムアウト秒数
 ```
+
+`source = "local"` のとき、macOS は `avfoundation`、通常 Linux は `alsa` を使う。
+WSL2/WSLg では `pulse` を優先し、失敗したときだけ `alsa` を試す。
+それでもマイクが見つからない場合は `local_input_format = "pulse"` と
+`local_input_device = "<source-name>"` を設定して明示指定する。
 
 ## Architecture
 

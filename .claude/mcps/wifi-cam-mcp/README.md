@@ -21,6 +21,7 @@ Tapo C210などのWiFiカメラをMCP経由で制御して、AIに部屋を見�
 | `camera_info` | カメラ情報取得 |
 | `camera_presets` | プリセット位置一覧 |
 | `camera_go_to_preset` | プリセット位置に移動 |
+| `listen` | 数秒だけ音を録音し、必要なら文字起こし |
 
 ## セットアップ
 
@@ -173,6 +174,9 @@ uv run pytest
 - **Python版**: pytapoは非公式ライブラリのため、TP-Linkの仕様変更で動作しなくなる可能性があります
 - カメラはローカルネットワーク内からのみアクセス可能です
 - 認証情報（.envファイル）は絶対にGitにコミットしないでください
+- `MIC_SOURCE=local` のとき、WSL2/WSLg では PulseAudio を優先し、必要なら
+  `[wifi-cam] local_input_format` / `local_input_device` または
+  `WIFI_CAM_LOCAL_INPUT_FORMAT` / `WIFI_CAM_LOCAL_INPUT_DEVICE` で明示指定できます
 
 ## ライセンス
 

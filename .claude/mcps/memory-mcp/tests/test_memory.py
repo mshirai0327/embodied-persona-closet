@@ -284,6 +284,11 @@ class TestAutoLinking:
             assert mem1_updated is not None
             assert mem2.id in mem1_updated.linked_ids
 
+        working_memory = memory_store.get_working_memory()
+        recent = await working_memory.get_recent(1)
+        assert recent
+        assert recent[0].id == mem2.id
+
     @pytest.mark.asyncio
     async def test_get_linked_memories(self, memory_store: MemoryStore):
         """Test retrieving linked memories."""
@@ -316,6 +321,26 @@ class TestAutoLinking:
         )
 
         assert len(results) >= 1
+
+    @pytest.mark.asyncio
+    async def test_refresh_working_memory_reloads_recent_memories(
+        self,
+        memory_store: MemoryStore,
+    ):
+        """Test refresh repopulates recent memories after the buffer is cleared."""
+        remembered = await memory_store.save_with_auto_link(
+            content="次回も続けたい実装メモ",
+            importance=3,
+        )
+
+        working_memory = memory_store.get_working_memory()
+        await working_memory.clear()
+        assert working_memory.size() == 0
+
+        await working_memory.refresh_important(memory_store)
+
+        reloaded = await working_memory.get_all()
+        assert any(memory.id == remembered.id for memory in reloaded)
 
 
 class TestSearchWithScoring:

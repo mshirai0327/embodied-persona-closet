@@ -67,9 +67,10 @@ class WorkingMemoryBuffer:
         self,
         memory_store: "MemoryStore",
     ) -> None:
-        """重要な記憶を長期記憶から再ロード.
+        """重要記憶と最近の記憶を長期記憶から再ロード.
 
-        以下の条件を満たす記憶を再ロード：
+        再起動後のセッション継続性のため、以下を作業記憶へ補充する：
+        - 直近の記憶
         - importance >= 4
         - access_count >= 5
         - last_accessed が直近1週間以内
@@ -77,13 +78,11 @@ class WorkingMemoryBuffer:
         Args:
             memory_store: 長期記憶ストア
         """
-        # 直近1週間の閾値
         one_week_ago = (
             datetime.now(timezone.utc) - timedelta(days=7)
         ).isoformat()
 
-        # 重要度の高い記憶を検索
-        # （memory_storeのメソッドを使う - 実装はmemory.pyで）
+        recent_memories = await memory_store.list_recent(limit=5)
         important_memories = await memory_store.search_important_memories(
             min_importance=4,
             min_access_count=5,
@@ -91,12 +90,15 @@ class WorkingMemoryBuffer:
             n_results=10,
         )
 
+        memories_to_add = list(reversed(recent_memories)) + list(reversed(important_memories))
+
         # バッファに追加（重複排除）
         async with self._lock:
             existing_ids = {m.id for m in self._buffer}
-            for memory in important_memories:
+            for memory in memories_to_add:
                 if memory.id not in existing_ids:
                     self._buffer.append(memory)
+                    existing_ids.add(memory.id)
 
     def size(self) -> int:
         """現在のバッファサイズを取得.

@@ -1161,6 +1161,7 @@ class MemoryStore:
         for target_id in linked_ids:
             await self._add_bidirectional_link(memory_id, target_id)
 
+        await self._working_memory.add(memory)
         return memory
 
     # ── _add_bidirectional_link ─────────────────

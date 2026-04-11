@@ -1,265 +1,238 @@
-# STATUS.md 仕様メモ
+# autonomous-action token 消費増加 調査メモ
 
 ## 概要
 
-`STATUS.md` は、wardrobe における Lv3 の「可逆的な内的状態」を保持する Markdown ファイル。
-
-- 役割: その時点の気分・活力・充足感などを数値で持つ
-- 更新単位: heartbeat / autonomous-action 実行時、および必要に応じた手動更新
-- 参照先: interoception, status-hint, 自律行動プロンプト
-
-記憶 DB が「過去の出来事」を保持するのに対し、`STATUS.md` は「今の内部状態」を保持する。
+- 調査日: 2026-04-11
+- 対象: `cron` 実行の `autonomous-action.sh`
+- 症状: 最近、Claude の token 消費が増えた体感がある
+- 結論: 主因は `memory` の総件数増加そのものより、`--resume` による長寿命セッション継続と、最近追加されたプロンプト注入量の増加の可能性が高い
 
 ---
 
-## 現在のデータ構造
+## 結論
 
-### Lv3-1 バイタル
+### 1. `memory` の総件数増加は主因ではなさそう
 
-生物的な可変データ。現状はほぼプレースホルダ。
+`recall-lite.ts` は記憶 DB 全件をそのままプロンプトに流していない。
 
-- 体重
-- 体温
-- 睡眠時間
-- 睡眠質
+- 直近重要記憶: 最大 3 件
+- 高頻度アクセス記憶: 最大 3 件
+- 未完了タスク: 最大 3 件
+- 各本文は 80 文字で打ち切り
 
-このうち、現行コードで自動更新されているものはほぼない。
+つまり、記憶件数が 10 件から 100 件になったとしても、`recall-lite` の注入量は線形には増えない。
 
-### Lv3-2 情緒・関係性
+2026-04-11 時点の DB 実測:
 
-現在の主要フィールド。
+- 記憶件数: 46
+- 本文平均長: 270.8 文字
+- 本文最大長: 414 文字
 
-- `mood` — 気分
-- `energy` — 活力 / 消耗度
-- `health` — 健康感
-- `trust_mizuho` — mizuho への信頼
-- `satiation` — 体験の充足感
+総件数より、「最近の記憶本文が長いこと」のほうが効きやすい。
 
-各行は以下の4列を持つ。
+### 2. いちばん怪しいのは長寿命セッション
 
-- 項目名
-- 現在値
-- 最終更新日時
-- 根拠
+`autonomous-action.sh` は heartbeat ごとに新規会話を始めず、`heartbeat-session-id` を使って `claude -p --resume` している。
 
-さらに下部の「変化履歴」に、過去の変化が追記される。
+そのため、heartbeat のたびに会話履歴が伸び、input token が増え続ける構造になっている。
 
----
+ログ確認では、同じ session id が少なくとも以下の期間で継続していた。
 
-## 更新経路
+- 2026-04-09 22:00
+- 2026-04-10 00:00
+- 2026-04-10 日中
+- 2026-04-11 20:00
 
-### 1. `satiation`
+確認できた同一 session id の resume 回数は 16 回。
 
-`satiation` は自動減衰のみ実装されている。
+これは「1 回あたりの prompt が少し増えた」よりも、消費増に強く効く可能性が高い。
 
-- 実行箇所: `autonomous-action.sh`
-- スクリプト: `.claude/scripts/satiation-tick.ts`
-- 挙動:
-  - heartbeat ごとに実行
-  - 最終更新から 30 分以上経っていれば減衰
-  - 減衰率は `-3 / 時間`
-  - 下限は `0`
-  - `30` を下回った瞬間に `desires.json` の「探索」を `+0.4` boost
+### 3. 最近、heartbeat に乗る注入テキストが増えている
 
-つまり、`satiation` は「時間経過で空腹になる」方向の自動化はあるが、「何かを体験して満たされる」方向は自動化されていない。
+`autonomous-action.sh` は最近、以下を毎回組み立てるようになっている。
 
-### 2. `energy`
+- `interoception.ts`
+- `recall-lite.ts`
+- `status-hint.ts`
+- desire 系テキスト
 
-`energy` は CPU 温度から更新される。
+実測値:
 
-- 実行箇所: `autonomous-action.sh`
-- スクリプト: `.claude/scripts/environment-tick.ts`
-- センサー:
-  - Local Hardware Monitor HTTP API (`http://localhost:8085/data.json`)
-- 挙動:
-  - `Core Max > 85°C` なら `-8`
-  - `75°C < Core Max <= 85°C` なら `-4`
-  - `Core Max < 75°C` なら `0`
+- `recall-lite.ts` 出力: 約 1010 bytes
+- `status-hint.ts` 出力: 約 242 bytes
+- `interoception.ts` 出力: 約 328 bytes
+- `--dry-run` 全体 prompt: 約 4285 bytes
 
-重要なのは、現行コードでは `energy` の自動回復処理が存在しないこと。
+`recall-lite` 単体より、複数の補助ヒントが積み重なっている点が重要。
 
-- 涼しいとき: `0`
-- 熱いとき: `-4` or `-8`
-- 回復: なし
+### 4. 通常回 prompt 自体が memory を毎回読みに行く
 
-そのため、長期的には「減る一方」になりやすい。
+`prompts.toml` の通常回は、毎回 `list_recent_memories` を呼ぶ指示になっている。
 
-### 3. `mood`
-
-`mood` は部屋の明るさから更新される。
-
-- 実行箇所: `autonomous-action.sh`
-- スクリプト: `.claude/scripts/environment-tick.ts`
-- センサー:
-  - `capture-brightness.py` によるカメラ輝度
-- 挙動:
-  - 輝度 `> 150` なら `+2`
-  - 輝度 `< 50` なら `-3`
-  - それ以外は `0`
-
-`mood` は正負の両方向更新があるため、`energy` や `satiation` よりは対称性がある。
-
-### 4. `health`, `trust_mizuho`
-
-これらはファイル上には存在するが、現行の自動更新スクリプトからは更新されていない。
-
-- 初期値はある
-- 履歴も初期設定しかない
-- 実質的には手動更新前提
-
----
-
-## 実行順
-
-heartbeat 時の STATUS 関連処理は、`autonomous-action.sh` で次の順に走る。
-
-1. `satiation-tick.ts`
-2. `environment-tick.ts`
-3. `desire-tick.ts`
-4. `interoception.ts`
-5. `recall-lite.ts`
-6. `status-hint.ts`
+`list_recent_memories` はデフォルトで最大 10 件の記憶本文を返す。
+ここは `recall-lite` と違って 80 文字打ち切りではないため、最近の長い記憶が毎回そのまま tool 出力として会話に積まれる可能性がある。
 
 つまり、
 
-- 先に `STATUS.md` を更新し
-- その更新結果を `interoception.ts` と `status-hint.ts` が読み取り
-- その回の行動選択ヒントに反映する
+- 記憶の総件数増加
+- ではなく
+- 最近保存される記憶本文の長文化
 
-という流れになっている。
+のほうが token 消費に直結しやすい。
 
----
+### 5. 週末は実行回数そのものが増える
 
-## 参照経路
+`schedule.conf` では `HOLIDAY_WEEKDAYS="0,6"` になっており、土日は holiday 扱い。
 
-### 1. `interoception.ts`
-
-`mood`, `energy`, `satiation` を読んで、数値を身体感覚の文に変換する。
-
-例:
-
-- `mood >= 65` → 「落ち着いた充足感がある。」
-- `energy < 35` → 「消耗している。軽いものから手をつけたい。」
-- `satiation < 30` → 「空っぽに近い。新しいものを探したい。」
-
-この出力は、自律行動プロンプトにサイレント注入される。
-
-### 2. `status-hint.ts`
-
-`satiation`, `energy`, `mood` を読んで、行動カテゴリのヒントを生成する。
-
-例:
-
-- `satiation < 30` → `explore`, `intake` を優先
-- `energy < 45` → `maintain` を優先、重い `create` を避ける
-- `mood > 72` → `create`, `explore` を優先
-
-重要なのは、ここは「参照のみ」であり、状態値自体は変更しないこと。
+holiday は 7-24 時がアクティブ帯で、20 分ごとに毎回実行される。
+そのため、平日と比較すると token 消費が増えやすい。
 
 ---
 
-## `energy` と `satiation` の関係
+## 根拠
 
-結論から言うと、**現行コードでは直接連動していない**。
+### A. セッション継続
 
-- `satiation` は `satiation-tick.ts` が単独で更新
-- `energy` は `environment-tick.ts` が単独で更新
-- どちらのスクリプトも、相手の値を参照していない
+`autonomous-action.sh` の normal mode:
 
-つまり、
+- `SESSION_FILE="$SCRIPT_DIR/heartbeat-session-id"`
+- 既存 session があれば `claude -p --resume "$SESSION_ID"` を実行
 
-- `energy` が低いのは `satiation` と同じ値を見て減っているからではない
-- `satiation` に応じて `energy` が一緒に減衰する仕様もない
+この設計により、heartbeat は独立タスクではなく「長い 1 会話」になっている。
 
-両者は `status-hint.ts` で同時に読まれて行動ヒントに使われるだけで、因果的には未接続である。
+### B. prompt への注入
 
----
+`autonomous-action.sh` では毎回以下を組み立てる。
 
-## 現時点での欠陥
+- `@SOUL.md`
+- `@BOOT_SHUTDOWN.md`
+- `@TODO.md`
+- `@ROUTINES.md`
+- `interoception`
+- `recall-lite`
+- `status-hint`
 
-### 1. 一方向更新の問題
+参照ファイルの現在サイズ:
 
-`satiation` と `energy` は、どちらも「減る方向」だけが自動化されている。
+- `SOUL.md`: 2679 bytes
+- `BOOT_SHUTDOWN.md`: 3678 bytes
+- `TODO.md`: 2778 bytes
+- `ROUTINES.md`: 1684 bytes
 
-- `satiation`: 時間経過で自動減衰、増加は手動
-- `energy`: 温度で自動減少、回復は手動
+合計 10819 bytes。
 
-意味は違うが、構造的な欠陥は同じ。
+CLI 側でこれらが毎回読まれる前提なら、memory よりこちらの固定コストも大きい。
 
-### 2. 回復フェーズがない
+### C. `recall-lite` の上限
 
-Ted 系の設計では本来、
+`recall-lite.ts` は以下で打ち止めになっている。
 
-- `体験 → satiation 増加`
-- `休息 / sleep → energy 回復`
+- 直近重要記憶 `LIMIT 3`
+- 高頻度アクセス記憶 `LIMIT 3`
+- 未完了タスク `LIMIT 3`
+- 各記憶は 80 文字まで
 
-のような因果が必要だが、wardrobe にはまだその更新経路がない。
+したがって、`memory.db` 件数そのものが増えただけで prompt が無限に伸びる構造ではない。
 
-### 3. `/sleep` は energy 回復ではない
+### D. 最近の変更履歴
 
-`/sleep` は schedule.conf の実行確率を下げるだけで、`energy` を回復しない。
+autonomous 周辺には直近で以下の変更が入っている。
 
-つまり、
+- 2026-04-07: `STATUS.md` 系実装
+- 2026-04-08: `interoception` / `environment-tick` / `satiation`
+- 2026-04-09: desire 連動、memory DB 周辺修正
+- 2026-04-10: `STATUS` 更新基盤追加
 
-- 「眠る」という概念はある
-- でも「眠った結果 energy が回復する」実装はない
-
-という状態。
-
-### 4. `health`, `trust_mizuho` が死に項目化している
-
-フィールドは存在するが、自動更新も定期更新もないため、状態ファイルとしては半分だけ生きている。
-
-### 5. STATUS が Markdown 直書き依存
-
-現在は Markdown の表を正規表現で直接書き換えているため、
-
-- 表記ゆれに弱い
-- 手動編集で壊れやすい
-- 変化履歴の整列保証が弱い
-
-という欠点がある。
+「最近増えた」という体感は、これらの注入追加時期と整合する。
 
 ---
 
-## 現行仕様の要点まとめ
+## 原因候補の優先順位
 
-- `STATUS.md` は「今の内部状態」を持つ Markdown ファイル
-- heartbeat 時に `satiation` と `mood/energy` の一部が自動更新される
-- `interoception.ts` と `status-hint.ts` がそれを読んで行動判断に使う
-- `energy` と `satiation` は直接連動していない
-- ただし両方とも「回復経路が未実装」という同じ構造欠陥を抱えている
+### 優先度 高
+
+- `--resume` による長寿命セッション継続
+
+### 優先度 中
+
+- `interoception`、`status-hint`、`desire`、`recall-lite` の積み上げ
+- 通常回での `list_recent_memories` 実行
+- `SOUL.md` / `BOOT_SHUTDOWN.md` / `TODO.md` / `ROUTINES.md` の毎回参照
+
+### 優先度 低
+
+- `memory.db` 総件数の増加そのもの
 
 ---
 
-## 今後の改善候補
+## 現時点の判断
 
-### 最小改善
+「memory が増えたせいか？」への答えは、
 
-- `energy` に自然回復ルールを入れる
-  - 低温時に `+2`
-  - 深夜 / sleep 中に `+5`
-- `satiation` に自動増加トリガを入れる
-  - 読書
-  - 記憶整理
-  - エピソード作成
-  - 深い会話
+- 完全に無関係ではない
+- ただし主因っぽくはない
 
-### 中期改善
+が妥当。
 
-- `STATUS.md` の更新を Markdown 正規表現ではなく JSON / SQLite に移す
-- `health`, `trust_mizuho` に更新経路を追加する
-- `sleep` と `energy` を結びつける
+より正確には、
 
-### 本筋の改善
+- memory の総件数ではなく
+- 最近の長い記憶本文が tool 出力で繰り返し使われること
+- そして何より同じ session を何度も `resume` していること
 
-因果グラフを導入し、
+が効いている可能性が高い。
 
-- `休息 → energy 回復`
-- `体験 → satiation 増加`
-- `暗さ → mood 低下`
-- `会話成功 → trust 上昇`
+---
 
-のような関係を明示的に持たせる。
+## 改善候補
 
-これが入ると、STATUS は「ただの数値テーブル」から「状態遷移系」になる。
+### 1. heartbeat session を定期的に切る
+
+最有力。
+
+候補:
+
+- 日次で新規 session を作る
+- 連続実行回数が一定を超えたら新規 session に切り替える
+- weekend / holiday は session rotation を短くする
+
+### 2. `list_recent_memories` の量を減らす
+
+候補:
+
+- 10 件 → 3 件
+- 本文全文ではなく短縮版を返す
+- `importance >= 4` のみ対象にする
+
+### 3. `recall-lite` をさらに圧縮する
+
+すでに上限付きだが、さらに削れる。
+
+候補:
+
+- 各項目 80 文字 → 40〜60 文字
+- `3 + 3 + 3` → `2 + 2 + 2`
+- 似た記憶をまとめて 1 行化する
+
+### 4. prompt に毎回含める参照ファイルを見直す
+
+候補:
+
+- `BOOT_SHUTDOWN.md` は朝の初回だけ
+- `ROUTINES.md` は routine 回だけ
+- `TODO.md` は通常回だけ
+
+### 5. usage をログに残す
+
+現状のログには token usage がほぼ残っていない。
+原因切り分けのためには、heartbeat ごとの usage を保存したほうがよい。
+
+---
+
+## 要約
+
+- memory 件数増加だけが原因とは考えにくい
+- 主因候補は `--resume` による会話履歴の肥大化
+- 次点で、最近追加された `STATUS` / `interoception` / `recall-lite` 系の注入増
+- さらに通常回の `list_recent_memories` が、長い記憶本文を毎回会話へ持ち込む可能性がある
+- まずは session rotation の導入が最も効果的と思われる

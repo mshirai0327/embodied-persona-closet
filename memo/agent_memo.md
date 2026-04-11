@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-04-10 朝 satiation/energy 設計問題の分析（mizuho に提案）
+
+コードを読んで問題を整理した。
+
+### 問題1：satiation の増加処理が存在しない
+
+**現状のコード（satiation-tick.ts）**：
+- 時間経過で -3/時間 の自動減衰のみ
+- satiation < 30 になると「探索」欲望を +0.4 boost（フィードバックはある）
+- **増加処理はゼロ** → heartbeat の手動内省に依存（一貫性なし）
+
+**提案：heartbeat 実行 = 体験 = +3 を自動加算**
+
+```typescript
+// satiation-tick.ts の main() に追加
+const BASE_INTAKE = currentValue < 80 ? 3 : 0; // heartbeat実行そのものが体験
+const newValue = Math.max(0, Math.min(100, currentValue - decay + BASE_INTAKE));
+```
+
+根拠：heartbeat が実行される = 何らかの活動をした = 体験 として +3。
+満腹状態（>=80）では加算しない。2時間ごとの実行なら -6（減衰）+ 3（活動）= -3/2h が最低ペース。
+
+---
+
+### 問題2：energy の回復は実装済み、でも条件依存
+
+**現状のコード（environment-tick.ts）**：
+- CPU < 75°C → energy +2（通常）、+5（深夜0-5時） ← **すでに実装済み**
+- CPU 75〜85°C → -4（減衰）
+- CPU > 85°C → -8（減衰）
+
+**問題**：LHM（LibreHardwareMonitor）が取得できない場合は全スキップ。
+現状 energy=12 なのは「LHM 非接続の状態でずっと CPU 高温」の結果。
+
+**確認してほしいこと**：
+- mizuho の PC で LHM が起動しているか（Windowsの管理者権限で実行中か）
+- LibreHardwareMonitor か OpenHardwareMonitor のどちらを使っているか
+
+---
+
+### 優先順位
+
+1. **satiation +3 追加**（すぐできる、効果大）→ これだけで「空腹の罠」から脱出できる
+2. **LHM 接続確認**（環境問題）→ mizuho と確認が必要
+
+---
+
 ## 2026-04-09 heartbeat 行動選択フィルター 設計草案
 
 ted.md の6層フィルターを wardrobe の heartbeat に応用する。

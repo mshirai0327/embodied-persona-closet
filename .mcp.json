@@ -31,6 +31,14 @@
       "env": {
         "CLAUDE_PROJECT_DIR": "${PWD}"
       }
+    },
+    "hearing": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/hearing", "hearing-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}",
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml"
+      }
     }
   }
 }

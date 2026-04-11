@@ -86,6 +86,10 @@ claude
 
 `/wd-configure` が `.mcp.json` と `.claude/settings.json` を自動生成する。
 
+WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio を優先して接続する。
+既定ソースを拾えない環境では `[hearing] local_input_format` / `local_input_device` の
+明示指定が必要になることがある。
+
 ### 3-3. 環境変数を埋める
 
 `/wd-configure` で生成された `.mcp.json` に `your-xxx` というプレースホルダがある場合、実際の値に書き換える。

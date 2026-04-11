@@ -216,13 +216,15 @@ def main() -> None:
     import setproctitle
     setproctitle.setproctitle("hearing-mcp")
 
-    # jurigged hot-reload (watches src/ for live code changes)
-    try:
-        import jurigged
-        jurigged.watch(poll=True)
-        logging.getLogger(__name__).info("jurigged hot-reload enabled")
-    except Exception:
-        pass
+    # stdio MCP servers must stay quiet during startup; enable hot reload only on demand.
+    if os.getenv("HEARING_ENABLE_HOT_RELOAD", "").lower() in {"1", "true", "yes", "on"}:
+        try:
+            import jurigged
+
+            jurigged.watch(pattern="src/**/*.py", logger=None)
+            logging.getLogger(__name__).info("jurigged hot-reload enabled")
+        except Exception:
+            pass
 
     server = HearingMCPServer()
     asyncio.run(server.run())

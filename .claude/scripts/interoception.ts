@@ -9,6 +9,8 @@
 
 import { readdir } from 'node:fs/promises';
 
+import { readStatusSnapshot } from "./status-store";
+
 const SCRIPT_DIR = import.meta.dir;
 const LOG_DIR = `${SCRIPT_DIR}/../logs`;
 const STATE_PATH = `${SCRIPT_DIR}/../desires.json`;
@@ -56,19 +58,11 @@ async function sessionIntervalPhrase(): Promise<string> {
 
 async function statusPhrase(): Promise<string> {
   try {
-    const statusPath = `${SCRIPT_DIR}/../../STATUS.md`;
-    const file = Bun.file(statusPath);
-    if (!(await file.exists())) return "";
-    const text = await file.text();
-
-    const moodMatch = text.match(/\| mood（気分） \| (\d+) \|/);
-    const energyMatch = text.match(/\| energy（活力） \| (\d+) \|/);
-    const satiationMatch = text.match(/\| satiation（充足感） \| (\d+) \|/);
-    if (!moodMatch || !energyMatch) return "";
-
-    const mood = parseInt(moodMatch[1]);
-    const energy = parseInt(energyMatch[1]);
-    const satiation = satiationMatch ? parseInt(satiationMatch[1]) : null;
+    const snapshot = await readStatusSnapshot();
+    const mood = snapshot?.mood?.value;
+    const energy = snapshot?.energy?.value;
+    const satiation = snapshot?.satiation?.value ?? null;
+    if (mood === undefined || energy === undefined) return "";
 
     const moodText =
       mood >= 80 ? "心が軽い。ものごとが明るく見える。" :

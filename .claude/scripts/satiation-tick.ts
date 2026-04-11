@@ -1,10 +1,12 @@
 /**
- * satiation-tick.ts — 充足感（satiation）の時間減衰
+ * satiation-tick.ts — 充足感（satiation）の時間調整
  *
  * autonomous-action.sh から heartbeat のたびに呼ばれる。
- * STATUS.md の satiation 値を最終更新からの経過時間に応じて減衰させる。
+ * STATUS.md の satiation 値を、最終更新からの経過時間に応じて減衰させつつ、
+ * heartbeat 実行そのものを小さな摂取として扱う。
  *
  * 減衰率: -3 / 時間（24時間で ~72pt 減衰 → 空腹状態 <30 に自然に到達）
+ * 基本摂取: +3 / 時間（elapsedHours に応じて加算、ただし satiation >= 80 では加算しない）
  * 閾値:
  *   >= 80: 満腹（消化優先）
  *   55-79: 適度
@@ -12,24 +14,21 @@
  *   <  30: 空腹（探索欲UP）
  */
 
+import { readStatusSnapshot, setStatusValue } from "./status-store";
+
 const SCRIPT_DIR = import.meta.dir;
-const STATUS_PATH = `${SCRIPT_DIR}/../../STATUS.md`;
-const DECAY_PER_HOUR = 3;
+const DECAY_PER_HOUR = 2;
+const INTAKE_PER_HOUR = 5; // トータルで回復傾向に向かわせるのための調整
+const INTAKE_CAP = 80;
+const DESIRES_PATH = process.env.WARDROBE_DESIRES_PATH?.trim() ?? `${SCRIPT_DIR}/../../desires.json`;
 
 async function main() {
-  const file = Bun.file(STATUS_PATH);
-  if (!(await file.exists())) return;
+  const snapshot = await readStatusSnapshot();
+  const satiation = snapshot?.satiation;
+  if (!satiation) return;
 
-  const text = await file.text();
-
-  // satiation 行を探す
-  const match = text.match(
-    /(\| satiation（充足感） \| )(\d+)( \| )(\d{4}-\d{2}-\d{2} \d{2}:\d{2})( \|[^\n]*)/
-  );
-  if (!match) return;
-
-  const currentValue = parseInt(match[2]);
-  const lastUpdated = match[4]; // "YYYY-MM-DD HH:mm"
+  const currentValue = satiation.value;
+  const lastUpdated = satiation.updatedAt;
 
   // 経過時間を計算
   const lastDate = new Date(lastUpdated);
@@ -40,43 +39,37 @@ async function main() {
 
   // 減衰計算
   const decay = Math.round(elapsedHours * DECAY_PER_HOUR);
-  const newValue = Math.max(0, currentValue - decay);
+  const intake =
+    currentValue < INTAKE_CAP
+      ? Math.round(elapsedHours * INTAKE_PER_HOUR)
+      : 0;
+  const newValue = Math.max(0, Math.min(100, currentValue - decay + intake));
 
-  if (newValue === currentValue) return; // 変化なし
-
-  const nowStr = now.toISOString().slice(0, 16).replace("T", " ");
-  const reason =
+  const stateText =
     newValue >= 80 ? "満ちている。消化したい感覚がある。" :
-    newValue >= 55 ? "適度に満たされている。" :
-    newValue >= 30 ? "何かを欲している。" :
-    "空っぽに近い。新しいものを探したい。";
+      newValue >= 55 ? "適度に満たされている。" :
+        newValue >= 30 ? "何かを欲している。" :
+          "空っぽに近い。新しいものを探したい。";
 
-  // satiation 行を更新
-  let updated = text.replace(
-    /\| satiation（充足感） \| \d+ \| [\d]{4}-[\d]{2}-[\d]{2} [\d]{2}:[\d]{2} \|[^\n]*/,
-    `| satiation（充足感） | ${newValue} | ${nowStr} | 時間経過による自動減衰（-${decay}）。${reason} |`
-  );
-
-  // 変化履歴に追記（最初の | 日時 | 行の直前に挿入）
-  const historyEntry = `| ${nowStr} | satiation | ${currentValue} | ${newValue} | 時間経過（${elapsedHours.toFixed(1)}h）自動減衰 |\n`;
-  updated = updated.replace(
-    /(\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \| satiation \|)/,
-    historyEntry + "$1"
-  );
-  // 変化履歴に satiation エントリがまだない場合は先頭行の前に挿入
-  if (!updated.includes(historyEntry)) {
-    updated = updated.replace(
-      /(\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \| (?!satiation))/,
-      historyEntry + "$1"
-    );
+  const adjustmentParts = [`時間経過による自動減衰（-${decay}）`];
+  if (intake > 0) {
+    adjustmentParts.push(`heartbeat実行による小さな摂取（+${intake}）`);
   }
 
-  await Bun.write(STATUS_PATH, updated);
-  console.log(`[satiation-tick] ${currentValue} → ${newValue} (-${decay} / ${elapsedHours.toFixed(1)}h elapsed)`);
+  const result = await setStatusValue("satiation", newValue, {
+    now,
+    reason: `${adjustmentParts.join(" + ")}。${stateText}`,
+    updateTimestampOnUnchanged: true,
+  });
+  if (!result) return;
+
+  const signedIntake = intake > 0 ? ` +${intake}` : "";
+  console.log(
+    `[satiation-tick] ${result.previousValue} → ${result.nextValue} (-${decay}${signedIntake} / ${elapsedHours.toFixed(1)}h elapsed)`
+  );
 
   // satiation が30を下回ったとき、「探索」欲望をboostする
-  if (newValue < 30 && currentValue >= 30) {
-    const DESIRES_PATH = `${SCRIPT_DIR}/../../desires.json`;
+  if (result.nextValue < 30 && result.previousValue >= 30) {
     const desiresFile = Bun.file(DESIRES_PATH);
     if (await desiresFile.exists()) {
       try {

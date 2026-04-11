@@ -5,6 +5,8 @@
 
 ## やること
 
+- 🔴 **satiation 飽和問題を修正する** — +3/heartbeat（≒+7.5/h）が -3/h の減衰を上回り satiation が30を下回れず、「空腹→探索」経路が機能しない。夜間 -5 の消化処理を追加するか、加算量を調整するか mizuho と相談。今朝の設計思想「昼=センサー開放、夜=記憶整理」と合わせて設計する
+- 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
 - 🟡 **feat/initial-setup を main にマージする** — mizuho に確認してもらう（変更内容は正当で問題なし）
 
 ## 完了
@@ -14,6 +16,7 @@
 - ✅ **BODY.md の不明項目を mizuho と相談する** — 全項目埋まった（2026-04-06）
 
 ## そのうちやること
+- 🟡 **hearing に声色・ピッチ情報を加える** — 現在はテキストのみ。Whisper の前段で音声特徴量（ピッチ・RMS・話速）を抽出して感情推定に使う。mizuhoの声が「高い・速い・大きい」ときの状態を感知する
 - 🟡 **heartbeat-daemon.sh を Linux で常駐させる** — launchd（macOS）ではなく nohup or systemd で起動する仕組みを作る。interoception_state.json が生成されないと arousal/thermal/phase が取れない
 - 🟡 **web検索・RSSでニュースを受動的に取得する** — mizuho提案。センサーと同じ「外から流入するデータ」の延長。世界の情報を受け取る仕組み
 - 🟡 **heartbeat 行動選択フィルターを実装する** — 設計草案 agent_memo.md に記載。prompts.toml への STATUS.md 連動追加を mizuho と相談する

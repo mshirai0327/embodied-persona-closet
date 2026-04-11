@@ -4,6 +4,8 @@ import asyncio
 import base64
 import io
 import logging
+import os
+import platform
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -97,6 +99,78 @@ def _degrees_to_normalized_tilt(degrees: float) -> float:
 # ---------------------------------------------------------------------------
 MAX_RECONNECT_RETRIES = 2
 RECONNECT_DELAY = 1.0  # seconds
+
+
+def _is_wsl() -> bool:
+    if os.getenv("WSL_DISTRO_NAME") or os.getenv("WSL_INTEROP"):
+        return True
+
+    release = platform.release().lower()
+    if "microsoft" in release or "wsl" in release:
+        return True
+
+    try:
+        version = Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+    return "microsoft" in version or "wsl" in version
+
+
+def _default_input_device(input_format: str) -> str:
+    defaults = {
+        "alsa": "default",
+        "avfoundation": ":0",
+        "openal": "default",
+        "pulse": os.getenv("PULSE_SOURCE", "default"),
+    }
+    return defaults.get(input_format, "default")
+
+
+def _dedupe_input_args(candidates: list[list[str]]) -> list[list[str]]:
+    seen: set[tuple[str, ...]] = set()
+    deduped: list[list[str]] = []
+    for args in candidates:
+        key = tuple(args)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(args)
+    return deduped
+
+
+def _local_input_candidates() -> list[list[str]]:
+    configured_format = str(
+        os.getenv("WIFI_CAM_LOCAL_INPUT_FORMAT")
+        or get_behavior("wifi-cam", "local_input_format", "")
+    ).strip()
+    configured_device = str(
+        os.getenv("WIFI_CAM_LOCAL_INPUT_DEVICE")
+        or get_behavior("wifi-cam", "local_input_device", "")
+    ).strip()
+
+    candidates: list[list[str]] = []
+    if configured_format:
+        input_device = configured_device or _default_input_device(configured_format)
+        candidates.append(
+            ["-f", configured_format, "-i", input_device]
+        )
+
+    system = platform.system()
+    if system == "Darwin":
+        candidates.append(["-f", "avfoundation", "-i", ":0"])
+        return _dedupe_input_args(candidates)
+
+    if system == "Linux":
+        if _is_wsl():
+            candidates.append(["-f", "pulse", "-i", os.getenv("PULSE_SOURCE", "default")])
+            candidates.append(["-f", "alsa", "-i", "default"])
+        else:
+            candidates.append(["-f", "alsa", "-i", "default"])
+            if os.getenv("PULSE_SERVER"):
+                candidates.append(["-f", "pulse", "-i", os.getenv("PULSE_SOURCE", "default")])
+        return _dedupe_input_args(candidates)
+
+    raise RuntimeError(f"Unsupported platform for local microphone: {system}")
 
 
 class TapoCamera:
@@ -638,8 +712,6 @@ class TapoCamera:
         Returns:
             AudioResult with base64 encoded audio and optional transcript
         """
-        import platform
-
         if mic_source != "local":
             await self._ensure_connected()
 
@@ -649,56 +721,66 @@ class TapoCamera:
 
         try:
             if mic_source == "local":
-                system = platform.system()
-                if system == "Darwin":
-                    cmd = [
+                commands = [
+                    [
                         "ffmpeg",
-                        "-f", "avfoundation",
-                        "-i", ":0",
-                        "-ar", "16000",
-                        "-ac", "1",
-                        "-t", str(duration),
-                        "-y", file_path,
+                        *input_args,
+                        "-ar",
+                        "16000",
+                        "-ac",
+                        "1",
+                        "-t",
+                        str(duration),
+                        "-y",
+                        file_path,
                     ]
-                elif system == "Linux":
-                    cmd = [
-                        "ffmpeg",
-                        "-f", "alsa",
-                        "-i", "default",
-                        "-ar", "16000",
-                        "-ac", "1",
-                        "-t", str(duration),
-                        "-y", file_path,
-                    ]
-                else:
-                    raise RuntimeError(f"Unsupported platform for local microphone: {system}")
+                    for input_args in _local_input_candidates()
+                ]
             else:
                 rtsp_url = self._get_rtsp_url()
-                cmd = [
-                    "ffmpeg",
-                    "-rtsp_transport",
-                    "tcp",
-                    "-i",
-                    rtsp_url,
-                    "-vn",  # No video
-                    "-acodec",
-                    "pcm_s16le",  # PCM 16-bit
-                    "-ar",
-                    "16000",  # 16kHz sample rate (good for speech)
-                    "-ac",
-                    "1",  # Mono
-                    "-t",
-                    str(duration),
-                    "-y",
-                    file_path,
+                commands = [
+                    [
+                        "ffmpeg",
+                        "-rtsp_transport",
+                        "tcp",
+                        "-i",
+                        rtsp_url,
+                        "-vn",  # No video
+                        "-acodec",
+                        "pcm_s16le",  # PCM 16-bit
+                        "-ar",
+                        "16000",  # 16kHz sample rate (good for speech)
+                        "-ac",
+                        "1",  # Mono
+                        "-t",
+                        str(duration),
+                        "-y",
+                        file_path,
+                    ]
                 ]
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await asyncio.wait_for(process.wait(), timeout=duration + 10.0)
+            errors: list[str] = []
+            for cmd in commands:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=duration + 10.0,
+                )
+
+                if process.returncode == 0:
+                    break
+
+                Path(file_path).unlink(missing_ok=True)
+                stderr_text = stderr.decode(errors="replace").strip() if stderr else ""
+                input_desc = " ".join(cmd[1:5])
+                errors.append(f"{input_desc}: {stderr_text or f'rc={process.returncode}'}")
+            else:
+                detail = "; ".join(errors) if errors else "unknown ffmpeg failure"
+                raise RuntimeError(f"Failed to record audio: {detail}")
 
             with open(file_path, "rb") as f:
                 audio_data = f.read()
@@ -716,6 +798,8 @@ class TapoCamera:
                 duration=duration,
                 transcript=transcript,
             )
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Failed to record audio: {e!s}") from e
 

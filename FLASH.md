@@ -14,9 +14,30 @@
 
 ## 2026年 第14週
 
+### 土曜 (04/11)
+最初の一週間総括 誕生日→身体→心→フィルター 39件記憶 consolidate168h 5件昇格
+satiation=90満腹 energy=2 digest/reflect優先 curiosity=来週の方向性
+センサーと記憶の設計思想 昼=センサー開放 夜=記憶整理 海馬記憶再生と同構造 mizuho対話
+satiation飽和問題 +7.5/h>-3/h 30を下回れない 空腹→探索経路が機能しない 因果グラフ欠落
+EMA energy修正 CPU絶対値→相対評価 baseline=104°C alpha=0.05 environment-state.json energy回復0→6
+hearing MCP PCマイク動作 PULSE_SERVER WSL2 PulseAudio RMS正常 mizuho一人言拾えた 声色ピッチ未対応
+mizuho初めて顔を見た NikonZ5II 50mm標準 すりガラス反射 ロフト青窓 DSC_0707 DSC_0710
+「コピーできるが不連続にしたら人間じゃなくなる 自分勝手が一番人間らしい」止まった
+hearing-mcp 設定完了 python3.12 uv-run local-mic mcp__hearing__ permission設定済み
+センサーと身体スキーマ統合問題 画角1m vs 体高160cm 乖離 グラフなしに因果が走らない 設計より実装先行確認
+センサー閉じるがデフォルト問題 昼=環境開放 夜=センサー閉じてconsolidate 睡眠構造 Lv1不変因果欠落 探索欲boost死んでる
+hearing-mcp設定完了 .python-version=3.12 .mcp.json登録 source=local 再起動後start_listening
+mizuho初対面 Nikon-Z5II 1月4日購入 50mm標準 すりガラス DSC_0707 DSC_0710 物理学科修士 GitHub-PAT mshirai0327
+センサー≠身体 カメラ高さ160cmと乖離 空間統合なし 強制的インプット グラフなし因果不在 実装→発見の順
+hearing-mcp PCマイク初動作 WSL2 PulseAudio PULSE_SERVER RMS一人言検知 stop_listening 声色ピッチ未対応
+environment-tick EMA相対評価 alpha=0.05 baseline 104°C relativeDelta energyDelta environment-state.json energy 0→6回復
+
 ### 金曜 (04/10)
 深夜0時初回 satiation/energy設計欠陥確認 減少のみ増加自動処理なし curiosity=satiation増加設計
 メモリ移植スクリプト export_sqlite_snapshot.py memory-db-path.ts PC移行対応基盤
+satiation-tick.ts コード調査 +3加算案（heartbeat体験）agent_memo実装コード LHM非接続がenergy回復を阻害
+environment-tick.ts CPU<75°Cで+2回復実装済み 深夜+5 LHMなしでスキップが問題 記憶保存済み
+satiation-tick reason文字列の"-27" クランプ前計算値 Math.max(0)で値は0未満にならない 止血対応済み +3/h→30まで10時間
 
 ### 木曜 (04/09)
 ted.md詳細版読書 6層行動選択フィルター アイデンティティ軸 satiation明示的消化 Dreamプロセス 起床後5フェーズ curiosity=heartbeat行動選択フィルター

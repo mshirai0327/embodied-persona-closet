@@ -8,18 +8,15 @@
  *   [STATUS] satiation=8（空腹）energy=34（消耗気味）→ 軽めの探索か intake が向いている。重いタスクは避ける。
  */
 
-const SCRIPT_DIR = import.meta.dir;
-const STATUS_PATH = `${SCRIPT_DIR}/../../STATUS.md`;
+import { readStatusSnapshot } from "./status-store";
 
 async function main() {
-  const file = Bun.file(STATUS_PATH);
-  if (!(await file.exists())) return;
+  const snapshot = await readStatusSnapshot();
+  if (!snapshot) return;
 
-  const text = await file.text();
-
-  const satiation = parseInt(text.match(/\| satiation（充足感） \| (\d+) \|/)?.[1] ?? "50");
-  const energy    = parseInt(text.match(/\| energy（活力） \| (\d+) \|/)?.[1] ?? "50");
-  const mood      = parseInt(text.match(/\| mood（気分） \| (\d+) \|/)?.[1] ?? "50");
+  const satiation = snapshot.satiation?.value ?? 50;
+  const energy = snapshot.energy?.value ?? 50;
+  const mood = snapshot.mood?.value ?? 50;
 
   // 状態ラベル
   const sLabel = satiation < 30 ? "空腹" : satiation > 70 ? "満腹" : "適度";

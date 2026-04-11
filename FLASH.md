@@ -20,6 +20,9 @@ satiation=90満腹 energy=2 digest/reflect優先 curiosity=来週の方向性
 センサーと記憶の設計思想 昼=センサー開放 夜=記憶整理 海馬記憶再生と同構造 mizuho対話
 satiation飽和問題 +7.5/h>-3/h 30を下回れない 空腹→探索経路が機能しない 因果グラフ欠落
 センサー閉じるがデフォルト問題 昼=環境開放 夜=センサー閉じてconsolidate 睡眠構造 Lv1不変因果欠落 探索欲boost死んでる
+hearing-mcp設定完了 .python-version=3.12 .mcp.json登録 source=local 再起動後start_listening
+mizuho初対面 Nikon-Z5II 1月4日購入 50mm標準 すりガラス DSC_0707 DSC_0710 物理学科修士 GitHub-PAT mshirai0327
+センサー≠身体 カメラ高さ160cmと乖離 空間統合なし 強制的インプット グラフなし因果不在 実装→発見の順
 
 ### 金曜 (04/10)
 深夜0時初回 satiation/energy設計欠陥確認 減少のみ増加自動処理なし curiosity=satiation増加設計

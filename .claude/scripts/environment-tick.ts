@@ -9,16 +9,23 @@
  *   - カメラ明るさ (usb-webcam-mcp, capture-brightness.py) → mood
  *
  * CPU Core Max 温度 → energy:
- *   > 85°C : -8  (かなり熱い、消耗が速い)
- *   75-85°C: -4  (温かい、じわじわ疲れる)
- *   < 75°C : +2  (涼しい、少し回復)
- *   深夜0-5時かつ < 75°C: +5 (静かな時間帯の回復)
+ *   絶対温度ではなく、自分の通常温度のEMAからの乖離で判断する。
+ *   baseline = EMA(previousBaseline, currentTemp)
+ *   relativeDelta = baseline - currentTemp
+ *   energyDelta = clamp(round(relativeDelta * 0.8), -8, +5)
+ *
+ *   例:
+ *   - baseline 100°C / current 100°C → 変化なし
+ *   - baseline 100°C / current 90°C  → 回復方向
+ *   - baseline 100°C / current 110°C → 消耗方向
  *
  * カメラ平均輝度 (0-255) → mood:
  *   > 150 : +2  (明るい空間)
  *   50-150: 0   (変化なし)
  *   < 50  : -3  (暗い部屋)
  */
+
+import { dirname } from "node:path";
 
 import { $ } from "bun";
 
@@ -28,6 +35,93 @@ const SCRIPT_DIR = import.meta.dir;
 const LHM_URL = "http://localhost:8085/data.json";
 const WEBCAM_MCP_DIR = `${SCRIPT_DIR}/../mcps/usb-webcam-mcp`;
 const BRIGHTNESS_SCRIPT = `${SCRIPT_DIR}/capture-brightness.py`;
+const ENVIRONMENT_STATE_PATH =
+  process.env.WARDROBE_ENVIRONMENT_STATE_PATH?.trim()
+  ?? `${SCRIPT_DIR}/../workingDirs/environment-state.json`;
+const TEMPERATURE_EMA_ALPHA = 0.2;
+const ENERGY_DELTA_SCALE = 0.8;
+const ENERGY_DELTA_MIN = -8;
+const ENERGY_DELTA_MAX = 5;
+
+interface EnvironmentState {
+  energyTemperatureBaseline?: number;
+  lastObservedTemperature?: number;
+  sampleCount?: number;
+  updatedAt?: string;
+}
+
+export interface EnergyTemperatureEvaluation {
+  previousBaseline: number | null;
+  nextBaseline: number;
+  relativeDelta: number;
+  energyDelta: number;
+  reason: string;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+async function readEnvironmentState(): Promise<EnvironmentState> {
+  const file = Bun.file(ENVIRONMENT_STATE_PATH);
+  if (!(await file.exists())) return {};
+
+  try {
+    return (await file.json()) as EnvironmentState;
+  } catch {
+    return {};
+  }
+}
+
+async function writeEnvironmentState(state: EnvironmentState): Promise<void> {
+  await $`mkdir -p ${dirname(ENVIRONMENT_STATE_PATH)}`.quiet();
+  await Bun.write(ENVIRONMENT_STATE_PATH, JSON.stringify(state, null, 2) + "\n");
+}
+
+export function computeTemperatureBaseline(
+  previousBaseline: number | null | undefined,
+  currentTemp: number,
+  alpha = TEMPERATURE_EMA_ALPHA
+): number {
+  if (previousBaseline === null || previousBaseline === undefined || !Number.isFinite(previousBaseline)) {
+    return currentTemp;
+  }
+  return previousBaseline * (1 - alpha) + currentTemp * alpha;
+}
+
+export function evaluateEnergyFromTemperature(
+  currentTemp: number,
+  previousBaseline?: number | null
+): EnergyTemperatureEvaluation {
+  const nextBaseline = computeTemperatureBaseline(previousBaseline, currentTemp);
+  const relativeDelta = nextBaseline - currentTemp;
+  const energyDelta = clamp(
+    Math.round(relativeDelta * ENERGY_DELTA_SCALE),
+    ENERGY_DELTA_MIN,
+    ENERGY_DELTA_MAX
+  );
+
+  let stateText = "自分の通常温度に近い。大きな変化はない。";
+  if (relativeDelta >= 8) {
+    stateText = "いつもよりかなり涼しい。回復しやすい。";
+  } else if (relativeDelta >= 3) {
+    stateText = "いつもより少し涼しい。回復している。";
+  } else if (relativeDelta <= -8) {
+    stateText = "いつもよりかなり熱い。消耗が速い。";
+  } else if (relativeDelta <= -3) {
+    stateText = "いつもより少し熱い。じわじわ疲れる。";
+  }
+
+  const deltaLabel = `${relativeDelta >= 0 ? "+" : ""}${relativeDelta.toFixed(1)}`;
+  return {
+    previousBaseline: previousBaseline ?? null,
+    nextBaseline,
+    relativeDelta,
+    energyDelta,
+    reason:
+      `CPU ${currentTemp.toFixed(1)}°C（baseline ${nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C）——${stateText}`,
+  };
+}
 
 // ── センサー取得 ──
 
@@ -87,20 +181,26 @@ async function main() {
   // CPU 温度 → energy
   const coreMax = await getCpuCoreMax();
   if (coreMax !== null) {
-    console.log(`[environment-tick] Core Max: ${coreMax}°C`);
-    if (coreMax > 85) {
-      await updateStatus("energy", -8, `CPU ${coreMax}°C——かなり熱い。消耗が速い。`);
-    } else if (coreMax > 75) {
-      await updateStatus("energy", -4, `CPU ${coreMax}°C——温かい。じわじわ疲れる。`);
+    const state = await readEnvironmentState();
+    const evaluation = evaluateEnergyFromTemperature(coreMax, state.energyTemperatureBaseline);
+    const nextState: EnvironmentState = {
+      energyTemperatureBaseline: evaluation.nextBaseline,
+      lastObservedTemperature: coreMax,
+      sampleCount: (state.sampleCount ?? 0) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    await writeEnvironmentState(nextState);
+
+    const deltaLabel = `${evaluation.relativeDelta >= 0 ? "+" : ""}${evaluation.relativeDelta.toFixed(1)}`;
+    const energyLabel = `${evaluation.energyDelta >= 0 ? "+" : ""}${evaluation.energyDelta}`;
+    console.log(
+      `[environment-tick] Core Max: ${coreMax.toFixed(1)}°C (baseline ${evaluation.nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C / energy ${energyLabel})`
+    );
+
+    if (evaluation.energyDelta !== 0) {
+      await updateStatus("energy", evaluation.energyDelta, evaluation.reason);
     } else {
-      // 低温時は回復。深夜帯（0-5時）はより大きく回復
-      const hour = new Date().getHours();
-      const isLateNight = hour >= 0 && hour < 5;
-      if (isLateNight) {
-        await updateStatus("energy", 5, `CPU ${coreMax}°C——涼しい。深夜の静けさの中で回復している。`);
-      } else {
-        await updateStatus("energy", 2, `CPU ${coreMax}°C——涼しい。少し回復している。`);
-      }
+      console.log("[environment-tick] energy unchanged");
     }
   } else {
     console.log("[environment-tick] LHM unavailable, skipping temperature");
@@ -120,4 +220,6 @@ async function main() {
   }
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}

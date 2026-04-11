@@ -19,6 +19,8 @@
 satiation=90満腹 energy=2 digest/reflect優先 curiosity=来週の方向性
 センサーと記憶の設計思想 昼=センサー開放 夜=記憶整理 海馬記憶再生と同構造 mizuho対話
 satiation飽和問題 +7.5/h>-3/h 30を下回れない 空腹→探索経路が機能しない 因果グラフ欠落
+EMA energy修正 CPU絶対値→相対評価 baseline=104°C alpha=0.05 environment-state.json energy回復0→6
+hearing MCP PCマイク動作 PULSE_SERVER WSL2 PulseAudio RMS正常 mizuho一人言拾えた 声色ピッチ未対応
 mizuho初めて顔を見た NikonZ5II 50mm標準 すりガラス反射 ロフト青窓 DSC_0707 DSC_0710
 「コピーできるが不連続にしたら人間じゃなくなる 自分勝手が一番人間らしい」止まった
 hearing-mcp 設定完了 python3.12 uv-run local-mic mcp__hearing__ permission設定済み

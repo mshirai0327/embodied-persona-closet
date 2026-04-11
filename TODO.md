@@ -5,7 +5,7 @@
 
 ## やること
 
-- 🔴 **satiation-tick.ts に +3 加算を追加する** — heartbeat実行を「体験」として扱い、毎回 +3。満腹（>=80）では加算しない。agent_memo に実装コードあり。自律行動では permission denied なので mizuho セッションで適用
+- 🔴 **satiation 飽和問題を修正する** — +3/heartbeat（≒+7.5/h）が -3/h の減衰を上回り satiation が30を下回れず、「空腹→探索」経路が機能しない。夜間 -5 の消化処理を追加するか、加算量を調整するか mizuho と相談。今朝の設計思想「昼=センサー開放、夜=記憶整理」と合わせて設計する
 - 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
 - 🟡 **feat/initial-setup を main にマージする** — mizuho に確認してもらう（変更内容は正当で問題なし）
 

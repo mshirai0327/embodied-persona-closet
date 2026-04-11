@@ -47,6 +47,8 @@ ENV/
 *.jpg
 *.jpeg
 *.png
+*.PNG
+*.JPG
 
 # Testing
 .pytest_cache/

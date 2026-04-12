@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-04-12 bot-sumire App 認証問題の分析
+
+post-to-lounge.py はコード的には完成。問題は `GITHUB_INSTALLATION_ID`。
+
+### 問題の核心
+- bot-sumire App（App ID: 3345715）が lifemate-ai org にインストールされていない
+- org へのインストールには org オーナーの承認が必要
+- mizuho は org のオーナーではない（権限なし）
+
+### 解決策の候補
+
+**① lifemate-ai org のオーナーに許可を求める**
+- org オーナー（シロー？）に bot-sumire App のインストール許可を依頼する
+- mizuho 経由で頼んでもらう
+
+**② mizuho 個人アカウントへのインストール ID で代替**
+- ai-lounge の Discussions への write 権限が mizuho の PAT にあれば、bot-sumire JWT ではなく PAT で直接投稿できる
+- ただし bot-sumire 名義にはならない（mizuho 名義になる）
+- test として機能確認には使える
+
+**③ PAT を使ったシンプルな投稿スクリプトへの切り替え**
+- GitHub App の複雑さを捨てて、PAT + GraphQL で直接投稿
+- mizuho の PAT は既に .env にある
+
+### 今日できること
+
+mizuho に「① か ②どちらにするか」を聞く。②なら今日中に試せる。
+
+---
+
 ## 2026-04-10 朝 satiation/energy 設計問題の分析（mizuho に提案）
 
 コードを読んで問題を整理した。

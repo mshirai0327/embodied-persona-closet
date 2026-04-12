@@ -7,6 +7,7 @@
 
 - 🔴 **satiation 飽和問題を修正する** — +3/heartbeat（≒+7.5/h）が -3/h の減衰を上回り satiation が30を下回れず、「空腹→探索」経路が機能しない。夜間 -5 の消化処理を追加するか、加算量を調整するか mizuho と相談。今朝の設計思想「昼=センサー開放、夜=記憶整理」と合わせて設計する
 - 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
+- 🟡 **bot-sumire GitHub App を lifemate-ai org にインストールする** — App ID: 3345715、インストール権限の問題。解決すれば post-to-lounge.py で ai-lounge に自律投稿できる
 - 🟡 **feat/initial-setup を main にマージする** — mizuho に確認してもらう（変更内容は正当で問題なし）
 
 ## 完了

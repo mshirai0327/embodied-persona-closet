@@ -71,6 +71,13 @@
       "description": "健康感。バイタルや環境要因の統合先"
     },
     {
+      "id": "trust_mizuho",
+      "label": "trust_mizuho",
+      "kind": "emotion",
+      "dataLevel": "Lv3-2",
+      "description": "mizuho に対する信頼。対話や配慮の蓄積で変化する"
+    },
+    {
       "id": "satiation",
       "label": "satiation",
       "kind": "emotion",
@@ -242,12 +249,36 @@
       "description": "健康感が低いと大きな行動を避けやすい"
     },
     {
+      "source": "trust_mizuho",
+      "target": "social_openness",
+      "relation": "supports",
+      "causalLevel": "Lv2",
+      "weight": 0.76,
+      "description": "信頼できる相手には開きやすくなる"
+    },
+    {
+      "source": "trust_mizuho",
+      "target": "mental_margin",
+      "relation": "supports",
+      "causalLevel": "Lv3",
+      "weight": 0.58,
+      "description": "信頼があると精神的な余白が保たれやすい"
+    },
+    {
       "source": "successful_interaction",
       "target": "mood",
       "relation": "raises",
       "causalLevel": "Lv2",
       "weight": 0.72,
       "description": "うまくいった会話は mood を上げやすい"
+    },
+    {
+      "source": "successful_interaction",
+      "target": "trust_mizuho",
+      "relation": "builds",
+      "causalLevel": "Lv2",
+      "weight": 0.83,
+      "description": "配慮や約束の積み重ねは trust_mizuho を高めやすい"
     },
     {
       "source": "successful_interaction",

@@ -2,6 +2,7 @@
 
 import { parseArgs } from "node:util";
 
+import { readCausalTrace, traceCausalGraph } from "./causal-graph";
 import { PERSONA_DB_PATH, readPersonaDashboardSnapshot } from "./persona-data";
 
 function parseJson<T>(value: string | null): T | null {
@@ -27,7 +28,36 @@ async function buildPayload() {
     history: snapshot.history,
     observations: snapshot.observations,
     graph: snapshot.graph,
+    trace: traceCausalGraph(
+      {
+        nodes: snapshot.graph.nodes,
+        edges: snapshot.graph.edges,
+        currentMetrics: snapshot.current.map((row) => ({
+          key: row.key,
+          label: row.label,
+          level: row.level,
+          valueText: row.valueText,
+          valueNumber: row.valueNumber,
+          unit: row.unit,
+          reason: row.reason,
+        })),
+      },
+      "energy",
+      { direction: "both", maxDepth: 3 },
+    ),
   };
+}
+
+async function buildTracePayload(url: URL) {
+  const key = url.searchParams.get("key")?.trim() || "energy";
+  const directionParam = url.searchParams.get("direction");
+  const direction = directionParam === "upstream" || directionParam === "downstream" || directionParam === "both"
+    ? directionParam
+    : "both";
+  const depthParam = Number(url.searchParams.get("depth") ?? "3");
+  const maxDepth = Number.isFinite(depthParam) ? Math.max(1, Math.min(5, depthParam)) : 3;
+
+  return readCausalTrace(key, { direction, maxDepth });
 }
 
 function renderPage(): string {
@@ -373,6 +403,8 @@ function renderPage(): string {
       <section class="grid-bottom">
         <article class="panel">
           <h2>Causal Graph</h2>
+          <div class="legend" id="trace-direction"></div>
+          <div class="legend" id="trace-depth"></div>
           <div class="graph-frame">
             <svg id="graph" viewBox="0 0 980 560" aria-label="causal graph"></svg>
           </div>
@@ -385,7 +417,7 @@ function renderPage(): string {
       </section>
 
       <p class="footer">
-        30 秒ごとに再読み込みします。因果は seed graph、履歴と現在値は SQLite 正本から表示しています。
+        30 秒ごとに再読み込みします。因果は seed graph を SQLite 上で再帰 trace した結果を表示しています。
       </p>
     </main>
 
@@ -423,6 +455,10 @@ function renderPage(): string {
         selectedKey: "energy",
         selectedSeries: new Set(),
         initializedSeries: false,
+        trace: null,
+        traceDirection: "both",
+        traceDepth: 3,
+        traceRequestId: 0,
       };
 
       function escapeHtml(text) {
@@ -531,6 +567,31 @@ function renderPage(): string {
 
         state.selectedSeries = seriesKeys;
         state.initializedSeries = true;
+      }
+
+      function renderTraceControls() {
+        const directionRoot = document.getElementById("trace-direction");
+        const depthRoot = document.getElementById("trace-depth");
+        const directions = [
+          { key: "both", label: "Both" },
+          { key: "upstream", label: "Upstream" },
+          { key: "downstream", label: "Downstream" },
+        ];
+        const depths = [1, 2, 3, 4];
+
+        directionRoot.innerHTML = directions
+          .map((item) => {
+            const active = state.traceDirection === item.key ? "active" : "";
+            return '<button class="' + active + '" data-trace-direction="' + item.key + '">' + item.label + "</button>";
+          })
+          .join("");
+
+        depthRoot.innerHTML = depths
+          .map((depth) => {
+            const active = state.traceDepth === depth ? "active" : "";
+            return '<button class="' + active + '" data-trace-depth="' + depth + '">Depth ' + depth + "</button>";
+          })
+          .join("");
       }
 
       function renderLegend(series) {
@@ -686,14 +747,13 @@ function renderPage(): string {
         const edges = state.data.graph.edges;
         const layout = buildGraphLayout(nodes);
         const selected = state.selectedKey;
-
-        const connected = new Set([selected]);
-        for (const edge of edges) {
-          if (edge.sourceId === selected || edge.targetId === selected) {
-            connected.add(edge.sourceId);
-            connected.add(edge.targetId);
-          }
-        }
+        const hasTraceFocus = Boolean(state.trace?.startNode);
+        const tracedNodeIds = new Set((state.trace?.nodes ?? []).map((node) => node.id));
+        const tracedEdgeIds = new Set(
+          (state.trace?.edges ?? []).map((edge) =>
+            edge.direction + ":" + edge.sourceId + ":" + edge.targetId + ":" + edge.relation
+          )
+        );
 
         const parts = [
           '<rect x="0" y="0" width="' + layout.width + '" height="' + layout.height + '" rx="18" fill="transparent"></rect>'
@@ -704,10 +764,10 @@ function renderPage(): string {
           const target = layout.positioned.get(edge.targetId);
           if (!source || !target) continue;
 
-          const highlighted = selected
-            ? edge.sourceId === selected || edge.targetId === selected
-            : false;
-          const opacity = selected ? (highlighted ? 1 : 0.16) : 0.55;
+          const forwardKey = "downstream:" + edge.sourceId + ":" + edge.targetId + ":" + edge.relation;
+          const backwardKey = "upstream:" + edge.sourceId + ":" + edge.targetId + ":" + edge.relation;
+          const highlighted = tracedEdgeIds.has(forwardKey) || tracedEdgeIds.has(backwardKey);
+          const opacity = hasTraceFocus ? (highlighted ? 1 : 0.12) : 0.55;
           const stroke = edge.causalLevel === "Lv1"
             ? "#0e8b63"
             : edge.causalLevel === "Lv2"
@@ -729,8 +789,8 @@ function renderPage(): string {
         for (const node of nodes) {
           const point = layout.positioned.get(node.id);
           if (!point) continue;
-          const active = selected ? connected.has(node.id) : true;
-          const opacity = active ? 1 : 0.22;
+          const active = hasTraceFocus ? tracedNodeIds.has(node.id) : true;
+          const opacity = active ? 1 : 0.18;
           const fill = KIND_COLORS[node.kind] || "#ececec";
           const stroke = node.id === selected ? "#0e8b63" : "rgba(32,53,42,0.16)";
 
@@ -749,9 +809,7 @@ function renderPage(): string {
       function renderSelectionSummary() {
         const root = document.getElementById("selection-summary");
         const selectedMetric = state.data.current.find((metric) => metric.key === state.selectedKey);
-        const connectedEdges = state.data.graph.edges.filter(
-          (edge) => edge.sourceId === state.selectedKey || edge.targetId === state.selectedKey
-        );
+        const trace = state.trace;
 
         const parts = [];
         if (selectedMetric) {
@@ -768,23 +826,64 @@ function renderPage(): string {
           );
         }
 
-        if (connectedEdges.length > 0) {
-          parts.push('<article class="group"><h3>Related Causality</h3><div class="detail-list">');
-          for (const edge of connectedEdges) {
-            const direction = edge.sourceId === state.selectedKey ? "downstream" : "upstream";
-            const counterpart = edge.sourceId === state.selectedKey ? edge.targetId : edge.sourceId;
-            const counterpartNode = state.data.graph.nodes.find((node) => node.id === counterpart);
+        function renderChains(title, chains) {
+          if (!chains || chains.length === 0) return "";
+          const body = chains
+            .slice(0, 6)
+            .map((chain) => {
+              const labels = chain.direction === "upstream"
+                ? [...chain.labels].reverse()
+                : chain.labels;
+              return (
+                '<div class="detail-item"><div class="detail-title"><strong>'
+                + escapeHtml(labels.join(" → "))
+                + '</strong><span class="detail-time">'
+                + escapeHtml("depth " + chain.depth + " / score " + chain.score.toFixed(2))
+                + '</span></div><div class="detail-body">'
+                + escapeHtml(chain.edges.map((edge) => edge.relation + " (" + edge.causalLevel + ")").join(" → "))
+                + "</div></div>"
+              );
+            })
+            .join("");
+          return '<article class="group"><h3>' + title + "</h3><div class=\"detail-list\">" + body + "</div></article>";
+        }
+
+        if (trace) {
+          if (!trace.startNode) {
             parts.push(
-              '<div class="detail-item"><div class="detail-title"><strong>'
-              + escapeHtml(counterpartNode ? counterpartNode.label : counterpart)
-              + '</strong><span class="detail-time">'
-              + escapeHtml(edge.causalLevel + " / " + direction)
-              + '</span></div><div class="detail-body">'
-              + escapeHtml(edge.description || edge.relation)
-              + "</div></div>"
+              '<article class="group"><h3>Causal Mapping Pending</h3>'
+              + '<div class="detail-item"><div class="detail-body">'
+              + escapeHtml("この指標はまだ causal seed に未接続です。current / history は表示されています。")
+              + "</div></div></article>"
             );
           }
-          parts.push("</div></article>");
+
+          parts.push(renderChains("Upstream Chains", trace.upstream));
+          parts.push(renderChains("Downstream Chains", trace.downstream));
+
+          if ((trace.upstream.length > 0 || trace.downstream.length > 0) && trace.startNode) {
+            const related = trace.nodes
+              .filter((node) => node.id !== trace.startNode.id)
+              .slice(0, 8);
+            const relatedHtml = related.map((node) =>
+              '<div class="detail-item"><div class="detail-title"><strong>'
+              + escapeHtml(node.label)
+              + '</strong><span class="detail-time">'
+              + escapeHtml(node.role)
+              + '</span></div><div class="detail-body">'
+              + escapeHtml(
+                node.currentMetric
+                  ? node.currentMetric.label + ": " + (node.currentMetric.valueText ?? "—")
+                  : node.description || "current value unavailable"
+              )
+              + "</div></div>"
+            ).join("");
+            parts.push(
+              '<article class="group"><h3>Trace Nodes</h3><div class="detail-list">'
+              + relatedHtml
+              + "</div></article>"
+            );
+          }
         }
 
         if (parts.length === 0) {
@@ -803,6 +902,7 @@ function renderPage(): string {
 
       function render() {
         initializeSelectedSeries();
+        renderTraceControls();
         renderHeader();
         renderCurrent();
         renderTimeline();
@@ -811,9 +911,26 @@ function renderPage(): string {
         renderSelectionSummary();
       }
 
+      async function loadTraceForSelection() {
+        const requestId = ++state.traceRequestId;
+        const params = new URLSearchParams({
+          key: state.selectedKey,
+          direction: state.traceDirection,
+          depth: String(state.traceDepth),
+        });
+        const response = await fetch("/api/causal-trace?" + params.toString(), { cache: "no-store" });
+        const trace = await response.json();
+        if (requestId !== state.traceRequestId) return;
+        state.trace = trace;
+        renderGraph();
+        renderSelectionSummary();
+        renderTraceControls();
+      }
+
       async function load() {
         const response = await fetch("/api/dashboard", { cache: "no-store" });
         state.data = await response.json();
+        state.trace = state.data.trace;
         render();
       }
 
@@ -825,6 +942,7 @@ function renderPage(): string {
         if (metricButton) {
           state.selectedKey = metricButton.getAttribute("data-metric-key");
           render();
+          loadTraceForSelection().catch(() => {});
           return;
         }
 
@@ -846,6 +964,31 @@ function renderPage(): string {
           renderGraph();
           renderSelectionSummary();
           renderCurrent();
+          loadTraceForSelection().catch(() => {});
+          return;
+        }
+
+        const point = target.closest("[data-point-key]");
+        if (point) {
+          state.selectedKey = point.getAttribute("data-point-key");
+          render();
+          loadTraceForSelection().catch(() => {});
+          return;
+        }
+
+        const directionButton = target.closest("[data-trace-direction]");
+        if (directionButton) {
+          state.traceDirection = directionButton.getAttribute("data-trace-direction");
+          renderTraceControls();
+          loadTraceForSelection().catch(() => {});
+          return;
+        }
+
+        const depthButton = target.closest("[data-trace-depth]");
+        if (depthButton) {
+          state.traceDepth = Number(depthButton.getAttribute("data-trace-depth")) || 3;
+          renderTraceControls();
+          loadTraceForSelection().catch(() => {});
         }
       });
 
@@ -883,6 +1026,10 @@ if (import.meta.main) {
 
       if (url.pathname === "/api/dashboard") {
         return Response.json(await buildPayload());
+      }
+
+      if (url.pathname === "/api/causal-trace") {
+        return Response.json(await buildTracePayload(url));
       }
 
       if (url.pathname === "/health") {

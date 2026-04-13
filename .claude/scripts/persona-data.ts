@@ -4,12 +4,20 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
+import {
+  ENVIRONMENT_FIELDS,
+  parseEnvironmentDocument,
+  setEnvironmentAuxValue,
+  setEnvironmentObservation,
+} from "./environment-store";
+
 const SCRIPT_DIR = import.meta.dir;
 const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
 
 const DEFAULT_SOUL_PATH = resolve(PROJECT_ROOT, "SOUL.md");
 const DEFAULT_BODY_PATH = resolve(PROJECT_ROOT, "BODY.md");
 const DEFAULT_STATUS_PATH = resolve(PROJECT_ROOT, "STATUS.md");
+const DEFAULT_ENVIRONMENT_PATH = resolve(PROJECT_ROOT, "ENVIRONMENT.md");
 const DEFAULT_CAUSAL_SEED_PATH = resolve(PROJECT_ROOT, ".claude/persona/causal-seeds.json");
 
 export const PERSONA_DB_PATH =
@@ -83,6 +91,11 @@ export interface ParsedStatusDocument {
   history: PersonaHistoryEntry[];
 }
 
+export interface ParsedEnvironmentDocument {
+  metrics: PersonaMetric[];
+  history: PersonaHistoryEntry[];
+}
+
 export interface EnvironmentObservationInput {
   key: string;
   label: string;
@@ -91,7 +104,7 @@ export interface EnvironmentObservationInput {
   unit?: string | null;
   observedAt?: string;
   source?: string;
-  sourceType?: Extract<PersonaSourceType, "sensor" | "proxy">;
+  sourceType?: Extract<PersonaSourceType, "sensor" | "proxy" | "markdown">;
   reason?: string | null;
   statusTarget?: string | null;
   metadata?: Record<string, unknown> | null;
@@ -104,12 +117,9 @@ export interface EnvironmentObservationRow {
   source: string;
   sourceType: string;
   observedAt: string;
-  rawValue: number | null;
+  rawValueText: string | null;
   normalizedValue: number | null;
-  unit: string | null;
-  statusTarget: string | null;
   reason: string | null;
-  metadataJson: string | null;
 }
 
 export interface CausalNode {
@@ -713,7 +723,7 @@ export function parseStatusDocument(text: string): ParsedStatusDocument {
 
 function replaceMarkdownCurrent(db: Database, metrics: PersonaMetric[]): void {
   db.query(
-    "DELETE FROM persona_current WHERE source_file IN ('SOUL.md', 'BODY.md', 'STATUS.md')"
+    "DELETE FROM persona_current WHERE source_file IN ('SOUL.md', 'BODY.md', 'STATUS.md', 'ENVIRONMENT.md')"
   ).run();
 
   const insert = db.query(
@@ -745,7 +755,7 @@ function replaceMarkdownCurrent(db: Database, metrics: PersonaMetric[]): void {
 
 function replaceMarkdownHistory(db: Database, entries: PersonaHistoryEntry[]): void {
   db.query(
-    "DELETE FROM persona_history WHERE source_file IN ('BODY.md', 'STATUS.md')"
+    "DELETE FROM persona_history WHERE source_file IN ('BODY.md', 'STATUS.md', 'ENVIRONMENT.md')"
   ).run();
 
   const insert = db.query(
@@ -773,6 +783,81 @@ function replaceMarkdownHistory(db: Database, entries: PersonaHistoryEntry[]): v
       toJson(entry.metadata),
     );
   }
+}
+
+export function parseEnvironmentMarkdown(text: string): ParsedEnvironmentDocument {
+  const parsed = parseEnvironmentDocument(text);
+  const metrics: PersonaMetric[] = [];
+  const history: PersonaHistoryEntry[] = [];
+
+  for (const [key, entry] of Object.entries(parsed.current)) {
+    if (!entry) continue;
+    metrics.push({
+      key,
+      label: entry.label,
+      level: "Lv0",
+      domain: "environment",
+      valueText: entry.rawValueText,
+      valueNumber: entry.normalizedValue,
+      unit: "score",
+      sourceFile: "ENVIRONMENT.md",
+      sourceType: "markdown",
+      observedAt: entry.updatedAt,
+      personaTime: null,
+      recordedAt: entry.updatedAt,
+      reason: entry.reason,
+      metadata: {
+        source: entry.source,
+        statusTarget: ENVIRONMENT_FIELDS[key as keyof typeof ENVIRONMENT_FIELDS]?.statusTarget ?? null,
+      },
+    });
+  }
+
+  for (const [key, entry] of Object.entries(parsed.aux)) {
+    if (!entry) continue;
+    metrics.push({
+      key,
+      label: entry.label,
+      level: "Lv0",
+      domain: "environment",
+      valueText: entry.valueText,
+      valueNumber: parseNumber(entry.valueText),
+      unit: key === "environment_thermal_baseline" ? "°C" : null,
+      sourceFile: "ENVIRONMENT.md",
+      sourceType: "markdown",
+      observedAt: entry.updatedAt,
+      personaTime: null,
+      recordedAt: entry.updatedAt,
+      reason: entry.note,
+      metadata: {
+        auxiliary: true,
+      },
+    });
+  }
+
+  for (const entry of parsed.history) {
+    history.push({
+      key: entry.key,
+      label: entry.label,
+      level: "Lv0",
+      domain: "environment",
+      previousValueText: entry.previousValueText,
+      previousValueNumber: null,
+      nextValueText: entry.nextValueText,
+      nextValueNumber: entry.normalizedValue,
+      unit: "score",
+      changedAt: entry.changedAt,
+      sourceFile: "ENVIRONMENT.md",
+      sourceType: "markdown",
+      reason: entry.reason,
+      metadata: {
+        source: parsed.current[entry.key]?.source ?? null,
+        statusTarget: ENVIRONMENT_FIELDS[entry.key]?.statusTarget ?? null,
+      },
+    });
+  }
+
+  return { metrics, history };
 }
 
 function upsertMeta(db: Database, meta: PersonaMeta): void {
@@ -826,10 +911,11 @@ async function seedCausalGraph(db: Database): Promise<void> {
 }
 
 export async function syncPersonaStructuredStore(): Promise<void> {
-  const [soulText, bodyText, statusText] = await Promise.all([
+  const [soulText, bodyText, statusText, environmentText] = await Promise.all([
     readPathOrNull(DEFAULT_SOUL_PATH),
     readPathOrNull(DEFAULT_BODY_PATH),
     readPathOrNull(DEFAULT_STATUS_PATH),
+    readPathOrNull(DEFAULT_ENVIRONMENT_PATH),
   ]);
 
   const db = openPersonaDb();
@@ -838,9 +924,12 @@ export async function syncPersonaStructuredStore(): Promise<void> {
     const soul = soulText ? parseSoulDocument(soulText) : { meta: {}, metrics: [] };
     const body = bodyText ? parseBodyDocument(bodyText) : { metrics: [], history: [] };
     const status = statusText ? parseStatusDocument(statusText) : { metrics: [], history: [] };
+    const environment = environmentText
+      ? parseEnvironmentMarkdown(environmentText)
+      : { metrics: [], history: [] };
 
-    replaceMarkdownCurrent(db, [...soul.metrics, ...body.metrics, ...status.metrics]);
-    replaceMarkdownHistory(db, [...body.history, ...status.history]);
+    replaceMarkdownCurrent(db, [...soul.metrics, ...body.metrics, ...status.metrics, ...environment.metrics]);
+    replaceMarkdownHistory(db, [...body.history, ...status.history, ...environment.history]);
     upsertMeta(db, soul.meta);
     await seedCausalGraph(db);
   } finally {
@@ -851,105 +940,57 @@ export async function syncPersonaStructuredStore(): Promise<void> {
 export async function recordEnvironmentObservation(
   observation: EnvironmentObservationInput
 ): Promise<void> {
-  const db = openPersonaDb();
+  const observedAt = observation.observedAt ? new Date(observation.observedAt) : new Date();
 
-  try {
-    const observedAt = observation.observedAt ?? new Date().toISOString();
-    const source = observation.source ?? "environment-tick";
-    const sourceType = observation.sourceType ?? "proxy";
-
-    const current = db
-      .query<DashboardMetricRow, [string]>(
-        `SELECT key, label, level, domain, value_text AS valueText, value_number AS valueNumber,
-                unit, source_file AS sourceFile, source_type AS sourceType,
-                observed_at AS observedAt, persona_time AS personaTime, recorded_at AS recordedAt,
-                reason, metadata_json AS metadataJson
-         FROM persona_current
-         WHERE key = ?`
-      )
-      .get(observation.key);
-
-    const nextValueText =
-      observation.normalizedValue !== null
-        ? String(Math.round(observation.normalizedValue))
-        : observation.rawValue !== null
-          ? String(observation.rawValue)
-          : null;
-
-    db.query(
-      `INSERT INTO environment_observations (
-        key, label, source, source_type, observed_at, raw_value, normalized_value,
-        unit, status_target, reason, metadata_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      observation.key,
-      observation.label,
-      source,
-      sourceType,
-      observedAt,
-      observation.rawValue,
-      observation.normalizedValue,
-      observation.unit ?? null,
-      observation.statusTarget ?? null,
-      observation.reason ?? null,
-      toJson(observation.metadata),
+  if (observation.key === "environment_thermal_baseline") {
+    await setEnvironmentAuxValue(
+      "environment_thermal_baseline",
+      observation.rawValue !== null ? `${observation.rawValue.toFixed(1)} °C` : null,
+      {
+        updatedAt: observedAt,
+        note: observation.reason ?? "Core Max の EMA 基準値",
+      }
     );
-
-    db.query(
-      `INSERT INTO persona_history (
-        key, label, level, domain, previous_value_text, previous_value_number, next_value_text,
-        next_value_number, unit, changed_at, source_file, source_type, reason, metadata_json
-      ) VALUES (?, ?, 'Lv0', 'environment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      observation.key,
-      observation.label,
-      current?.valueText ?? null,
-      current?.valueNumber ?? null,
-      nextValueText,
-      observation.normalizedValue,
-      observation.unit ?? null,
-      observedAt,
-      source,
-      sourceType,
-      observation.reason ?? null,
-      toJson(observation.metadata),
-    );
-
-    db.query(
-      `INSERT INTO persona_current (
-        key, label, level, domain, value_text, value_number, unit, source_file, source_type,
-        observed_at, persona_time, recorded_at, reason, metadata_json, updated_at
-      ) VALUES (?, ?, 'Lv0', 'environment', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET
-        label = excluded.label,
-        level = excluded.level,
-        domain = excluded.domain,
-        value_text = excluded.value_text,
-        value_number = excluded.value_number,
-        unit = excluded.unit,
-        source_file = excluded.source_file,
-        source_type = excluded.source_type,
-        observed_at = excluded.observed_at,
-        recorded_at = excluded.recorded_at,
-        reason = excluded.reason,
-        metadata_json = excluded.metadata_json,
-        updated_at = CURRENT_TIMESTAMP`
-    ).run(
-      observation.key,
-      observation.label,
-      nextValueText,
-      observation.normalizedValue,
-      observation.unit ?? null,
-      source,
-      sourceType,
-      observedAt,
-      observedAt,
-      observation.reason ?? null,
-      toJson(observation.metadata),
-    );
-  } finally {
-    db.close();
+    await syncPersonaStructuredStore();
+    return;
   }
+
+  if (observation.key === "environment_sample_count") {
+    await setEnvironmentAuxValue(
+      "environment_sample_count",
+      observation.rawValue !== null ? String(Math.round(observation.rawValue)) : null,
+      {
+        updatedAt: observedAt,
+        note: observation.reason ?? "baseline 算出に使ったサンプル数",
+      }
+    );
+    await syncPersonaStructuredStore();
+    return;
+  }
+
+  if (!(observation.key in ENVIRONMENT_FIELDS)) {
+    return;
+  }
+
+  let rawValueText: string | null = null;
+  if (observation.key === "ambient_brightness" && observation.rawValue !== null) {
+    rawValueText = `${Math.round(observation.rawValue)} / 255`;
+  } else if (observation.rawValue !== null) {
+    rawValueText = observation.unit ? `${observation.rawValue.toFixed(1)} ${observation.unit}` : String(observation.rawValue);
+  }
+
+  await setEnvironmentObservation(
+    observation.key as keyof typeof ENVIRONMENT_FIELDS,
+    rawValueText,
+    observation.normalizedValue,
+    {
+      observedAt,
+      source: observation.source ?? ENVIRONMENT_FIELDS[observation.key as keyof typeof ENVIRONMENT_FIELDS].sourceHint,
+      reason: observation.reason ?? observation.label,
+      recordHistoryOnUnchanged: true,
+    }
+  );
+  await syncPersonaStructuredStore();
 }
 
 export async function readPersonaDashboardSnapshot(): Promise<{
@@ -995,11 +1036,18 @@ export async function readPersonaDashboardSnapshot(): Promise<{
       .all();
     const observations = db
       .query<EnvironmentObservationRow, []>(
-        `SELECT id, key, label, source, source_type AS sourceType, observed_at AS observedAt,
-                raw_value AS rawValue, normalized_value AS normalizedValue,
-                unit, status_target AS statusTarget, reason, metadata_json AS metadataJson
-         FROM environment_observations
-         ORDER BY observed_at DESC
+        `SELECT id,
+                key,
+                label,
+                source_file AS source,
+                source_type AS sourceType,
+                changed_at AS observedAt,
+                next_value_text AS rawValueText,
+                next_value_number AS normalizedValue,
+                reason
+         FROM persona_history
+         WHERE source_file = 'ENVIRONMENT.md'
+         ORDER BY COALESCE(changed_at, '') DESC
          LIMIT 120`
       )
       .all();

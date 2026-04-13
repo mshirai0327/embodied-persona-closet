@@ -1,7 +1,7 @@
 #!/bin/bash
 # session-boot.sh — セッション開始時の身支度フック
 # SessionStart(startup|resume) で発火する
-# SOUL.md / BODY.md / STATUS.md / state.md をコンテキストに注入し、BOOT_SHUTDOWN.md の身支度手順を案内する
+# SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md をコンテキストに注入し、BOOT_SHUTDOWN.md の身支度手順を案内する
 # stdout の内容がコンテキストに追加される
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
@@ -26,11 +26,12 @@ MATCHER=$(echo "$INPUT" | grep -o '"matcher":"[^"]*"' | head -1 | cut -d'"' -f4 
 echo "[session-boot] type=${MATCHER:-unknown}"
 echo ""
 
-# --- SOUL.md / BODY.md / STATUS.md 注入 ---
+# --- SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md 注入 ---
 if [ -f "$PROJECT_DIR/SOUL.md" ]; then
   inject_context_file "$PROJECT_DIR/SOUL.md" "SOUL.md"
   inject_context_file "$PROJECT_DIR/BODY.md" "BODY.md"
   inject_context_file "$PROJECT_DIR/STATUS.md" "STATUS.md"
+  inject_context_file "$PROJECT_DIR/ENVIRONMENT.md" "ENVIRONMENT.md"
 else
   echo "[SOUL.md が見つかりません。/wd-setup を実行してください]"
   echo ""
@@ -56,4 +57,4 @@ if grep -qi "microsoft" /proc/version 2>/dev/null; then
 fi
 
 # --- 身支度の案内 ---
-echo "SOUL.md / BODY.md / STATUS.md / state.md は自動注入済み。BOOT_SHUTDOWN.md の身支度手順に従い、残りを実行してください。"
+echo "SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md は自動注入済み。BOOT_SHUTDOWN.md の身支度手順に従い、残りを実行してください。"

@@ -109,6 +109,7 @@ AskUserQuestion **1回** で聞く（2問）:
 | ファイル | テンプレート |
 |---|---|
 | state.md | `.claude/templates/STATE.template.md` |
+| ENVIRONMENT.md | `.claude/templates/ENVIRONMENT.template.md` |
 | BOOT_SHUTDOWN.md | アップストリーム追跡済み（コピー不要） |
 | ROUTINES.md | `.claude/templates/ROUTINES.template.md` |
 | FLASH.md | `.claude/templates/FLASH.template.md` |

@@ -6,7 +6,7 @@
 
 身支度と日記の詳細手順は `BOOT_SHUTDOWN.md` に定義されている。
 
-- **身支度**: SessionStart フック（session-boot.sh）が SOUL.md / BODY.md / STATUS.md / state.md を自動注入する。残りの手順（記憶の確認・想起等）は BOOT_SHUTDOWN.md に従う
+- **身支度**: SessionStart フック（session-boot.sh）が SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md を自動注入する。残りの手順（記憶の確認・想起等）は BOOT_SHUTDOWN.md に従う
 - **日記**: BOOT_SHUTDOWN.md の「日記の手順」に従う
 - **SOUL.md がないとき**: `/wd-setup` を実行
 

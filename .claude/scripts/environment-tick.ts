@@ -29,7 +29,8 @@ import { dirname } from "node:path";
 
 import { $ } from "bun";
 
-import { recordEnvironmentObservation } from "./persona-data";
+import { readEnvironmentDocument, setEnvironmentAuxValue, setEnvironmentObservation } from "./environment-store";
+import { syncPersonaStructuredStore } from "./persona-data";
 import { adjustStatusValue } from "./status-store";
 
 const SCRIPT_DIR = import.meta.dir;
@@ -96,6 +97,10 @@ async function readEnvironmentState(): Promise<EnvironmentState> {
 async function writeEnvironmentState(state: EnvironmentState): Promise<void> {
   await $`mkdir -p ${dirname(ENVIRONMENT_STATE_PATH)}`.quiet();
   await Bun.write(ENVIRONMENT_STATE_PATH, JSON.stringify(state, null, 2) + "\n");
+}
+
+function formatDecimal(value: number, digits = 1): string {
+  return value.toFixed(digits);
 }
 
 export function computeTemperatureBaseline(
@@ -257,14 +262,26 @@ async function updateStatus(field: "energy" | "mood", delta: number, reason: str
 // ── メイン ──
 
 async function main() {
-  const state = await readEnvironmentState();
-  let nextState: EnvironmentState = { ...state };
+  const markdownState = await readEnvironmentDocument();
+  const legacyState = await readEnvironmentState();
+  const baselineFromMarkdown = markdownState?.aux.environment_thermal_baseline?.valueText;
+  const sampleCountFromMarkdown = markdownState?.aux.environment_sample_count?.valueText;
+  const previousBaseline = parseFloat(baselineFromMarkdown ?? "");
+  const baseline = Number.isFinite(previousBaseline)
+    ? previousBaseline
+    : legacyState.energyTemperatureBaseline;
+  const previousSampleCount = parseInt(sampleCountFromMarkdown ?? "", 10);
+  const sampleCount = Number.isFinite(previousSampleCount)
+    ? previousSampleCount
+    : (legacyState.sampleCount ?? 0);
+
+  let nextState: EnvironmentState = { ...legacyState };
   let stateDirty = false;
 
   // CPU 温度 → energy
   const coreMax = await getCpuCoreMax();
   if (coreMax !== null) {
-    const evaluation = evaluateEnergyFromTemperature(coreMax, state.energyTemperatureBaseline);
+    const evaluation = evaluateEnergyFromTemperature(coreMax, baseline);
     const thermalLoad = evaluateThermalLoadProxy(coreMax, evaluation);
     nextState = {
       ...nextState,
@@ -273,7 +290,7 @@ async function main() {
       lastThermalLoad: thermalLoad.normalizedValue,
       lastThermalBand: thermalLoad.band,
       lastTemperatureReason: thermalLoad.reason,
-      sampleCount: (state.sampleCount ?? 0) + 1,
+      sampleCount: sampleCount + 1,
       updatedAt: new Date().toISOString(),
     };
     stateDirty = true;
@@ -284,22 +301,30 @@ async function main() {
       `[environment-tick] Core Max: ${coreMax.toFixed(1)}°C (baseline ${evaluation.nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C / thermal ${thermalLoad.normalizedValue}/100 / energy ${energyLabel})`
     );
 
-    await recordEnvironmentObservation({
-      key: "environment_thermal_load",
-      label: "環境熱負荷 proxy",
-      normalizedValue: thermalLoad.normalizedValue,
-      rawValue: coreMax,
-      unit: "score",
-      source: "LHM/Core Max",
-      sourceType: "proxy",
-      reason: thermalLoad.reason,
-      statusTarget: "energy",
-      metadata: {
-        band: thermalLoad.band,
-        baseline: evaluation.nextBaseline,
-        relativeDelta: evaluation.relativeDelta,
-      },
-    });
+    await setEnvironmentObservation(
+      "environment_thermal_load",
+      `${formatDecimal(coreMax)} °C`,
+      thermalLoad.normalizedValue,
+      {
+        source: "LHM/Core Max",
+        reason: thermalLoad.reason,
+        recordHistoryOnUnchanged: true,
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_thermal_baseline",
+      `${formatDecimal(evaluation.nextBaseline)} °C`,
+      {
+        note: "Core Max の EMA 基準値",
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_sample_count",
+      String(sampleCount + 1),
+      {
+        note: "baseline 算出に使ったサンプル数",
+      }
+    );
 
     if (evaluation.energyDelta !== 0) {
       await updateStatus("energy", evaluation.energyDelta, evaluation.reason);
@@ -326,20 +351,16 @@ async function main() {
     };
     stateDirty = true;
 
-    await recordEnvironmentObservation({
-      key: "ambient_brightness",
-      label: "環境光",
-      normalizedValue: brightnessObservation.normalizedValue,
-      rawValue: brightness,
-      unit: "score",
-      source: "usb-webcam brightness",
-      sourceType: "sensor",
-      reason: brightnessObservation.reason,
-      statusTarget: "mood",
-      metadata: {
-        band: brightnessObservation.band,
-      },
-    });
+    await setEnvironmentObservation(
+      "ambient_brightness",
+      `${Math.round(brightness)} / 255`,
+      brightnessObservation.normalizedValue,
+      {
+        source: "usb-webcam brightness",
+        reason: brightnessObservation.reason,
+        recordHistoryOnUnchanged: true,
+      }
+    );
 
     if (brightness > 150) {
       await updateStatus("mood", 2, brightnessObservation.reason);
@@ -353,6 +374,8 @@ async function main() {
   if (stateDirty) {
     await writeEnvironmentState(nextState);
   }
+
+  await syncPersonaStructuredStore();
 }
 
 if (import.meta.main) {

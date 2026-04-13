@@ -25,10 +25,7 @@ async function buildPayload() {
       metadata: parseJson<Record<string, unknown>>(row.metadataJson),
     })),
     history: snapshot.history,
-    observations: snapshot.observations.map((row) => ({
-      ...row,
-      metadata: parseJson<Record<string, unknown>>(row.metadataJson),
-    })),
+    observations: snapshot.observations,
     graph: snapshot.graph,
   };
 }
@@ -441,6 +438,9 @@ function renderPage(): string {
 
       function formatMetricValue(metric) {
         if (metric.valueText == null) return "—";
+        if (metric.domain === "environment" && metric.unit === "score") {
+          return (metric.valueNumber ?? "—") + "/100";
+        }
         if (!metric.unit || metric.unit === "score") {
           return metric.unit === "score" ? metric.valueText + "/100" : metric.valueText;
         }
@@ -612,7 +612,7 @@ function renderPage(): string {
           title: entry.label,
           time: entry.observedAt,
           body:
-            "raw " + (entry.rawValue ?? "—") +
+            "raw " + (entry.rawValueText ?? "—") +
             " / score " + (entry.normalizedValue ?? "—") +
             (entry.reason ? " / " + entry.reason : ""),
         }));

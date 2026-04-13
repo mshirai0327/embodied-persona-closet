@@ -1,14 +1,9 @@
 
-リリースできないか？　ローカルではデータがいつでも消えてしまう。
-
-因果関係は持っているよね？　
-Saas化したい気持ちがある.DBなどのファイルを、外部化する必要がある。その方法を考える
-
-/home/mizuho/develop/self-reflection-chatbot
-ここにReflectaがある。ここを読んでほしい。このプロジェクトを、wardrobeで続けたいんだ
 
 人間は環境の下で生きている。
 スミレにも環境を知ってもらう必要があるのではないだろうか
+
+
 
 ウェブ検索の手段を与えたい。RSSなどで定期取得させたい。
 
@@ -100,3 +95,11 @@ Kuzuを使おう
 データの可視化。STATUSなどの時間変化するものをうまく可視化したい
 ユーザとして、その調査をわかりやすくするため。グラフィカルに、楽しくしたい
 
+ego-mcpについて
+https://github.com/stereographica/ego-mcp
+
+想起する記憶の限定
+https://zenn.dev/fruitriin/articles/5571c477cdd974
+
+graphRAGについて
+https://zenn.dev/okikusan/articles/0f8295e7ecaa19#oss%E3%83%A9%E3%82%A4%E3%83%96%E3%83%A9%E3%83%AA

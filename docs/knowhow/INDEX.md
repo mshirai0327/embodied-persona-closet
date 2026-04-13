@@ -5,6 +5,7 @@
 | ファイル | 要約 | キーワード |
 |---|---|---|
 | wardrobe/session-end-hook-design.md | SessionEnd フックの設計知見 | SessionEnd, nohup, バックグラウンド |
+| wardrobe/heartbeat-daemon-linux.md | heartbeat-daemon の WSL2/Linux 対応・体験的表現の切り分け | heartbeat, interoception, WSL2, Linux, launchd, systemd |
 | claude-code/hooks.md | フック25種の仕様・if条件・exit code・環境変数 | hooks, PreToolUse, PostToolUse, SessionStart, if条件, CLAUDE_PROJECT_DIR |
 | claude-code/subagents.md | サブエージェント定義・memory・skills・mcpServers | subagent, Agent, memory, isolation, worktree |
 | claude-code/skills.md | スキル仕様・frontmatter・context:fork・動的注入 | skills, SKILL.md, context:fork, $ARGUMENTS, paths |

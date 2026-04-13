@@ -404,6 +404,7 @@ function renderPage(): string {
         energy: "#c4622d",
         satiation: "#c2a227",
         health: "#3f7db4",
+        trust_mizuho: "#8d5fd3",
         ambient_brightness: "#5f9a3b",
         environment_thermal_load: "#b14c2a",
       };
@@ -420,7 +421,8 @@ function renderPage(): string {
       const state = {
         data: null,
         selectedKey: "energy",
-        selectedSeries: new Set(["mood", "energy", "satiation", "ambient_brightness", "environment_thermal_load"]),
+        selectedSeries: new Set(),
+        initializedSeries: false,
       };
 
       function escapeHtml(text) {
@@ -515,6 +517,20 @@ function renderPage(): string {
         }));
 
         return series.sort((a, b) => a.key.localeCompare(b.key));
+      }
+
+      function initializeSelectedSeries() {
+        if (state.initializedSeries || !state.data) return;
+
+        const reversibleLevels = new Set(["Lv0", "Lv3-1", "Lv3-2"]);
+        const seriesKeys = new Set(
+          state.data.history
+            .filter((entry) => entry.nextValueNumber != null && reversibleLevels.has(entry.level))
+            .map((entry) => entry.key)
+        );
+
+        state.selectedSeries = seriesKeys;
+        state.initializedSeries = true;
       }
 
       function renderLegend(series) {
@@ -786,6 +802,7 @@ function renderPage(): string {
       }
 
       function render() {
+        initializeSelectedSeries();
         renderHeader();
         renderCurrent();
         renderTimeline();

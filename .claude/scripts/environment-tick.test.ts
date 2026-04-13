@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   computeTemperatureBaseline,
+  describeBrightnessObservation,
   evaluateEnergyFromTemperature,
+  evaluateThermalLoadProxy,
 } from "./environment-tick.ts";
 
 describe("computeTemperatureBaseline", () => {
@@ -49,6 +51,28 @@ describe("evaluateEnergyFromTemperature", () => {
     const result = evaluateEnergyFromTemperature(100, 100);
 
     expect(result.energyDelta).toBe(0);
-    expect(result.reason).toContain("通常温度");
+    expect(result.reason).toContain("安定");
+  });
+});
+
+describe("evaluateThermalLoadProxy", () => {
+  test("maps hotter-than-baseline states to a high thermal load score", () => {
+    const proxy = evaluateThermalLoadProxy(110, {
+      nextBaseline: 102,
+      relativeDelta: -8,
+    });
+
+    expect(proxy.normalizedValue).toBeGreaterThan(75);
+    expect(proxy.band).toBe("hot");
+  });
+});
+
+describe("describeBrightnessObservation", () => {
+  test("normalizes camera brightness into an environment score", () => {
+    const observation = describeBrightnessObservation(191);
+
+    expect(observation.normalizedValue).toBe(75);
+    expect(observation.band).toBe("bright");
+    expect(observation.reason).toContain("環境光");
   });
 });

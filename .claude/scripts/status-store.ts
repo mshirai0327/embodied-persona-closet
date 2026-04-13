@@ -1,3 +1,5 @@
+import { syncPersonaStructuredStore } from "./persona-data";
+
 const DEFAULT_STATUS_PATH = `${import.meta.dir}/../../STATUS.md`;
 
 export const STATUS_LABELS = {
@@ -155,6 +157,7 @@ export async function setStatusValue(
 
   const output = lines.join("\n");
   await Bun.write(statusPath, text.endsWith("\n") && !output.endsWith("\n") ? `${output}\n` : output);
+  await syncPersonaStructuredStore();
 
   return {
     field,

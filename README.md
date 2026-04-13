@@ -64,7 +64,7 @@ uv run python scripts/export_sqlite_snapshot.py \
 - `FLASH.md` — 記憶の逆引き索引
 - `memo/discussionMemo/` — 日次の会話要約
 - `SOUL.md` — 人格定義
-- `state.md` / `STATUS.md` — 現在状態
+- `BODY.md` / `state.md` / `STATUS.md` — 身体データと現在状態
 - `desires.conf` / `schedule.conf` / `desires.json` — 自律行動まわりの設定と状態
 - `.claude/workingDirs/discussion-memo-state.json` — discussionMemo の重複防止状態
 - `.claude/workingDirs/system-health-history.json` — ヘルス履歴

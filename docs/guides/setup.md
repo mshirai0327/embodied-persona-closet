@@ -112,7 +112,7 @@ WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio �
 
 再起動すると身支度が自動で始まる:
 
-1. SOUL.md と state.md がコンテキストに注入される（自動）
+1. SOUL.md / BODY.md / STATUS.md / state.md がコンテキストに注入される（自動）
 2. 記憶システムの状態を確認する
 3. 作業記憶を装填する
 4. 前回の文脈を想起する（初回は空）

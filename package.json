@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck:scripts": "tsc --project tsconfig.json --pretty false"
+    "typecheck:scripts": "tsc --project tsconfig.json --pretty false",
+    "persona:dashboard": "bun .claude/scripts/persona-dashboard.ts",
+    "persona:sync": "bun .claude/scripts/persona-data.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.5.0",

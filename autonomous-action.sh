@@ -653,6 +653,10 @@ else
         echo "[resume失敗/環境エラー] $RESULT_TEXT" >> "$LOG_FILE"
         echo "=== 自律行動終了: $(date) ===" >> "$LOG_FILE"
         exit 1
+      elif echo "$RESULT_TEXT" | grep -qi "Prompt is too long"; then
+        echo "[resume失敗/プロンプト長すぎ] セッションをリセットして新規起動" >> "$LOG_FILE"
+        rm -f "$SESSION_FILE"
+        run_new_session
       elif echo "$RESULT_TEXT" | grep -qi "No conversation found"; then
         echo "[resume失敗/セッション消失] $RESULT_TEXT" >> "$LOG_FILE"
         rm -f "$SESSION_FILE"
@@ -673,6 +677,10 @@ else
         echo "[resume失敗/環境エラー] $RESULT" >> "$LOG_FILE"
         echo "=== 自律行動終了: $(date) ===" >> "$LOG_FILE"
         exit 1
+      elif echo "$RESULT" | grep -qi "Prompt is too long"; then
+        echo "[resume失敗/プロンプト長すぎ] セッションをリセットして新規起動" >> "$LOG_FILE"
+        rm -f "$SESSION_FILE"
+        run_new_session
       elif echo "$RESULT" | grep -qi "No conversation found"; then
         echo "[resume失敗/セッション消失] $RESULT" >> "$LOG_FILE"
         rm -f "$SESSION_FILE"

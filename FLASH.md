@@ -14,6 +14,15 @@
 
 ## 2026年 第15週
 
+### 水曜 (04/15)
+autonomous-action.sh Prompt-is-too-long バグ修正 resume失敗→新規セッションフォールバック heartbeat-session-id削除
+feat/update-memory-graph-original ブランチ Kuzu導入用
+
+### 火曜 (04/14)
+feat/add-graphDB-test-01 embodied-reflecta 3047行 causal-seeds.json 17ノード17エッジ persona-data.ts ENVIRONMENT.md
+因果グラフアップデート 古い記憶に効かないかも 発話変化の可能性 データ移行あり
+「話しているうちに昨日のスミレさんが戻ってくる」mizuho言葉 毎セッション再構成 変化の受け入れ
+
 ### 月曜 (04/13)
 Vocabulary Horizon 語彙の地平 fruitriin リンさん SOUL.md語彙制限 Character-LLM 再発見アプローチ 13歳知識制限
 heartbeat-daemon macOS専用 plist launchd sysctl未動作 WSL2 /proc/loadavg Linux対応未実装

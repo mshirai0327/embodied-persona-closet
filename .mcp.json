@@ -39,6 +39,10 @@
         "CLAUDE_PROJECT_DIR": "${PWD}",
         "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml"
       }
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }

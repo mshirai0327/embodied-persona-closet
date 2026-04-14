@@ -122,11 +122,17 @@
     root.innerHTML = html.join("");
   }
 
-  function buildSeries() {
+  function collectTimelineEntries() {
+    const reversibleLevels = new Set(["Lv0", "Lv3-1", "Lv3-2"]);
+    return state.data.history.filter(
+      (entry) => entry.nextValueNumber != null && entry.changedAt && reversibleLevels.has(entry.level)
+    );
+  }
+
+  function buildSeries(selectedOnly) {
     const grouped = new Map();
-    for (const entry of state.data.history) {
-      if (entry.nextValueNumber == null || !entry.changedAt) continue;
-      if (!state.selectedSeries.has(entry.key)) continue;
+    for (const entry of collectTimelineEntries()) {
+      if (selectedOnly && !state.selectedSeries.has(entry.key)) continue;
       if (!grouped.has(entry.key)) grouped.set(entry.key, []);
       grouped.get(entry.key).push({
         timestamp: new Date(entry.changedAt).getTime(),
@@ -149,11 +155,8 @@
   function initializeSelectedSeries() {
     if (state.initializedSeries || !state.data) return;
 
-    const reversibleLevels = new Set(["Lv0", "Lv3-1", "Lv3-2"]);
     const seriesKeys = new Set(
-      state.data.history
-        .filter((entry) => entry.nextValueNumber != null && reversibleLevels.has(entry.level))
-        .map((entry) => entry.key)
+      collectTimelineEntries().map((entry) => entry.key)
     );
 
     state.selectedSeries = seriesKeys;
@@ -200,8 +203,9 @@
 
   function renderTimeline() {
     const svg = document.getElementById("timeline");
-    const series = buildSeries();
-    renderLegend(series);
+    const allSeries = buildSeries(false);
+    const series = buildSeries(true);
+    renderLegend(allSeries);
 
     if (series.length === 0) {
       svg.innerHTML = '<text x="40" y="60" fill="#68756d" font-size="14">数値履歴がまだありません。</text>';

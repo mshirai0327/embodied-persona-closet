@@ -2,7 +2,7 @@
 
 import { parseArgs } from "node:util";
 
-import { readCausalTrace, traceCausalGraph } from "./causal-graph";
+import { readCausalTrace } from "./causal-graph";
 import { PERSONA_DB_PATH, readPersonaDashboardSnapshot } from "./persona-data";
 
 const CLIENT_SCRIPT_PATH = new URL("./persona-dashboard-client.js", import.meta.url);
@@ -32,6 +32,10 @@ function serializeForInlineScript(value: unknown): string {
 
 async function buildPayload() {
   const snapshot = await readPersonaDashboardSnapshot();
+  const trace = await readCausalTrace(
+    "energy",
+    { direction: "both", maxDepth: 3, skipSync: true },
+  );
 
   return {
     generatedAt: new Date().toISOString(),
@@ -44,23 +48,7 @@ async function buildPayload() {
     history: snapshot.history,
     observations: snapshot.observations,
     graph: snapshot.graph,
-    trace: traceCausalGraph(
-      {
-        nodes: snapshot.graph.nodes,
-        edges: snapshot.graph.edges,
-        currentMetrics: snapshot.current.map((row) => ({
-          key: row.key,
-          label: row.label,
-          level: row.level,
-          valueText: row.valueText,
-          valueNumber: row.valueNumber,
-          unit: row.unit,
-          reason: row.reason,
-        })),
-      },
-      "energy",
-      { direction: "both", maxDepth: 3 },
-    ),
+    trace,
   };
 }
 

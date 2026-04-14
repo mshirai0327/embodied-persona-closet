@@ -3,6 +3,10 @@
 import { Database } from "bun:sqlite";
 
 import { PERSONA_DB_PATH, syncPersonaStructuredStore } from "./persona-data";
+import {
+  readKuzuCausalGraphSnapshot,
+  readKuzuTraceBundle,
+} from "./causal-kuzu";
 
 export type TraceDirection = "upstream" | "downstream" | "both";
 
@@ -71,6 +75,12 @@ interface TraceGraphInput {
   currentMetrics?: CurrentMetricRecord[];
 }
 
+interface SqliteCausalGraphSnapshot {
+  nodes: CausalNodeRecord[];
+  edges: CausalEdgeRecord[];
+  currentMetrics: CurrentMetricRecord[];
+}
+
 interface WalkState {
   currentId: string;
   nodeIds: string[];
@@ -85,6 +95,39 @@ function chainScore(weights: number[]): number {
 
 function metricMap(metrics: CurrentMetricRecord[] = []): Map<string, CurrentMetricRecord> {
   return new Map(metrics.map((metric) => [metric.key, metric]));
+}
+
+function readSqliteCausalGraph(): SqliteCausalGraphSnapshot {
+  const db = new Database(PERSONA_DB_PATH, { readonly: true });
+
+  try {
+    const nodes = db
+      .query<CausalNodeRecord, []>(
+        `SELECT id, label, kind, data_level AS dataLevel, description
+         FROM causal_nodes
+         ORDER BY id`
+      )
+      .all();
+    const edges = db
+      .query<CausalEdgeRecord, []>(
+        `SELECT source_id AS sourceId, target_id AS targetId, relation,
+                causal_level AS causalLevel, weight, description
+         FROM causal_edges
+         ORDER BY source_id, target_id, relation`
+      )
+      .all();
+    const currentMetrics = db
+      .query<CurrentMetricRecord, []>(
+        `SELECT key, label, level, value_text AS valueText, value_number AS valueNumber,
+                unit, reason
+         FROM persona_current`
+      )
+      .all();
+
+    return { nodes, edges, currentMetrics };
+  } finally {
+    db.close();
+  }
 }
 
 function bestChainByTerminal(chains: TraceChain[]): TraceChain[] {
@@ -251,45 +294,187 @@ export function traceCausalGraph(
   };
 }
 
-export async function readCausalTrace(
+function buildTraceFromKuzuPaths(
+  graph: TraceGraphInput,
   startKey: string,
   options: { direction?: TraceDirection; maxDepth?: number } = {},
-): Promise<CausalTraceResult> {
-  await syncPersonaStructuredStore();
+  upstreamRows: Awaited<ReturnType<typeof readKuzuTraceBundle>>["upstreamRows"],
+  downstreamRows: Awaited<ReturnType<typeof readKuzuTraceBundle>>["downstreamRows"],
+): CausalTraceResult {
+  const direction = options.direction ?? "both";
+  const maxDepth = Math.max(1, options.maxDepth ?? 3);
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const metricsByKey = metricMap(graph.currentMetrics);
 
-  const db = new Database(PERSONA_DB_PATH, { readonly: true });
+  const toChains = (
+    rows: Awaited<ReturnType<typeof readKuzuTraceBundle>>["upstreamRows"],
+    chainDirection: Exclude<TraceDirection, "both">,
+  ): TraceChain[] => rows
+    .map((row) => {
+      const middleNodeIds = chainDirection === "upstream"
+        ? [...row.middleNodeIds].reverse()
+        : row.middleNodeIds;
+      const nodeIds = [startKey, ...middleNodeIds, row.terminalId];
+      const labels = nodeIds.map((nodeId) => nodeById.get(nodeId)?.label ?? nodeId);
+
+      const relations = chainDirection === "upstream" ? [...row.relations].reverse() : row.relations;
+      const causalLevels = chainDirection === "upstream"
+        ? [...row.causalLevels].reverse()
+        : row.causalLevels;
+      const weights = chainDirection === "upstream" ? [...row.weights].reverse() : row.weights;
+      const descriptions = chainDirection === "upstream"
+        ? [...row.descriptions].reverse()
+        : row.descriptions;
+
+      const edges: TraceEdge[] = relations.map((relation, index) => {
+        const sourceId = chainDirection === "upstream" ? nodeIds[index + 1] : nodeIds[index];
+        const targetId = chainDirection === "upstream" ? nodeIds[index] : nodeIds[index + 1];
+
+        return {
+          sourceId,
+          targetId,
+          relation,
+          causalLevel: causalLevels[index] ?? "Lv1",
+          weight: weights[index] ?? 0,
+          description: descriptions[index] ?? null,
+          direction: chainDirection,
+          depth: index + 1,
+        };
+      });
+
+      return {
+        direction: chainDirection,
+        terminalId: row.terminalId,
+        terminalLabel: nodeById.get(row.terminalId)?.label ?? row.terminalId,
+        depth: edges.length,
+        score: chainScore(weights),
+        nodeIds,
+        labels,
+        edges,
+      };
+    })
+    .filter((chain) => chain.depth > 0);
+
+  const upstream = direction === "downstream" ? [] : bestChainByTerminal(toChains(upstreamRows, "upstream"));
+  const downstream = direction === "upstream"
+    ? []
+    : bestChainByTerminal(toChains(downstreamRows, "downstream"));
+
+  const tracedNodeIds = new Set<string>([startKey]);
+  const tracedEdges = new Map<string, TraceEdge>();
+
+  for (const chain of [...upstream, ...downstream]) {
+    for (const nodeId of chain.nodeIds) {
+      tracedNodeIds.add(nodeId);
+    }
+    for (const edge of chain.edges) {
+      const edgeKey = `${edge.direction}:${edge.sourceId}:${edge.targetId}:${edge.relation}`;
+      const current = tracedEdges.get(edgeKey);
+      if (!current || edge.depth < current.depth) {
+        tracedEdges.set(edgeKey, edge);
+      }
+    }
+  }
+
+  const startNode = nodeById.get(startKey) ?? null;
+  const nodes: TraceNode[] = Array.from(tracedNodeIds)
+    .map((nodeId) => {
+      const node = nodeById.get(nodeId);
+      if (!node) return null;
+
+      let role: TraceNode["role"] = "origin";
+      if (nodeId !== startKey) {
+        role = upstream.some((chain) => chain.nodeIds.includes(nodeId)) ? "upstream" : "downstream";
+      }
+
+      return {
+        ...node,
+        currentMetric: metricsByKey.get(nodeId) ?? null,
+        role,
+      };
+    })
+    .filter((node): node is TraceNode => node !== null)
+    .sort((left, right) => {
+      if (left.id === startKey) return -1;
+      if (right.id === startKey) return 1;
+      return left.label.localeCompare(right.label, "ja");
+    });
+
+  return {
+    startKey,
+    direction,
+    maxDepth,
+    startNode: startNode
+      ? {
+          ...startNode,
+          currentMetric: metricsByKey.get(startKey) ?? null,
+          role: "origin",
+        }
+      : null,
+    nodes,
+    edges: Array.from(tracedEdges.values()).sort((left, right) => {
+      if (left.depth !== right.depth) return left.depth - right.depth;
+      return left.sourceId.localeCompare(right.sourceId, "ja");
+    }),
+    upstream,
+    downstream,
+  };
+}
+
+export async function readCausalGraphSnapshot(
+  options: { skipSync?: boolean } = {},
+): Promise<{
+  nodes: CausalNodeRecord[];
+  edges: CausalEdgeRecord[];
+}> {
+  if (!options.skipSync) {
+    await syncPersonaStructuredStore();
+  }
 
   try {
-    const nodes = db
-      .query<CausalNodeRecord, []>(
-        `SELECT id, label, kind, data_level AS dataLevel, description
-         FROM causal_nodes
-         ORDER BY id`
-      )
-      .all();
-    const edges = db
-      .query<CausalEdgeRecord, []>(
-        `SELECT source_id AS sourceId, target_id AS targetId, relation,
-                causal_level AS causalLevel, weight, description
-         FROM causal_edges
-         ORDER BY source_id, target_id, relation`
-      )
-      .all();
-    const currentMetrics = db
-      .query<CurrentMetricRecord, []>(
-        `SELECT key, label, level, value_text AS valueText, value_number AS valueNumber,
-                unit, reason
-         FROM persona_current`
-      )
-      .all();
+    return await readKuzuCausalGraphSnapshot();
+  } catch {
+    const sqliteGraph = readSqliteCausalGraph();
+    return {
+      nodes: sqliteGraph.nodes,
+      edges: sqliteGraph.edges,
+    };
+  }
+}
 
+export async function readCausalTrace(
+  startKey: string,
+  options: { direction?: TraceDirection; maxDepth?: number; skipSync?: boolean } = {},
+): Promise<CausalTraceResult> {
+  if (!options.skipSync) {
+    await syncPersonaStructuredStore();
+  }
+
+  try {
+    const sqliteGraph = readSqliteCausalGraph();
+    const bundle = await readKuzuTraceBundle(
+      startKey,
+      options.direction ?? "both",
+      options.maxDepth ?? 3,
+    );
+    const nodes = bundle.startNode && !bundle.graph.nodes.some((node) => node.id === startKey)
+      ? [...bundle.graph.nodes, bundle.startNode]
+      : bundle.graph.nodes;
+
+    return buildTraceFromKuzuPaths(
+      { nodes, edges: bundle.graph.edges, currentMetrics: sqliteGraph.currentMetrics },
+      startKey,
+      options,
+      bundle.upstreamRows,
+      bundle.downstreamRows,
+    );
+  } catch {
+    const sqliteGraph = readSqliteCausalGraph();
     return traceCausalGraph(
-      { nodes, edges, currentMetrics },
+      sqliteGraph,
       startKey,
       options,
     );
-  } finally {
-    db.close();
   }
 }
 

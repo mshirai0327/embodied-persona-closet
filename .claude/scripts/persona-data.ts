@@ -10,6 +10,7 @@ import {
   setEnvironmentAuxValue,
   setEnvironmentObservation,
 } from "./environment-store";
+import { readKuzuCausalGraphSnapshot, syncKuzuCausalGraph } from "./causal-kuzu";
 
 const SCRIPT_DIR = import.meta.dir;
 const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
@@ -935,6 +936,14 @@ export async function syncPersonaStructuredStore(): Promise<void> {
   } finally {
     db.close();
   }
+
+  try {
+    await syncKuzuCausalGraph();
+  } catch (error) {
+    console.warn(
+      `[persona-data] skipped Kuzu causal sync: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 export async function recordEnvironmentObservation(
@@ -1051,14 +1060,14 @@ export async function readPersonaDashboardSnapshot(): Promise<{
          LIMIT 120`
       )
       .all();
-    const nodes = db
+    const fallbackNodes = db
       .query<DashboardNodeRow, []>(
         `SELECT id, label, kind, data_level AS dataLevel, description
          FROM causal_nodes
          ORDER BY kind, id`
       )
       .all();
-    const edges = db
+    const fallbackEdges = db
       .query<DashboardEdgeRow, []>(
         `SELECT source_id AS sourceId, target_id AS targetId, relation,
                 causal_level AS causalLevel, weight, description
@@ -1066,13 +1075,20 @@ export async function readPersonaDashboardSnapshot(): Promise<{
          ORDER BY causal_level, source_id, target_id`
       )
       .all();
+    let graph: { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] };
+
+    try {
+      graph = await readKuzuCausalGraphSnapshot();
+    } catch {
+      graph = { nodes: fallbackNodes, edges: fallbackEdges };
+    }
 
     return {
       meta: Object.fromEntries(metaRows.map((row) => [row.key, row.value])),
       current,
       history,
       observations,
-      graph: { nodes, edges },
+      graph,
     };
   } finally {
     db.close();

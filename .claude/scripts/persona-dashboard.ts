@@ -297,6 +297,19 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         background: var(--accent-soft);
       }
 
+      .legend-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .legend-line {
+        display: inline-block;
+        width: 24px;
+        border-top: 3px solid currentColor;
+        border-radius: 999px;
+      }
+
       .timeline-frame,
       .graph-frame {
         border: 1px solid var(--line);
@@ -414,6 +427,7 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
           <h2>Causal Graph</h2>
           <div class="legend" id="trace-direction"></div>
           <div class="legend" id="trace-depth"></div>
+          <div class="legend" id="graph-legend" aria-label="causal graph legend"></div>
           <div class="graph-frame">
             <svg id="graph" viewBox="0 0 980 560" aria-label="causal graph"></svg>
           </div>

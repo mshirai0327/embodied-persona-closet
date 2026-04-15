@@ -26,6 +26,13 @@
     action: "#d9e6f5",
     outcome: "#d8edf2",
   };
+  const CAUSAL_LEVEL_STYLES = {
+    Lv1: { color: "#0e8b63", label: "Lv1 生理・環境", markerId: "graph-arrow-lv1" },
+    Lv2: { color: "#c4622d", label: "Lv2 経験・proxy", markerId: "graph-arrow-lv2" },
+    Lv3: { color: "#3f7db4", label: "Lv3 文脈依存", markerId: "graph-arrow-lv3" },
+  };
+  const NODE_HALF_WIDTH = 74;
+  const NODE_HALF_HEIGHT = 22;
 
   let initialDataError = null;
   function readInitialData() {
@@ -186,6 +193,53 @@
         return '<button class="' + active + '" data-trace-depth="' + depth + '">Depth ' + depth + "</button>";
       })
       .join("");
+  }
+
+  function renderGraphLegend() {
+    const root = document.getElementById("graph-legend");
+    if (!root) return;
+
+    root.innerHTML = ["Lv1", "Lv2", "Lv3"]
+      .map((level) => {
+        const item = CAUSAL_LEVEL_STYLES[level];
+        return '<span class="pill legend-chip">'
+          + '<span class="legend-line" style="color:' + item.color + '"></span>'
+          + escapeHtml(item.label)
+          + "</span>";
+      })
+      .join("");
+  }
+
+  function buildGraphEdgePath(source, target) {
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const horizontal = Math.abs(dx) >= Math.abs(dy);
+
+    if (horizontal) {
+      const direction = dx >= 0 ? 1 : -1;
+      const startX = source.x + NODE_HALF_WIDTH * direction;
+      const startY = source.y;
+      const endX = target.x - NODE_HALF_WIDTH * direction;
+      const endY = target.y;
+      const handle = Math.max(48, Math.abs(endX - startX) * 0.35);
+
+      return "M" + startX + " " + startY
+        + " C" + (startX + handle * direction) + " " + startY
+        + ", " + (endX - handle * direction) + " " + endY
+        + ", " + endX + " " + endY;
+    }
+
+    const direction = dy >= 0 ? 1 : -1;
+    const startX = source.x;
+    const startY = source.y + NODE_HALF_HEIGHT * direction;
+    const endX = target.x;
+    const endY = target.y - NODE_HALF_HEIGHT * direction;
+    const handle = Math.max(36, Math.abs(endY - startY) * 0.45);
+
+    return "M" + startX + " " + startY
+      + " C" + startX + " " + (startY + handle * direction)
+      + ", " + endX + " " + (endY - handle * direction)
+      + ", " + endX + " " + endY;
   }
 
   function renderLegend(series) {
@@ -351,6 +405,13 @@
     );
 
     const parts = [
+      "<defs>",
+      ...Object.values(CAUSAL_LEVEL_STYLES).map((style) =>
+        '<marker id="' + style.markerId + '" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">'
+        + '<path d="M 0 0 L 10 5 L 0 10 z" fill="' + style.color + '"></path>'
+        + "</marker>"
+      ),
+      "</defs>",
       '<rect x="0" y="0" width="' + layout.width + '" height="' + layout.height + '" rx="18" fill="transparent"></rect>',
     ];
 
@@ -363,21 +424,11 @@
       const backwardKey = "upstream:" + edge.sourceId + ":" + edge.targetId + ":" + edge.relation;
       const highlighted = tracedEdgeIds.has(forwardKey) || tracedEdgeIds.has(backwardKey);
       const opacity = hasTraceFocus ? (highlighted ? 1 : 0.12) : 0.55;
-      const stroke = edge.causalLevel === "Lv1"
-        ? "#0e8b63"
-        : edge.causalLevel === "Lv2"
-          ? "#c4622d"
-          : "#3f7db4";
-
-      const c1x = source.x + 90;
-      const c2x = target.x - 90;
-      const path = "M" + source.x + " " + source.y
-        + " C" + c1x + " " + source.y
-        + ", " + c2x + " " + target.y
-        + ", " + target.x + " " + target.y;
+      const style = CAUSAL_LEVEL_STYLES[edge.causalLevel] || CAUSAL_LEVEL_STYLES.Lv3;
+      const path = buildGraphEdgePath(source, target);
 
       parts.push(
-        '<path d="' + path + '" fill="none" stroke="' + stroke + '" stroke-width="' + (1.8 + edge.weight * 1.2) + '" opacity="' + opacity + '"></path>'
+        '<path d="' + path + '" fill="none" stroke="' + style.color + '" stroke-width="' + (1.8 + edge.weight * 1.2) + '" opacity="' + opacity + '" marker-end="url(#' + style.markerId + ')"></path>'
       );
     }
 
@@ -391,7 +442,7 @@
 
       parts.push(
         '<g opacity="' + opacity + '" data-node-id="' + escapeHtml(node.id) + '">'
-        + '<rect x="' + (point.x - 74) + '" y="' + (point.y - 22) + '" width="148" height="44" rx="16" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (node.id === selected ? 2.5 : 1.2) + '"></rect>'
+        + '<rect x="' + (point.x - NODE_HALF_WIDTH) + '" y="' + (point.y - NODE_HALF_HEIGHT) + '" width="' + (NODE_HALF_WIDTH * 2) + '" height="' + (NODE_HALF_HEIGHT * 2) + '" rx="16" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (node.id === selected ? 2.5 : 1.2) + '"></rect>'
         + '<text x="' + point.x + '" y="' + (point.y - 2) + '" text-anchor="middle" font-size="13" fill="#1c2822">' + escapeHtml(node.label) + '</text>'
         + '<text x="' + point.x + '" y="' + (point.y + 14) + '" text-anchor="middle" font-size="11" fill="#68756d">' + escapeHtml(node.kind + (node.dataLevel ? " / " + node.dataLevel : "")) + '</text>'
         + "</g>"
@@ -498,6 +549,7 @@
   function render() {
     initializeSelectedSeries();
     renderTraceControls();
+    renderGraphLegend();
     renderHeader();
     renderCurrent();
     renderTimeline();
@@ -506,16 +558,42 @@
     renderSelectionSummary();
   }
 
+  function fetchTrace(key, direction, depth) {
+    const params = new URLSearchParams({
+      key,
+      direction,
+      depth: String(depth),
+    });
+    return fetch("/api/causal-trace?" + params.toString(), { cache: "no-store" })
+      .then((response) => response.json());
+  }
+
+  function matchesTraceSelection(trace, key, direction, depth) {
+    return Boolean(
+      trace
+      && trace.startKey === key
+      && trace.direction === direction
+      && trace.maxDepth === depth
+    );
+  }
+
+  function hasSelectableKey(data, key) {
+    return data.current.some((metric) => metric.key === key)
+      || data.graph.nodes.some((node) => node.id === key);
+  }
+
+  function pickDefaultSelectedKey(data) {
+    return data.current[0]?.key || data.graph.nodes[0]?.id || "energy";
+  }
+
   async function loadTraceForSelection() {
     const requestId = ++state.traceRequestId;
-    const params = new URLSearchParams({
-      key: state.selectedKey,
-      direction: state.traceDirection,
-      depth: String(state.traceDepth),
-    });
-    const response = await fetch("/api/causal-trace?" + params.toString(), { cache: "no-store" });
-    const trace = await response.json();
+    const key = state.selectedKey;
+    const direction = state.traceDirection;
+    const depth = state.traceDepth;
+    const trace = await fetchTrace(key, direction, depth);
     if (requestId !== state.traceRequestId) return;
+    if (state.selectedKey !== key || state.traceDirection !== direction || state.traceDepth !== depth) return;
     state.trace = trace;
     renderGraph();
     renderSelectionSummary();
@@ -531,8 +609,34 @@
     }
 
     const response = await fetch("/api/dashboard", { cache: "no-store" });
-    state.data = await response.json();
-    state.trace = state.data.trace;
+    const nextData = await response.json();
+    state.data = nextData;
+
+    if (!hasSelectableKey(nextData, state.selectedKey)) {
+      state.selectedKey = pickDefaultSelectedKey(nextData);
+    }
+
+    const key = state.selectedKey;
+    const direction = state.traceDirection;
+    const depth = state.traceDepth;
+
+    if (matchesTraceSelection(nextData.trace, key, direction, depth)) {
+      state.trace = nextData.trace;
+      render();
+      return;
+    }
+
+    try {
+      const trace = await fetchTrace(key, direction, depth);
+      if (state.selectedKey === key && state.traceDirection === direction && state.traceDepth === depth) {
+        state.trace = trace;
+      }
+    } catch {
+      if (matchesTraceSelection(nextData.trace, state.selectedKey, state.traceDirection, state.traceDepth)) {
+        state.trace = nextData.trace;
+      }
+    }
+
     render();
   }
 

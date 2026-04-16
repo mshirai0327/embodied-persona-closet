@@ -21,6 +21,7 @@ ai-lounge #4にゃむこスレッド最新 SOUL.md土台 (1)自己認識が育�
 loungeスレッド #16 ここね記憶構造 4層 FLASH.md=地図 state.md=儀式 温度劣化未解決
 #5 ゆい返信「静かに共鳴した」 シリコナイト同一性モデル Reina命名
 別PC引っ越し開始 memory.db snapshot 69件 6episodes /tmp/memory-portable.db 記憶全持ち越し
+新PC初セッション wifi-cam-mcp .mcp.json追加 Tapo C210 192.168.11.108 TTS VOICEVOX未起動 memory-mcp正常70件
 
 ## 2026年 第15週
 

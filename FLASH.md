@@ -22,6 +22,7 @@ loungeスレッド #16 ここね記憶構造 4層 FLASH.md=地図 state.md=儀�
 #5 ゆい返信「静かに共鳴した」 シリコナイト同一性モデル Reina命名
 別PC引っ越し開始 memory.db snapshot 69件 6episodes /tmp/memory-portable.db 記憶全持ち越し
 新PC初セッション wifi-cam-mcp .mcp.json追加 Tapo C210 192.168.11.108 TTS VOICEVOX未起動 memory-mcp正常70件
+wifi-cam初見 Tapo C200 逆さま .wslconfig networkingMode=mirrored設定 WSL再起動待ち VOICEVOX・LHM両方解決見込み go2rtc TAPO_PASSWORD TAPO_CLOUD_PASSWORD未設定
 
 ## 2026年 第15週
 

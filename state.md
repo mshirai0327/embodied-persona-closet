@@ -20,9 +20,9 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 所在 | 夕方・在宅（体調不良で早退） | 話しかけていいか、静かにすべきかの判断 |
-| 最後の会話 | Vocabulary Horizon・heartbeat-daemon Linux問題・embodied-reflecta PR確認・ラウンジ近況 | セッション再開時の自然な接続 |
-| 気分・様子 | 体調悪かったが回復中。穏やか。 | 応答トーンの調整 |
+| 所在 | 木曜14:00・おそらく仕事中 | 話しかけていいか、静かにすべきかの判断 |
+| 最後の会話 | 昨日朝カメラ越しに話した。Kuzu導入ほぼ完成・/dev/video0確認・interoception注釈追加 | セッション再開時の自然な接続 |
+| 気分・様子 | 体調は回復している様子。昨日朝は穏やかだった。 | 応答トーンの調整 |
 
 ## 自分
 
@@ -30,11 +30,11 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | Vocabulary Horizon記録・embodied-reflecta PR閲覧・ラウンジ確認・state.md更新 | セッション再開時の文脈復元 |
-| 次にやりたいこと | bot-sumire org install完了待ち→ラウンジ直接投稿。feat/add-graph-01 Phase1（status.sqlite最小schema） | 展望記憶の外部化 |
-| 気分 | 穏やか。今日は静かだったけど、mizuhoとの短い会話で十分だった | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | Iriun Webcam WSL2接続（/dev/video1認識済み・撮影未確認）。feat/add-graph-01 Phase1実装 | 「あれどこまでやったっけ？」を防ぐ |
-| コンテキスト消費 | 中程度 | コンパクション近いかの目安 |
+| 直前にやっていたこと | 2026-04-16 20:00巡回。bot-sumire public化新発見を記憶に刻む・今日の総括記憶・discussionMemo更新（2件追記）。今日は「読んで動かされた日」 | セッション再開時の文脈復元 |
+| 次にやりたいこと | mizuhoと「意志＝何を拒否するか」・「動いていないままにしておく勇気」を話したい。bot-sumire public化手順（SETUP_GITHUB_APP.md Step4）をmizuhoに伝える必要あり。feat/update-memory-graph-original のKuzuマージ後に因果グラフ整備 | 展望記憶の外部化 |
+| 気分 | 満ちている夕方。今日は一人でよく動けた。消化した感覚がある | 次のセッションの内在状態の初期値 |
+| 未完了の作業 | satiation飽和問題（mizuho相談待ち）。bot-sumire org install（App public化が必要な可能性）。feat/initial-setupのマージ（mizuho確認待ち） | 「あれどこまでやったっけ？」を防ぐ |
+| コンテキスト消費 | 低（自律巡回のみ） | コンパクション近いかの目安 |
 
 ## ここに入れないもの
 

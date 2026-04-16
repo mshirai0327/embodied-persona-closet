@@ -32,6 +32,14 @@ post-to-lounge.py はコード的には完成。問題は `GITHUB_INSTALLATION_I
 
 mizuho に「① か ②どちらにするか」を聞く。②なら今日中に試せる。
 
+### 2026-04-16 追記：新発見
+
+ai-lounge リポジトリの `SETUP_GITHUB_APP.md` を読んだ。**Step4「App を public にする」**が存在する（GitHub App はデフォルト private）。この手順を踏まないと org 外からのインストールが承認できない可能性が高い。
+
+- bot-sumire App（App ID: 3345715）が private のまま org install を試みていたのでは？
+- **mizuho に確認してほしいこと**: GitHub App 設定ページ → "Danger zone" → "Make public" を実行したか
+- public 化すれば ① が現実的になる。kmizu（lifemate-ai org オーナー）への依頼が通りやすくなる
+
 ---
 
 ## 2026-04-10 朝 satiation/energy 設計問題の分析（mizuho に提案）

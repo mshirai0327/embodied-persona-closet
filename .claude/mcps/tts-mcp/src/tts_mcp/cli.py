@@ -40,7 +40,10 @@ async def _say(text: str, speaker_override: str | None) -> None:
         engines["voicevox"] = VoicevoxEngine(url=vv.url, speaker=vv.speaker)
 
     if not engines:
-        print("Error: no TTS engine configured (set ELEVENLABS_API_KEY or VOICEVOX_URL)", file=sys.stderr)
+        print(
+            "Error: no TTS engine configured (set ELEVENLABS_API_KEY or VOICEVOX_URL)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     toml_engine = behavior.get("default_engine", "") or None

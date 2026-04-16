@@ -3,6 +3,7 @@
 
 [wifi-cam]
 mount_mode = "ceiling"         # "normal" (卓上) or "ceiling" (天井)
+image_rotation = 0             # 0 / 90 / 180 / 270
 mic_source = "camera"          # "camera" (RTSP) or "local" (PC マイク)
 capture_max_width = 1920
 capture_max_height = 1080

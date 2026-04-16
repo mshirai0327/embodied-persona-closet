@@ -21,9 +21,7 @@
       "args": ["run", "--directory", ".claude/mcps/wifi-cam-mcp", "wifi-cam-mcp"],
       "env": {
         "CLAUDE_PROJECT_DIR": "${PWD}",
-        "TAPO_CAMERA_HOST": "192.168.1.xxx",
-        "TAPO_USERNAME": "your-username",
-        "TAPO_PASSWORD": "your-password"
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml"
       }
     },
     "hearing": {

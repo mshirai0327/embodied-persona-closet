@@ -25,6 +25,14 @@
         "CLAUDE_PROJECT_DIR": "${PWD}"
       }
     },
+    "wifi-cam": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/wifi-cam-mcp", "wifi-cam-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}",
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml"
+      }
+    },
     "system-temperature": {
       "command": "uv",
       "args": ["run", "--directory", ".claude/mcps/system-temperature-mcp", "system-temperature-mcp"],

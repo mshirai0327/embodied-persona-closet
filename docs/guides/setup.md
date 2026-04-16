@@ -93,6 +93,8 @@ WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio �
 ### 3-3. 環境変数を埋める
 
 `/wd-configure` で生成された `.mcp.json` に `your-xxx` というプレースホルダがある場合、実際の値に書き換える。
+ただし `wifi-cam-mcp` は `.claude/mcps/wifi-cam-mcp/.env` を自動で読むため、
+認証情報は `.mcp.json` ではなくその `.env` に置ける。
 
 ```json
 {
@@ -102,6 +104,20 @@ WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio �
     "TAPO_PASSWORD": "your-password"
   }
 }
+```
+
+wifi-cam を使う場合の例:
+
+```bash
+cp .claude/mcps/wifi-cam-mcp/.env.example .claude/mcps/wifi-cam-mcp/.env
+```
+
+`.claude/mcps/wifi-cam-mcp/.env`:
+
+```dotenv
+TAPO_CAMERA_HOST=192.168.11.xxx
+TAPO_USERNAME=your-camera-username
+TAPO_PASSWORD=your-camera-password
 ```
 
 **`.mcp.json` を書き換えたら Claude Code を再起動する。**

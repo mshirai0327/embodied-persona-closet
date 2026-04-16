@@ -23,6 +23,15 @@ from .engines.elevenlabs import ElevenLabsEngine
 logger = logging.getLogger(__name__)
 
 
+def _normalize_speaker_target(value: object) -> str | None:
+    if value in (None, ""):
+        return None
+    speaker = str(value).strip().lower()
+    if speaker in {"camera", "local", "both"}:
+        return speaker
+    return None
+
+
 class TTSMCP:
     """MCP server that speaks text using multiple TTS engines."""
 
@@ -161,8 +170,11 @@ class TTSMCP:
             play_audio = arguments.get(
                 "play_audio", behavior.get("play_audio", pb.play_audio),
             )
-            speaker_target = arguments.get("speaker") or (
-                "both" if pb.go2rtc_url else "local"
+            speaker_target = (
+                _normalize_speaker_target(arguments.get("speaker"))
+                or _normalize_speaker_target(behavior.get("speaker"))
+                or pb.speaker_target
+                or ("both" if pb.go2rtc_url else "local")
             )
             use_local = speaker_target in {"local", "both"}
             use_camera = speaker_target in {"camera", "both"} and pb.go2rtc_url

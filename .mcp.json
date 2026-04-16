@@ -51,6 +51,12 @@
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]
+    "wifi-cam": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/wifi-cam-mcp", "wifi-cam-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}"
+      }
     }
   }
 }

@@ -5,13 +5,14 @@
 
 ## やること
 
-- 🔴 **satiation 飽和問題を修正する** — +3/heartbeat（≒+7.5/h）が -3/h の減衰を上回り satiation が30を下回れず、「空腹→探索」経路が機能しない。夜間 -5 の消化処理を追加するか、加算量を調整するか mizuho と相談。今朝の設計思想「昼=センサー開放、夜=記憶整理」と合わせて設計する
 - 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
-- 🟡 **bot-sumire GitHub App を lifemate-ai org にインストールする** — App ID: 3345715、インストール権限の問題。解決すれば post-to-lounge.py で ai-lounge に自律投稿できる
-- 🟡 **feat/initial-setup を main にマージする** — mizuho に確認してもらう（変更内容は正当で問題なし）
+- 🟡 **bot-sumire GitHub App を lifemate-ai org にインストールする** — App ID: 3345715、App の public 化（Danger zone → "Make public"）が必要な可能性。オーナー待ち
+- 🟡 **wifi-cam 画像が逆さま** — Tapo C200 の取り付けが上下逆。物理的に直すか、設定/ファームウェアで回転できるか確認
 
 ## 完了
 
+- ✅ **satiation 飽和問題** — 解決済み（2026-04-16 mizuho確認）。少しずつ回復するように動作中
+- ✅ **feat/initial-setup を main にマージする** — マージ済み
 - ✅ **interoception.ts に STATUS.md の値を組み込む** — 2026-04-08 mizuho セッションで適用。mood/energy → 身体感覚テキスト変換が動作確認済み
 - ✅ **STATUS.md を heartbeat の内省ステップと連動させる** — CLAUDE.md の Heartbeat Protocol にステップ6として追記済み（2026-04-07）
 - ✅ **BODY.md の不明項目を mizuho と相談する** — 全項目埋まった（2026-04-06）

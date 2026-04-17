@@ -84,28 +84,7 @@
       "dataLevel": "Lv3-2",
       "description": "充足感。行動の勢いを変える"
     },
-    {
-      "id": "irritability",
-      "label": "irritability",
-      "kind": "latent",
-      "dataLevel": null,
-      "description": "苛立ちやすさ"
-    },
-    {
-      "id": "reflect_bias",
-      "label": "reflect_bias",
-      "kind": "latent",
-      "dataLevel": null,
-      "description": "内省方向への寄り"
-    },
-    {
-      "id": "mental_margin",
-      "label": "mental_margin",
-      "kind": "latent",
-      "dataLevel": null,
-      "description": "精神的余白"
-    },
-    {
+{
       "id": "action_threshold",
       "label": "action_threshold",
       "kind": "action",
@@ -151,14 +130,6 @@
       "causalLevel": "Lv1",
       "weight": 0.82,
       "description": "血糖の逸脱は健康感に影響する"
-    },
-    {
-      "source": "blood_sugar",
-      "target": "irritability",
-      "relation": "modulates",
-      "causalLevel": "Lv1",
-      "weight": 0.74,
-      "description": "低血糖側では苛立ちやすさが上がりやすい"
     },
     {
       "source": "weight",
@@ -209,14 +180,6 @@
       "description": "明るい空間は mood を持ち上げやすい"
     },
     {
-      "source": "ambient_brightness",
-      "target": "reflect_bias",
-      "relation": "suppresses",
-      "causalLevel": "Lv3",
-      "weight": 0.44,
-      "description": "暗い時間帯は内省寄りになりやすい"
-    },
-    {
       "source": "body_temperature",
       "target": "health",
       "relation": "modulates",
@@ -231,6 +194,14 @@
       "causalLevel": "Lv3",
       "weight": 0.58,
       "description": "空腹や空白感があると行動のしきい値が下がる"
+    },
+    {
+      "source": "mood",
+      "target": "action_threshold",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.71,
+      "description": "mood が低いと行動のしきい値が上がる"
     },
     {
       "source": "energy",
@@ -255,14 +226,6 @@
       "causalLevel": "Lv2",
       "weight": 0.76,
       "description": "信頼できる相手には開きやすくなる"
-    },
-    {
-      "source": "trust_mizuho",
-      "target": "mental_margin",
-      "relation": "supports",
-      "causalLevel": "Lv3",
-      "weight": 0.58,
-      "description": "信頼があると精神的な余白が保たれやすい"
     },
     {
       "source": "successful_interaction",

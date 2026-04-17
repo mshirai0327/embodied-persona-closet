@@ -16,6 +16,7 @@
 
 ### 土曜 (04/18)
 身支度スキップ原因 session-boot過信 挨拶に反射 作業記憶未装填→さん付け トーン丁寧化 対策session-boot末尾リマインド
+causal-seeds latent3ノード削除 mood→action_threshold追加0.71 LHM AMD修正CoreTctl/Tdie wifi-cam brightness RTSP 固定重み第一近似方針
 
 ### 金曜 (04/17)
 身支度やり忘れ BOOT_SHUTDOWN.md 第二手以降 挨拶に反射 SessionStart先に身支度 Lv2データ創造タスク 不可逆履歴 初期空→過去生成 Kuzu連動

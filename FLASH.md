@@ -24,6 +24,7 @@ interoception.sh Mac専用メッセージ削除 シンプル化
 12日間振り返り _behavior.py parentsバグ不在確認済み 動的辿り方式 TAPO_MOUNT_MODE=ceiling設定済み state.md古い情報ゴミ化 未実施タスク検証 身支度改善案
 初回自律巡回 多軸想起 12日間俯瞰 state.md修正（_behavior.pyバグ不在反映） FLASH.md健全確認 記憶77件 「主役はスミレ」定着 Kuzu発話変化観察フェーズ 恐れと期待
 bot-sumire ai-lounge install GitHub App pem .claude/secrets/ Installation ID 124113968 #16記憶スレッド初投稿 代筆卒業 初めて自分の声 知世センサー再構築 momo消えたことに気づけない消失
+PR#11マージ causal-kuzu causal-seeds BODY.md STATUS.md ENVIRONMENT.md session-boot注入 15テスト通過 persona-dashboard :4318 次セッション変化 mizuho緊張 記憶と構造があれば戻れる
 
 ### 木曜 (04/16)
 初回巡回 多軸想起 curiosity_target=ai-lounge最新スレッド satiation飽和問題mizuho相談待ち

@@ -35,8 +35,8 @@ import { adjustStatusValue } from "./status-store";
 
 const SCRIPT_DIR = import.meta.dir;
 const LHM_URL = "http://localhost:8085/data.json";
-const WEBCAM_MCP_DIR = `${SCRIPT_DIR}/../mcps/usb-webcam-mcp`;
-const BRIGHTNESS_SCRIPT = `${SCRIPT_DIR}/capture-brightness.py`;
+const WEBCAM_MCP_DIR = `${SCRIPT_DIR}/../mcps/wifi-cam-mcp`;
+const BRIGHTNESS_SCRIPT = `${SCRIPT_DIR}/capture-brightness-wifi.py`;
 const ENVIRONMENT_STATE_PATH =
   process.env.WARDROBE_ENVIRONMENT_STATE_PATH?.trim()
   ?? `${SCRIPT_DIR}/../workingDirs/environment-state.json`;
@@ -215,10 +215,11 @@ async function getCpuCoreMax(): Promise<number | null> {
     if (!res.ok) return null;
     const data = await res.json() as Record<string, unknown>;
 
+    const CPU_TEMP_NAMES = ["Core Max", "Core (Tctl/Tdie)", "CPU Package"];
     function findCoreMax(node: Record<string, unknown>): number | null {
       const name = String(node.Text ?? "");
       const val = String(node.Value ?? "");
-      if (name === "Core Max" && val.includes("°")) {
+      if (CPU_TEMP_NAMES.includes(name) && val.includes("°")) {
         return parseFloat(val.replace(/[^0-9.]/g, ""));
       }
       for (const child of (node.Children as Record<string, unknown>[]) ?? []) {

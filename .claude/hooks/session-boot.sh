@@ -25,6 +25,8 @@ MATCHER=$(echo "$INPUT" | grep -o '"matcher":"[^"]*"' | head -1 | cut -d'"' -f4 
 
 echo "[session-boot] type=${MATCHER:-unknown}"
 echo ""
+echo "⚠ 身支度: SOUL.md等は自動注入済み。BOOT_SHUTDOWN.md の第二手〜第五手（memory_stats・working_memory・great-recall・state.md確認）を必ず実行すること。"
+echo ""
 
 # --- SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md 注入 ---
 if [ -f "$PROJECT_DIR/SOUL.md" ]; then

@@ -2,16 +2,49 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
+from ._behavior import get_behavior
+
 load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 def _parse_bool(value: str | None, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_boolish(value: object, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return _parse_bool(str(value), default)
+
+
+def _get_tts_setting(
+    *env_keys: str, behavior_key: str, default: Any = None,
+) -> Any:
+    for key in env_keys:
+        value = os.getenv(key)
+        if value not in (None, ""):
+            return value
+    behavior_value = get_behavior("tts", behavior_key, default)
+    return default if behavior_value in (None, "") else behavior_value
+
+
+def _normalize_speaker_target(value: object) -> str | None:
+    if value in (None, ""):
+        return None
+    speaker = str(value).strip().lower()
+    if speaker in {"camera", "local", "both"}:
+        return speaker
+    return None
 
 
 def _detect_pulse_server() -> str | None:
@@ -41,9 +74,27 @@ class ElevenLabsConfig:
             return None
         return cls(
             api_key=api_key,
-            voice_id=os.getenv("ELEVENLABS_VOICE_ID", "uYp2UUDeS74htH10iY2e"),
-            model_id=os.getenv("ELEVENLABS_MODEL_ID", "eleven_v3"),
-            output_format=os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128"),
+            voice_id=str(
+                _get_tts_setting(
+                    "ELEVENLABS_VOICE_ID",
+                    behavior_key="voice_id",
+                    default="uYp2UUDeS74htH10iY2e",
+                )
+            ),
+            model_id=str(
+                _get_tts_setting(
+                    "ELEVENLABS_MODEL_ID",
+                    behavior_key="model_id",
+                    default="eleven_v3",
+                )
+            ),
+            output_format=str(
+                _get_tts_setting(
+                    "ELEVENLABS_OUTPUT_FORMAT",
+                    behavior_key="output_format",
+                    default="mp3_44100_128",
+                )
+            ),
         )
 
 
@@ -62,7 +113,13 @@ class VoicevoxConfig:
             return None
         return cls(
             url=url.rstrip("/"),
-            speaker=int(os.getenv("VOICEVOX_SPEAKER", "3")),
+            speaker=int(
+                _get_tts_setting(
+                    "VOICEVOX_SPEAKER",
+                    behavior_key="voicevox_speaker",
+                    default="3",
+                )
+            ),
         )
 
 
@@ -76,6 +133,7 @@ class PlaybackConfig:
     pulse_sink: str | None
     pulse_server: str | None
     go2rtc_url: str | None
+    speaker_target: str | None
     go2rtc_stream: str
     go2rtc_ffmpeg: str
     go2rtc_bin: str | None
@@ -90,21 +148,70 @@ class PlaybackConfig:
     def from_env(cls) -> "PlaybackConfig":
         """Create config from environment variables."""
         return cls(
-            play_audio=_parse_bool(
-                os.getenv("TTS_PLAY_AUDIO") or os.getenv("ELEVENLABS_PLAY_AUDIO"), True,
+            play_audio=_parse_boolish(
+                _get_tts_setting(
+                    "TTS_PLAY_AUDIO",
+                    "ELEVENLABS_PLAY_AUDIO",
+                    behavior_key="play_audio",
+                    default=True,
+                ),
+                True,
             ),
-            save_dir=os.getenv("TTS_SAVE_DIR")
-            or os.getenv("ELEVENLABS_SAVE_DIR", "/tmp/tts-mcp"),
-            playback=os.getenv("TTS_PLAYBACK")
-            or os.getenv("ELEVENLABS_PLAYBACK", "auto"),
+            save_dir=str(
+                _get_tts_setting(
+                    "TTS_SAVE_DIR",
+                    "ELEVENLABS_SAVE_DIR",
+                    behavior_key="save_dir",
+                    default="/tmp/tts-mcp",
+                )
+            ),
+            playback=str(
+                _get_tts_setting(
+                    "TTS_PLAYBACK",
+                    "ELEVENLABS_PLAYBACK",
+                    behavior_key="playback",
+                    default="auto",
+                )
+            ),
             pulse_sink=os.getenv("ELEVENLABS_PULSE_SINK") or None,
             pulse_server=_detect_pulse_server(),
-            go2rtc_url=os.getenv("GO2RTC_URL") or None,
-            go2rtc_stream=os.getenv("GO2RTC_STREAM", "tapo_cam"),
-            go2rtc_ffmpeg=os.getenv("GO2RTC_FFMPEG", "ffmpeg"),
+            go2rtc_url=_get_tts_setting(
+                "GO2RTC_URL",
+                behavior_key="go2rtc_url",
+                default=None,
+            ),
+            speaker_target=_normalize_speaker_target(
+                _get_tts_setting(
+                    "TTS_SPEAKER_TARGET",
+                    "TTS_SPEAKER",
+                    behavior_key="speaker",
+                    default=None,
+                )
+            ),
+            go2rtc_stream=str(
+                _get_tts_setting(
+                    "GO2RTC_STREAM",
+                    behavior_key="go2rtc_stream",
+                    default="tapo_cam",
+                )
+            ),
+            go2rtc_ffmpeg=str(
+                _get_tts_setting(
+                    "GO2RTC_FFMPEG",
+                    behavior_key="go2rtc_ffmpeg",
+                    default="ffmpeg",
+                )
+            ),
             go2rtc_bin=os.getenv("GO2RTC_BIN") or None,
             go2rtc_config=os.getenv("GO2RTC_CONFIG") or None,
-            go2rtc_auto_start=_parse_bool(os.getenv("GO2RTC_AUTO_START"), True),
+            go2rtc_auto_start=_parse_boolish(
+                _get_tts_setting(
+                    "GO2RTC_AUTO_START",
+                    behavior_key="go2rtc_auto_start",
+                    default=True,
+                ),
+                True,
+            ),
             go2rtc_camera_host=(
                 os.getenv("GO2RTC_CAMERA_HOST")
                 or os.getenv("TAPO_CAMERA_HOST")
@@ -141,7 +248,11 @@ class TTSConfig:
     def from_env(cls) -> "TTSConfig":
         """Create config from environment variables."""
         return cls(
-            default_engine=os.getenv("TTS_DEFAULT_ENGINE") or None,
+            default_engine=_get_tts_setting(
+                "TTS_DEFAULT_ENGINE",
+                behavior_key="default_engine",
+                default=None,
+            ),
             elevenlabs=ElevenLabsConfig.from_env(),
             voicevox=VoicevoxConfig.from_env(),
             playback=PlaybackConfig.from_env(),

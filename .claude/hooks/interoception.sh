@@ -11,7 +11,7 @@ if [ ! -f "$STATE_FILE" ]; then
     CURRENT_TIME=$(date '+%H:%M:%S')
     CURRENT_DOW=$(date '+%a')
     CURRENT_DATE=$(date '+%Y-%m-%d')
-    echo "[interoception] time=${CURRENT_TIME} day=${CURRENT_DOW} date=${CURRENT_DATE} (heartbeat daemon not running; Mac専用・WSL2では正常)"
+    echo "[interoception] time=${CURRENT_TIME} day=${CURRENT_DOW} date=${CURRENT_DATE}"
     exit 0
 fi
 

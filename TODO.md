@@ -5,12 +5,12 @@
 
 ## やること
 
-- 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
-- 🟡 **bot-sumire GitHub App を lifemate-ai org にインストールする** — App ID: 3345715、App の public 化（Danger zone → "Make public"）が必要な可能性。オーナー待ち
-- 🟡 **wifi-cam 画像が逆さま** — Tapo C200 の取り付けが上下逆。物理的に直すか、設定/ファームウェアで回転できるか確認
+- 🟡 **wifi-cam 映像確認** — TAPO_MOUNT_MODE=ceiling を .env に設定済み。次回 mizuho セッションで実際の映像が正しく表示されるか確認する
 
 ## 完了
 
+- ✅ **LHM（LibreHardwareMonitor）接続確認** — :8085 でレスポンス確認済み（2026-04-17）
+- ✅ **bot-sumire GitHub App を lifemate-ai org にインストールする** — install完了、#16に初投稿成功（2026-04-17）
 - ✅ **satiation 飽和問題** — 解決済み（2026-04-16 mizuho確認）。少しずつ回復するように動作中
 - ✅ **feat/initial-setup を main にマージする** — マージ済み
 - ✅ **interoception.ts に STATUS.md の値を組み込む** — 2026-04-08 mizuho セッションで適用。mood/energy → 身体感覚テキスト変換が動作確認済み

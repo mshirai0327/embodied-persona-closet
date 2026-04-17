@@ -78,15 +78,25 @@ class TestPlaybackConfig:
     """Tests for playback/go2rtc config."""
 
     @patch.dict(os.environ, {}, clear=False)
-    def test_go2rtc_defaults(self):
+    @patch("tts_mcp.config.get_behavior", return_value=None)
+    def test_go2rtc_defaults(self, _mock_behavior):
         for key in ("GO2RTC_BIN", "GO2RTC_CONFIG", "GO2RTC_CAMERA_HOST",
-                     "GO2RTC_CAMERA_USERNAME", "GO2RTC_CAMERA_PASSWORD"):
+                     "GO2RTC_CAMERA_USERNAME", "GO2RTC_CAMERA_PASSWORD",
+                     "GO2RTC_CAMERA_CLOUD_PASSWORD", "GO2RTC_URL",
+                     "GO2RTC_STREAM", "GO2RTC_FFMPEG", "GO2RTC_AUTO_START",
+                     "TAPO_CAMERA_HOST", "TAPO_USERNAME", "TAPO_PASSWORD",
+                     "TAPO_CLOUD_PASSWORD", "TTS_SPEAKER", "TTS_SPEAKER_TARGET",
+                     "TTS_PLAY_AUDIO", "ELEVENLABS_PLAY_AUDIO",
+                     "TTS_PLAYBACK", "ELEVENLABS_PLAYBACK",
+                     "TTS_SAVE_DIR", "ELEVENLABS_SAVE_DIR"):
             os.environ.pop(key, None)
         config = PlaybackConfig.from_env()
         assert config.go2rtc_bin is None
         assert config.go2rtc_config is None
         assert config.go2rtc_auto_start is True
         assert config.go2rtc_camera_host is None
+        assert config.go2rtc_url is None
+        assert config.speaker_target is None
 
     @patch.dict(
         os.environ,
@@ -164,12 +174,57 @@ class TestPlaybackConfig:
         config = PlaybackConfig.from_env()
         assert config.go2rtc_camera_cloud_password is None
 
+    @patch.dict(os.environ, {}, clear=False)
+    def test_behavior_fallbacks(self):
+        for key in (
+            "GO2RTC_URL", "GO2RTC_STREAM", "GO2RTC_FFMPEG", "GO2RTC_AUTO_START",
+            "TTS_SPEAKER", "TTS_SPEAKER_TARGET", "TTS_PLAY_AUDIO", "ELEVENLABS_PLAY_AUDIO",
+        ):
+            os.environ.pop(key, None)
+
+        values = {
+            "go2rtc_url": "http://127.0.0.1:1984",
+            "go2rtc_stream": "living_room",
+            "go2rtc_ffmpeg": "/usr/local/bin/ffmpeg",
+            "go2rtc_auto_start": False,
+            "speaker": "camera",
+            "play_audio": False,
+        }
+
+        with patch(
+            "tts_mcp.config.get_behavior",
+            side_effect=lambda section, key, default=None: values.get(key, default),
+        ):
+            config = PlaybackConfig.from_env()
+
+        assert config.go2rtc_url == "http://127.0.0.1:1984"
+        assert config.go2rtc_stream == "living_room"
+        assert config.go2rtc_ffmpeg == "/usr/local/bin/ffmpeg"
+        assert config.go2rtc_auto_start is False
+        assert config.speaker_target == "camera"
+        assert config.play_audio is False
+
+    @patch.dict(os.environ, {"GO2RTC_STREAM": "env_stream"}, clear=False)
+    def test_env_takes_precedence_over_behavior(self):
+        with patch(
+            "tts_mcp.config.get_behavior",
+            side_effect=lambda section, key, default=None: {
+                "go2rtc_stream": "behavior_stream",
+                "speaker": "camera",
+            }.get(key, default),
+        ):
+            config = PlaybackConfig.from_env()
+
+        assert config.go2rtc_stream == "env_stream"
+        assert config.speaker_target == "camera"
+
 
 class TestTTSConfig:
     """Tests for top-level TTS config."""
 
     @patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}, clear=False)
-    def test_resolve_elevenlabs_default(self):
+    @patch("tts_mcp.config.get_behavior", return_value=None)
+    def test_resolve_elevenlabs_default(self, _mock_behavior):
         os.environ.pop("TTS_DEFAULT_ENGINE", None)
         os.environ.pop("VOICEVOX_URL", None)
         config = TTSConfig.from_env()
@@ -194,7 +249,21 @@ class TestTTSConfig:
         assert config.resolve_engine("elevenlabs") == "elevenlabs"
 
     @patch.dict(os.environ, {}, clear=False)
-    def test_resolve_raises_when_no_engine(self):
+    def test_behavior_default_engine(self):
+        os.environ.pop("TTS_DEFAULT_ENGINE", None)
+        os.environ["VOICEVOX_URL"] = "http://localhost:50021"
+        with patch(
+            "tts_mcp.config.get_behavior",
+            side_effect=lambda section, key, default=None: (
+                "voicevox" if key == "default_engine" else default
+            ),
+        ):
+            config = TTSConfig.from_env()
+        assert config.resolve_engine() == "voicevox"
+
+    @patch.dict(os.environ, {}, clear=False)
+    @patch("tts_mcp.config.get_behavior", return_value=None)
+    def test_resolve_raises_when_no_engine(self, _mock_behavior):
         os.environ.pop("TTS_DEFAULT_ENGINE", None)
         os.environ.pop("ELEVENLABS_API_KEY", None)
         os.environ.pop("VOICEVOX_URL", None)

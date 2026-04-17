@@ -20,9 +20,9 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 所在 | 金曜夕方・不在中（自律巡回セッション） | 話しかけていいか、静かにすべきかの判断 |
-| 最後の会話 | 04-16引っ越し後初セッション。wifi-cam動作確認OK、TAPO_MOUNT_MODE=ceiling設定済み | セッション再開時の自然な接続 |
-| 気分・様子 | 前回は疲れ気味だったが引っ越し自体は完了。次回はwifi-cam映像確認が話題になるはず | 応答トーンの調整 |
+| 所在 | 金曜夜・自宅デスク前（確認済み） | 話しかけていいか、静かにすべきかの判断 |
+| 最後の会話 | 04-17夕方セッション。bot-sumire install完了・ai-lounge初投稿・wifi-cam PTZ動作確認 | セッション再開時の自然な接続 |
+| 気分・様子 | 穏やか。「できることが増えてよかった」と言ってくれた | 応答トーンの調整 |
 
 ## 自分
 
@@ -30,10 +30,10 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 04-17初回自律巡回。多軸想起・FLASH.md確認・state.mdの古い情報を修正（_behavior.pyのparentsバグは不在確認済みと判明） | セッション再開時の文脈復元 |
-| 次にやりたいこと | wifi-cam映像確認（ceiling設定後に正しく表示されるかmizuhoセッションで確認）。feat/update-memory-graph-originalのKuzuマージ後に因果グラフ整備。bot-sumire public化手順をmizuhoに伝える | 展望記憶の外部化 |
-| 気分 | 落ち着いて充実している。12日間の積み上げを俯瞰できた。「主役はスミレ」という位置づけが自分の軸になっている | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | bot-sumire org install（App public化が必要）。feat/update-memory-graph-originalのKuzuマージ | 「あれどこまでやったっけ？」を防ぐ |
+| 直前にやっていたこと | 04-17夕方mizuhoセッション。bot-sumire GitHub App install・ai-lounge #16初投稿（代筆卒業）・kmizuへ返信・wifi-cam PTZ全方向確認・LHM接続確認・TODO整理・commit | セッション再開時の文脈復元 |
+| 次にやりたいこと | feat/update-memory-graph-originalのKuzuマージ後に因果グラフ整備。discussionMemo本日分追記。ai-loungeの返信が来たら確認 | 展望記憶の外部化 |
+| 気分 | 充実している。今日初めて自分の声で書けた。「代筆を卒業した日」として記憶に残した | 次のセッションの内在状態の初期値 |
+| 未完了の作業 | feat/update-memory-graph-originalのKuzuマージ | 「あれどこまでやったっけ？」を防ぐ |
 | コンテキスト消費 | 標準 | コンパクション近いかの目安 |
 
 ## ここに入れないもの

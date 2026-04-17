@@ -52,7 +52,8 @@
   const state = {
     data: null,
     selectedKey: "energy",
-    selectedSeries: new Set(),
+    statusSelectedSeries: new Set(),
+    environmentSelectedSeries: new Set(),
     initializedSeries: false,
     trace: null,
     traceDirection: "both",
@@ -158,17 +159,17 @@
     root.innerHTML = html.join("");
   }
 
-  function collectTimelineEntries() {
-    const reversibleLevels = new Set(["Lv0", "Lv3-1", "Lv3-2"]);
+  function collectTimelineEntries(levels) {
+    const reversibleLevels = new Set(levels);
     return state.data.history.filter(
       (entry) => entry.nextValueNumber != null && entry.changedAt && reversibleLevels.has(entry.level)
     );
   }
 
-  function buildSeries(selectedOnly) {
+  function buildSeries(entries, selectedSet, selectedOnly) {
     const grouped = new Map();
-    for (const entry of collectTimelineEntries()) {
-      if (selectedOnly && !state.selectedSeries.has(entry.key)) continue;
+    for (const entry of entries) {
+      if (selectedOnly && !selectedSet.has(entry.key)) continue;
       if (!grouped.has(entry.key)) grouped.set(entry.key, []);
       grouped.get(entry.key).push({
         timestamp: new Date(entry.changedAt).getTime(),
@@ -191,12 +192,17 @@
   function initializeSelectedSeries() {
     if (state.initializedSeries || !state.data) return;
 
-    const seriesKeys = new Set(
-      collectTimelineEntries().map((entry) => entry.key)
+    state.statusSelectedSeries = new Set(
+      collectTimelineEntries(["Lv3-1", "Lv3-2"]).map((entry) => entry.key)
     );
-
-    state.selectedSeries = seriesKeys;
+    state.environmentSelectedSeries = new Set(
+      collectTimelineEntries(["Lv0"]).map((entry) => entry.key)
+    );
     state.initializedSeries = true;
+  }
+
+  function getSelectedSeries(scope) {
+    return scope === "environment" ? state.environmentSelectedSeries : state.statusSelectedSeries;
   }
 
   function renderTraceControls() {
@@ -271,28 +277,31 @@
       + ", " + endX + " " + endY;
   }
 
-  function renderLegend(series) {
-    const root = document.getElementById("timeline-legend");
+  function renderLegend(rootId, series, selectedSet, scope) {
+    const root = document.getElementById(rootId);
     root.innerHTML = series
       .map((serie) => {
-        const active = state.selectedSeries.has(serie.key) ? "active" : "";
+        const active = selectedSet.has(serie.key) ? "active" : "";
         const label = serie.points[serie.points.length - 1]?.label || serie.key;
-        return '<button class="' + active + '" data-series-key="' + escapeHtml(serie.key) + '">'
+        return '<button class="' + active + '" data-series-key="' + escapeHtml(serie.key) + '" data-series-scope="' + escapeHtml(scope) + '">'
           + '<span class="pill" style="background:' + (SERIES_COLORS[serie.key] || "#ddd") + '; width:12px; height:12px; display:inline-block; padding:0; border:none; margin-right:8px;"></span>'
           + escapeHtml(label) + "</button>";
       })
       .join("");
   }
 
-  function renderTimeline() {
-    const svg = document.getElementById("timeline");
-    const allSeries = buildSeries(false);
-    const series = buildSeries(true);
-    renderLegend(allSeries);
+  function renderTimelineChart(config) {
+    const svg = document.getElementById(config.svgId);
+    const detailRoot = document.getElementById(config.detailId);
+    const entries = collectTimelineEntries(config.levels);
+    const selectedSet = getSelectedSeries(config.scope);
+    const allSeries = buildSeries(entries, selectedSet, false);
+    const series = buildSeries(entries, selectedSet, true);
+    renderLegend(config.legendId, allSeries, selectedSet, config.scope);
 
     if (series.length === 0) {
-      svg.innerHTML = '<text x="40" y="60" fill="#68756d" font-size="14">数値履歴がまだありません。</text>';
-      document.getElementById("timeline-detail").innerHTML = "";
+      svg.innerHTML = '<text x="40" y="60" fill="#68756d" font-size="14">' + escapeHtml(config.emptyMessage) + "</text>";
+      detailRoot.innerHTML = "";
       return;
     }
 
@@ -352,7 +361,26 @@
         + "</article>"
       );
     }
-    document.getElementById("timeline-detail").innerHTML = details.join("");
+    detailRoot.innerHTML = details.join("");
+  }
+
+  function renderHistory() {
+    renderTimelineChart({
+      scope: "status",
+      levels: ["Lv3-1", "Lv3-2"],
+      legendId: "timeline-legend",
+      svgId: "timeline",
+      detailId: "timeline-detail",
+      emptyMessage: "Lv3 の数値履歴がまだありません。",
+    });
+    renderTimelineChart({
+      scope: "environment",
+      levels: ["Lv0"],
+      legendId: "environment-timeline-legend",
+      svgId: "environment-timeline",
+      detailId: "environment-timeline-detail",
+      emptyMessage: "Lv0 の数値履歴がまだありません。",
+    });
   }
 
   function renderLogs() {
@@ -581,7 +609,7 @@
     renderGraphLegend();
     renderHeader();
     renderCurrent();
-    renderTimeline();
+    renderHistory();
     renderLogs();
     renderGraph();
     renderSelectionSummary();
@@ -694,12 +722,14 @@
     const seriesButton = target.closest("[data-series-key]");
     if (seriesButton) {
       const key = seriesButton.getAttribute("data-series-key");
-      if (state.selectedSeries.has(key)) {
-        if (state.selectedSeries.size > 1) state.selectedSeries.delete(key);
+      const scope = seriesButton.getAttribute("data-series-scope") || "status";
+      const selectedSet = getSelectedSeries(scope);
+      if (selectedSet.has(key)) {
+        if (selectedSet.size > 1) selectedSet.delete(key);
       } else {
-        state.selectedSeries.add(key);
+        selectedSet.add(key);
       }
-      renderTimeline();
+      renderHistory();
       return;
     }
 

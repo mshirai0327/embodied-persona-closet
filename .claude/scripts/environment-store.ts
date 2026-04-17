@@ -10,6 +10,8 @@ const CURRENT_SECTION_HEADING = "## 現在の環境";
 const AUX_SECTION_HEADING = "## 補助状態";
 const HISTORY_SECTION_HEADING = "## 変化履歴";
 const HISTORY_ENTRY_RE = /^\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \|/;
+const HISTORY_HEADERS = ["日時", "項目", "変化前", "変化後", "正規化値", "理由"];
+const HISTORY_SEPARATOR = "|---|---|---|---|---|---|";
 
 export const ENVIRONMENT_FIELDS = {
   environment_thermal_load: {
@@ -131,15 +133,37 @@ function extractSection(text: string, heading: string): string {
   return sectionLines.join("\n");
 }
 
-function firstTable(sectionText: string): Array<Record<string, string>> {
-  const lines = sectionText.split("\n").map((line) => line.trim());
-  const tableLines = lines.filter((line) => line.startsWith("|"));
-  if (tableLines.length < 2) return [];
+function extractTableBlocks(sectionText: string): string[][] {
+  const blocks: string[][] = [];
+  let current: string[] = [];
 
-  const headers = parsePipeRow(tableLines[0]);
+  for (const rawLine of sectionText.split("\n")) {
+    const line = rawLine.trim();
+    if (line.startsWith("|")) {
+      current.push(line);
+      continue;
+    }
+
+    if (current.length > 0) {
+      blocks.push(current);
+      current = [];
+    }
+  }
+
+  if (current.length > 0) {
+    blocks.push(current);
+  }
+
+  return blocks;
+}
+
+function parseMarkdownTable(block: string[]): Array<Record<string, string>> {
+  if (block.length < 2) return [];
+
+  const headers = parsePipeRow(block[0]);
   const rows: Array<Record<string, string>> = [];
 
-  for (const line of tableLines.slice(2)) {
+  for (const line of block.slice(2)) {
     const values = parsePipeRow(line);
     if (values.length === 0) continue;
     const row: Record<string, string> = {};
@@ -150,6 +174,14 @@ function firstTable(sectionText: string): Array<Record<string, string>> {
   }
 
   return rows;
+}
+
+function firstTable(sectionText: string): Array<Record<string, string>> {
+  for (const block of extractTableBlocks(sectionText)) {
+    if (block.length < 2) continue;
+    return parseMarkdownTable(block);
+  }
+  return [];
 }
 
 function findCurrentFieldByLabel(label: string | null): EnvironmentField | null {
@@ -200,19 +232,56 @@ function findFieldLineIndex(lines: string[], label: string): number {
 }
 
 function findHistoryInsertionIndex(lines: string[]): number {
-  const firstHistoryEntryIndex = lines.findIndex((line) => HISTORY_ENTRY_RE.test(line));
-  if (firstHistoryEntryIndex !== -1) {
-    return firstHistoryEntryIndex;
-  }
-
   const historyHeaderIndex = lines.findIndex((line) => line.trim() === HISTORY_SECTION_HEADING);
   if (historyHeaderIndex === -1) return lines.length;
 
   for (let index = historyHeaderIndex + 1; index < lines.length; index++) {
-    if (lines[index].startsWith("|")) continue;
-    return index;
+    const line = lines[index].trim();
+    const nextHeading = line.match(/^(#+)\s/);
+    if (nextHeading) break;
+
+    if (line.startsWith("|")) {
+      const cells = parsePipeRow(line);
+      if (cells.length === HISTORY_HEADERS.length && cells.every((cell, cellIndex) => cell === HISTORY_HEADERS[cellIndex])) {
+        if (index + 1 >= lines.length || lines[index + 1].trim() !== HISTORY_SEPARATOR) {
+          lines.splice(index + 1, 0, HISTORY_SEPARATOR);
+        }
+        return index + 2;
+      }
+    }
   }
-  return lines.length;
+
+  const insertIndex = historyHeaderIndex + 1;
+  lines.splice(insertIndex, 0, `| ${HISTORY_HEADERS.join(" | ")} |`, HISTORY_SEPARATOR);
+  return insertIndex + 2;
+}
+
+function parseHistoryEntries(sectionText: string): EnvironmentHistoryEntry[] {
+  const history: EnvironmentHistoryEntry[] = [];
+
+  for (const rawLine of sectionText.split("\n")) {
+    const line = rawLine.trim();
+    if (!line.startsWith("|")) continue;
+
+    const cells = parsePipeRow(line);
+    if (cells.length < HISTORY_HEADERS.length) continue;
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(cells[0] ?? "")) continue;
+
+    const key = findCurrentFieldByLabel(normalizeCell(cells[1]));
+    if (!key) continue;
+
+    history.push({
+      key,
+      label: ENVIRONMENT_FIELDS[key].label,
+      previousValueText: normalizeCell(cells[2]),
+      nextValueText: normalizeCell(cells[3]),
+      normalizedValue: parseNumber(normalizeCell(cells[4])),
+      changedAt: normalizeCell(cells[0]),
+      reason: normalizeCell(cells[5]),
+    });
+  }
+
+  return history;
 }
 
 export function parseEnvironmentDocument(text: string): ParsedEnvironmentDocument {
@@ -248,20 +317,7 @@ export function parseEnvironmentDocument(text: string): ParsedEnvironmentDocumen
     };
   }
 
-  for (const row of firstTable(extractSection(text, HISTORY_SECTION_HEADING))) {
-    const key = findCurrentFieldByLabel(normalizeCell(row["項目"]));
-    if (!key) continue;
-
-    history.push({
-      key,
-      label: ENVIRONMENT_FIELDS[key].label,
-      previousValueText: normalizeCell(row["変化前"]),
-      nextValueText: normalizeCell(row["変化後"]),
-      normalizedValue: parseNumber(normalizeCell(row["正規化値"])),
-      changedAt: normalizeCell(row["日時"]),
-      reason: normalizeCell(row["理由"]),
-    });
-  }
+  history.push(...parseHistoryEntries(extractSection(text, HISTORY_SECTION_HEADING)));
 
   return { current, aux, history };
 }

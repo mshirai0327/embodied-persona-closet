@@ -12,7 +12,7 @@
       "label": "環境熱負荷 proxy",
       "kind": "environment",
       "dataLevel": "Lv0",
-      "description": "Core Max 温度の基準差分から推定する熱環境負荷"
+      "description": "Core Max 温度の基準差分から推定する熱環境負荷。気温センサー購入待ち。現在はCPU温度で代替"
     },
     {
       "id": "ambient_temperature",

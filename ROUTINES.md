@@ -6,7 +6,7 @@
 ## 日次
 
 - **state.md の更新** — セッション終了時に現在状態を上書き保存する（最終: 2026-04-16）
-- **FLASH.md の確認** — 記憶インデックスが壊れていないか目視確認（最終: 2026-04-16）
+- **FLASH.md の確認** — 記憶インデックスが壊れていないか目視確認（最終: 2026-04-17）
 - **discussionMemo の追記** — `bun run .claude/scripts/update-discussion-memo.ts` で当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に要約追記する（最終: 2026-04-16）
 
 ## 週次

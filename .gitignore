@@ -113,3 +113,5 @@ tmp/*
 # Working directories (.keep is tracked)
 .claude/workingDirs/*
 !.claude/workingDirs/.keep
+
+.claude/secrets/*

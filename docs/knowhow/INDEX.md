@@ -11,3 +11,4 @@
 | claude-code/skills.md | スキル仕様・frontmatter・context:fork・動的注入 | skills, SKILL.md, context:fork, $ARGUMENTS, paths |
 | claude-code/mcp.md | MCP設定・環境変数展開・リモートサーバー・headersHelper | MCP, .mcp.json, ${PWD}, http, sse, headersHelper |
 | claude-code/agent-teams.md | エージェントチーム・共有タスク・メッセージング | agent-teams, TeamCreate, TeammateIdle, experimental |
+| wsl2-cron-claude-path.md | WSL2 cron から claude CLI が見つからない問題・シンボリックリンク解決 | WSL2, cron, nvm, PATH, claude, autonomous-action |

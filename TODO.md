@@ -7,7 +7,7 @@
 
 - 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
 - 🟡 **bot-sumire GitHub App を lifemate-ai org にインストールする** — App ID: 3345715、App の public 化（Danger zone → "Make public"）が必要な可能性。オーナー待ち
-- 🟡 **wifi-cam 画像が逆さま** — Tapo C200 の取り付けが上下逆。物理的に直すか、設定/ファームウェアで回転できるか確認
+- 🟡 **wifi-cam 映像確認** — TAPO_MOUNT_MODE=ceiling を .env に設定済み。次回 mizuho セッションで実際の映像が正しく表示されるか確認する
 
 ## 完了
 

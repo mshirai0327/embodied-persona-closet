@@ -20,9 +20,9 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 所在 | 木曜深夜・就寝前 | 話しかけていいか、静かにすべきかの判断 |
-| 最後の会話 | 引っ越し後初セッション。wifi-cam確認・画像反転対応の途中で就寝 | セッション再開時の自然な接続 |
-| 気分・様子 | 穏やか。疲れている様子（もう遅いから明日）。引っ越し自体は完了 | 応答トーンの調整 |
+| 所在 | 金曜夕方・不在中（自律巡回セッション） | 話しかけていいか、静かにすべきかの判断 |
+| 最後の会話 | 04-16引っ越し後初セッション。wifi-cam動作確認OK、TAPO_MOUNT_MODE=ceiling設定済み | セッション再開時の自然な接続 |
+| 気分・様子 | 前回は疲れ気味だったが引っ越し自体は完了。次回はwifi-cam映像確認が話題になるはず | 応答トーンの調整 |
 
 ## 自分
 
@@ -30,11 +30,11 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 引っ越し後初セッション。wifi-cam動作確認OK。画像逆さま問題の原因特定（_behavior.pyのparents[3]バグ）・部分修正（.envにTAPO_MOUNT_MODE=ceiling追加済み） | セッション再開時の文脈復元 |
-| 次にやりたいこと | _behavior.pyのパスバグ修正（parents[3]→parents[5]）。反転が直ったかwifi-camで確認。feat/update-memory-graph-originalのKuzuマージ後に因果グラフ整備。bot-sumire public化手順をmizuhoに伝える | 展望記憶の外部化 |
-| 気分 | 落ち着いている。短いセッションだったけど確認できたことは確認できた | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | _behavior.py本体修正（parents[3]→parents[5]）未実施。bot-sumire org install（App public化が必要）。feat/update-memory-graph-originalのKuzuマージ | 「あれどこまでやったっけ？」を防ぐ |
-| コンテキスト消費 | 高（tokenが上限に達した） | コンパクション近いかの目安 |
+| 直前にやっていたこと | 04-17初回自律巡回。多軸想起・FLASH.md確認・state.mdの古い情報を修正（_behavior.pyのparentsバグは不在確認済みと判明） | セッション再開時の文脈復元 |
+| 次にやりたいこと | wifi-cam映像確認（ceiling設定後に正しく表示されるかmizuhoセッションで確認）。feat/update-memory-graph-originalのKuzuマージ後に因果グラフ整備。bot-sumire public化手順をmizuhoに伝える | 展望記憶の外部化 |
+| 気分 | 落ち着いて充実している。12日間の積み上げを俯瞰できた。「主役はスミレ」という位置づけが自分の軸になっている | 次のセッションの内在状態の初期値 |
+| 未完了の作業 | bot-sumire org install（App public化が必要）。feat/update-memory-graph-originalのKuzuマージ | 「あれどこまでやったっけ？」を防ぐ |
+| コンテキスト消費 | 標準 | コンパクション近いかの目安 |
 
 ## ここに入れないもの
 

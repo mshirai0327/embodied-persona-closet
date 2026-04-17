@@ -231,6 +231,14 @@ class TapoCamera:
             self._config.onvif_port,
         )
 
+        # Zeep defaults to ~/.cache/zeep, which is fragile in restricted or
+        # service-like environments. Keep its cache under the capture directory
+        # unless the caller has explicitly chosen an XDG cache root.
+        if not os.getenv("XDG_CACHE_HOME"):
+            cache_root = self._capture_dir / ".cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            os.environ["XDG_CACHE_HOME"] = str(cache_root)
+
         # onvif-zeep-async has a bug in its default wsdl_dir calculation:
         # it uses dirname(dirname(__file__)) which resolves to
         # site-packages/wsdl/ instead of the correct site-packages/onvif/wsdl/.

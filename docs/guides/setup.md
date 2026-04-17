@@ -93,6 +93,8 @@ WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio �
 ### 3-3. 環境変数を埋める
 
 `/wd-configure` で生成された `.mcp.json` に `your-xxx` というプレースホルダがある場合、実際の値に書き換える。
+ただし `wifi-cam-mcp` は `.claude/mcps/wifi-cam-mcp/.env` を自動で読むため、
+認証情報は `.mcp.json` ではなくその `.env` に置ける。
 
 ```json
 {
@@ -104,6 +106,20 @@ WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio �
 }
 ```
 
+wifi-cam を使う場合の例:
+
+```bash
+cp .claude/mcps/wifi-cam-mcp/.env.example .claude/mcps/wifi-cam-mcp/.env
+```
+
+`.claude/mcps/wifi-cam-mcp/.env`:
+
+```dotenv
+TAPO_CAMERA_HOST=192.168.11.xxx
+TAPO_USERNAME=your-camera-username
+TAPO_PASSWORD=your-camera-password
+```
+
 **`.mcp.json` を書き換えたら Claude Code を再起動する。**
 
 ---
@@ -112,7 +128,7 @@ WSL2/WSLg で `hearing` を `source = "local"` で使う場合は、PulseAudio �
 
 再起動すると身支度が自動で始まる:
 
-1. SOUL.md と state.md がコンテキストに注入される（自動）
+1. SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md がコンテキストに注入される（自動）
 2. 記憶システムの状態を確認する
 3. 作業記憶を装填する
 4. 前回の文脈を想起する（初回は空）

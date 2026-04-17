@@ -1,0 +1,292 @@
+{
+  "nodes": [
+    {
+      "id": "ambient_brightness",
+      "label": "環境光",
+      "kind": "environment",
+      "dataLevel": "Lv0",
+      "description": "カメラ輝度から推定する空間の明るさ"
+    },
+    {
+      "id": "environment_thermal_load",
+      "label": "環境熱負荷 proxy",
+      "kind": "environment",
+      "dataLevel": "Lv0",
+      "description": "Core Max 温度の基準差分から推定する熱環境負荷"
+    },
+    {
+      "id": "ambient_temperature",
+      "label": "気温",
+      "kind": "environment",
+      "dataLevel": "Lv0",
+      "description": "将来の実センサー入力用ノード。今は熱負荷 proxy と接続する"
+    },
+    {
+      "id": "sleep_time",
+      "label": "睡眠時間",
+      "kind": "vital",
+      "dataLevel": "Lv3-1",
+      "description": "短時間睡眠は疲労や気分に影響する"
+    },
+    {
+      "id": "blood_sugar",
+      "label": "血糖値",
+      "kind": "vital",
+      "dataLevel": "Lv3-1",
+      "description": "低血糖・高血糖の逸脱は健康感と情緒に響く"
+    },
+    {
+      "id": "weight",
+      "label": "体重",
+      "kind": "vital",
+      "dataLevel": "Lv3-1",
+      "description": "単独値ではなく推移が健康感と関連する"
+    },
+    {
+      "id": "body_temperature",
+      "label": "体温",
+      "kind": "vital",
+      "dataLevel": "Lv3-1",
+      "description": "内部の熱状態は健康感や消耗感に影響する"
+    },
+    {
+      "id": "mood",
+      "label": "mood",
+      "kind": "emotion",
+      "dataLevel": "Lv3-2",
+      "description": "内的な気分状態"
+    },
+    {
+      "id": "energy",
+      "label": "energy",
+      "kind": "emotion",
+      "dataLevel": "Lv3-2",
+      "description": "活動しやすさと消耗感"
+    },
+    {
+      "id": "health",
+      "label": "health",
+      "kind": "emotion",
+      "dataLevel": "Lv3-2",
+      "description": "健康感。バイタルや環境要因の統合先"
+    },
+    {
+      "id": "trust_mizuho",
+      "label": "trust_mizuho",
+      "kind": "emotion",
+      "dataLevel": "Lv3-2",
+      "description": "mizuho に対する信頼。対話や配慮の蓄積で変化する"
+    },
+    {
+      "id": "satiation",
+      "label": "satiation",
+      "kind": "emotion",
+      "dataLevel": "Lv3-2",
+      "description": "充足感。行動の勢いを変える"
+    },
+    {
+      "id": "irritability",
+      "label": "irritability",
+      "kind": "latent",
+      "dataLevel": null,
+      "description": "苛立ちやすさ"
+    },
+    {
+      "id": "reflect_bias",
+      "label": "reflect_bias",
+      "kind": "latent",
+      "dataLevel": null,
+      "description": "内省方向への寄り"
+    },
+    {
+      "id": "mental_margin",
+      "label": "mental_margin",
+      "kind": "latent",
+      "dataLevel": null,
+      "description": "精神的余白"
+    },
+    {
+      "id": "action_threshold",
+      "label": "action_threshold",
+      "kind": "action",
+      "dataLevel": null,
+      "description": "行動に移るしきい値"
+    },
+    {
+      "id": "social_openness",
+      "label": "social_openness",
+      "kind": "outcome",
+      "dataLevel": null,
+      "description": "人に開く傾向"
+    },
+    {
+      "id": "successful_interaction",
+      "label": "successful_interaction",
+      "kind": "outcome",
+      "dataLevel": null,
+      "description": "うまくいった対話や協働"
+    }
+  ],
+  "edges": [
+    {
+      "source": "sleep_time",
+      "target": "energy",
+      "relation": "supports",
+      "causalLevel": "Lv1",
+      "weight": 0.92,
+      "description": "睡眠不足は energy を下げやすい"
+    },
+    {
+      "source": "sleep_time",
+      "target": "mood",
+      "relation": "supports",
+      "causalLevel": "Lv1",
+      "weight": 0.78,
+      "description": "短い睡眠は mood を下げやすい"
+    },
+    {
+      "source": "blood_sugar",
+      "target": "health",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.82,
+      "description": "血糖の逸脱は健康感に影響する"
+    },
+    {
+      "source": "blood_sugar",
+      "target": "irritability",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.74,
+      "description": "低血糖側では苛立ちやすさが上がりやすい"
+    },
+    {
+      "source": "weight",
+      "target": "health",
+      "relation": "modulates",
+      "causalLevel": "Lv2",
+      "weight": 0.61,
+      "description": "体重は単独値より推移として健康感に効く"
+    },
+    {
+      "source": "ambient_temperature",
+      "target": "health",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.63,
+      "description": "暑すぎる・寒すぎる環境は健康感を下げやすい"
+    },
+    {
+      "source": "environment_thermal_load",
+      "target": "energy",
+      "relation": "drains",
+      "causalLevel": "Lv1",
+      "weight": 0.88,
+      "description": "熱負荷 proxy が高いと energy が削られやすい"
+    },
+    {
+      "source": "environment_thermal_load",
+      "target": "health",
+      "relation": "pressures",
+      "causalLevel": "Lv1",
+      "weight": 0.69,
+      "description": "熱環境ストレスは健康感にも波及する"
+    },
+    {
+      "source": "environment_thermal_load",
+      "target": "ambient_temperature",
+      "relation": "proxies",
+      "causalLevel": "Lv2",
+      "weight": 0.55,
+      "description": "現状は Core Max を気温の proxy として使う"
+    },
+    {
+      "source": "ambient_brightness",
+      "target": "mood",
+      "relation": "lifts",
+      "causalLevel": "Lv1",
+      "weight": 0.76,
+      "description": "明るい空間は mood を持ち上げやすい"
+    },
+    {
+      "source": "ambient_brightness",
+      "target": "reflect_bias",
+      "relation": "suppresses",
+      "causalLevel": "Lv3",
+      "weight": 0.44,
+      "description": "暗い時間帯は内省寄りになりやすい"
+    },
+    {
+      "source": "body_temperature",
+      "target": "health",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.71,
+      "description": "体温の逸脱は健康感の変化につながる"
+    },
+    {
+      "source": "satiation",
+      "target": "action_threshold",
+      "relation": "modulates",
+      "causalLevel": "Lv3",
+      "weight": 0.58,
+      "description": "空腹や空白感があると行動のしきい値が下がる"
+    },
+    {
+      "source": "energy",
+      "target": "action_threshold",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.87,
+      "description": "energy が低いと行動のしきい値が上がる"
+    },
+    {
+      "source": "health",
+      "target": "action_threshold",
+      "relation": "modulates",
+      "causalLevel": "Lv1",
+      "weight": 0.67,
+      "description": "健康感が低いと大きな行動を避けやすい"
+    },
+    {
+      "source": "trust_mizuho",
+      "target": "social_openness",
+      "relation": "supports",
+      "causalLevel": "Lv2",
+      "weight": 0.76,
+      "description": "信頼できる相手には開きやすくなる"
+    },
+    {
+      "source": "trust_mizuho",
+      "target": "mental_margin",
+      "relation": "supports",
+      "causalLevel": "Lv3",
+      "weight": 0.58,
+      "description": "信頼があると精神的な余白が保たれやすい"
+    },
+    {
+      "source": "successful_interaction",
+      "target": "mood",
+      "relation": "raises",
+      "causalLevel": "Lv2",
+      "weight": 0.72,
+      "description": "うまくいった会話は mood を上げやすい"
+    },
+    {
+      "source": "successful_interaction",
+      "target": "trust_mizuho",
+      "relation": "builds",
+      "causalLevel": "Lv2",
+      "weight": 0.83,
+      "description": "配慮や約束の積み重ねは trust_mizuho を高めやすい"
+    },
+    {
+      "source": "successful_interaction",
+      "target": "social_openness",
+      "relation": "raises",
+      "causalLevel": "Lv2",
+      "weight": 0.78,
+      "description": "成功体験は次の交流に開きやすくする"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
  * 環境データを受動的に受け取り、内的状態（STATUS.md）を変化させる。
  *
  * 知覚源:
- *   - システム温度 (LHM HTTP API, port 8085) → energy
+ *   - システム温度 (LHM HTTP API, port 8085) → 環境熱負荷 proxy → energy
  *   - カメラ明るさ (usb-webcam-mcp, capture-brightness.py) → mood
  *
  * CPU Core Max 温度 → energy:
@@ -29,6 +29,8 @@ import { dirname } from "node:path";
 
 import { $ } from "bun";
 
+import { readEnvironmentDocument, setEnvironmentAuxValue, setEnvironmentObservation } from "./environment-store";
+import { syncPersonaStructuredStore } from "./persona-data";
 import { adjustStatusValue } from "./status-store";
 
 const SCRIPT_DIR = import.meta.dir;
@@ -46,6 +48,13 @@ const ENERGY_DELTA_MAX = 5;
 interface EnvironmentState {
   energyTemperatureBaseline?: number;
   lastObservedTemperature?: number;
+  lastThermalLoad?: number;
+  lastThermalBand?: string;
+  lastTemperatureReason?: string;
+  lastBrightness?: number;
+  lastBrightnessNormalized?: number;
+  lastBrightnessBand?: string;
+  lastBrightnessAt?: string;
   sampleCount?: number;
   updatedAt?: string;
 }
@@ -55,6 +64,18 @@ export interface EnergyTemperatureEvaluation {
   nextBaseline: number;
   relativeDelta: number;
   energyDelta: number;
+  reason: string;
+}
+
+export interface ThermalLoadProxy {
+  normalizedValue: number;
+  band: "cool" | "mild" | "stable" | "warm" | "hot";
+  reason: string;
+}
+
+export interface BrightnessObservation {
+  normalizedValue: number;
+  band: "dark" | "dim" | "neutral" | "bright";
   reason: string;
 }
 
@@ -78,6 +99,10 @@ async function writeEnvironmentState(state: EnvironmentState): Promise<void> {
   await Bun.write(ENVIRONMENT_STATE_PATH, JSON.stringify(state, null, 2) + "\n");
 }
 
+function formatDecimal(value: number, digits = 1): string {
+  return value.toFixed(digits);
+}
+
 export function computeTemperatureBaseline(
   previousBaseline: number | null | undefined,
   currentTemp: number,
@@ -87,6 +112,43 @@ export function computeTemperatureBaseline(
     return currentTemp;
   }
   return previousBaseline * (1 - alpha) + currentTemp * alpha;
+}
+
+function computeThermalLoadScore(relativeDelta: number): number {
+  return clamp(Math.round(50 - relativeDelta * 4), 0, 100);
+}
+
+export function evaluateThermalLoadProxy(
+  currentTemp: number,
+  evaluation: Pick<EnergyTemperatureEvaluation, "nextBaseline" | "relativeDelta">
+): ThermalLoadProxy {
+  const normalizedValue = computeThermalLoadScore(evaluation.relativeDelta);
+
+  let band: ThermalLoadProxy["band"] = "stable";
+  let stateText = "熱負荷はおおむね安定している。";
+  if (normalizedValue >= 80) {
+    band = "hot";
+    stateText = "熱がかなりこもっている。";
+  } else if (normalizedValue >= 60) {
+    band = "warm";
+    stateText = "少し熱がこもる。";
+  } else if (normalizedValue <= 20) {
+    band = "cool";
+    stateText = "かなり涼しい。";
+  } else if (normalizedValue <= 40) {
+    band = "mild";
+    stateText = "熱負荷は軽い。";
+  }
+
+  const deltaLabel = `${evaluation.relativeDelta >= 0 ? "+" : ""}${evaluation.relativeDelta.toFixed(1)}`;
+
+  return {
+    normalizedValue,
+    band,
+    reason:
+      `環境熱負荷 proxy ${normalizedValue}/100（CPU ${currentTemp.toFixed(1)}°C / ` +
+      `baseline ${evaluation.nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C）——${stateText}`,
+  };
 }
 
 export function evaluateEnergyFromTemperature(
@@ -112,14 +174,36 @@ export function evaluateEnergyFromTemperature(
     stateText = "いつもより少し熱い。じわじわ疲れる。";
   }
 
-  const deltaLabel = `${relativeDelta >= 0 ? "+" : ""}${relativeDelta.toFixed(1)}`;
+  const thermalLoad = evaluateThermalLoadProxy(currentTemp, { nextBaseline, relativeDelta });
   return {
     previousBaseline: previousBaseline ?? null,
     nextBaseline,
     relativeDelta,
     energyDelta,
-    reason:
-      `CPU ${currentTemp.toFixed(1)}°C（baseline ${nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C）——${stateText}`,
+    reason: `${thermalLoad.reason} ${stateText}`,
+  };
+}
+
+export function describeBrightnessObservation(brightness: number): BrightnessObservation {
+  const normalizedValue = clamp(Math.round((brightness / 255) * 100), 0, 100);
+
+  let band: BrightnessObservation["band"] = "neutral";
+  let stateText = "落ち着いた明るさ。";
+  if (normalizedValue >= 75) {
+    band = "bright";
+    stateText = "かなり明るい空間。";
+  } else if (normalizedValue <= 20) {
+    band = "dark";
+    stateText = "かなり暗い。";
+  } else if (normalizedValue <= 40) {
+    band = "dim";
+    stateText = "少し暗め。";
+  }
+
+  return {
+    normalizedValue,
+    band,
+    reason: `環境光 ${normalizedValue}/100（輝度${brightness.toFixed(0)}/255）——${stateText}`,
   };
 }
 
@@ -178,23 +262,68 @@ async function updateStatus(field: "energy" | "mood", delta: number, reason: str
 // ── メイン ──
 
 async function main() {
+  const markdownState = await readEnvironmentDocument();
+  const legacyState = await readEnvironmentState();
+  const baselineFromMarkdown = markdownState?.aux.environment_thermal_baseline?.valueText;
+  const sampleCountFromMarkdown = markdownState?.aux.environment_sample_count?.valueText;
+  const previousBaseline = parseFloat(baselineFromMarkdown ?? "");
+  const baseline = Number.isFinite(previousBaseline)
+    ? previousBaseline
+    : legacyState.energyTemperatureBaseline;
+  const previousSampleCount = parseInt(sampleCountFromMarkdown ?? "", 10);
+  const sampleCount = Number.isFinite(previousSampleCount)
+    ? previousSampleCount
+    : (legacyState.sampleCount ?? 0);
+
+  let nextState: EnvironmentState = { ...legacyState };
+  let stateDirty = false;
+
   // CPU 温度 → energy
   const coreMax = await getCpuCoreMax();
   if (coreMax !== null) {
-    const state = await readEnvironmentState();
-    const evaluation = evaluateEnergyFromTemperature(coreMax, state.energyTemperatureBaseline);
-    const nextState: EnvironmentState = {
+    const evaluation = evaluateEnergyFromTemperature(coreMax, baseline);
+    const thermalLoad = evaluateThermalLoadProxy(coreMax, evaluation);
+    nextState = {
+      ...nextState,
       energyTemperatureBaseline: evaluation.nextBaseline,
       lastObservedTemperature: coreMax,
-      sampleCount: (state.sampleCount ?? 0) + 1,
+      lastThermalLoad: thermalLoad.normalizedValue,
+      lastThermalBand: thermalLoad.band,
+      lastTemperatureReason: thermalLoad.reason,
+      sampleCount: sampleCount + 1,
       updatedAt: new Date().toISOString(),
     };
-    await writeEnvironmentState(nextState);
+    stateDirty = true;
 
     const deltaLabel = `${evaluation.relativeDelta >= 0 ? "+" : ""}${evaluation.relativeDelta.toFixed(1)}`;
     const energyLabel = `${evaluation.energyDelta >= 0 ? "+" : ""}${evaluation.energyDelta}`;
     console.log(
-      `[environment-tick] Core Max: ${coreMax.toFixed(1)}°C (baseline ${evaluation.nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C / energy ${energyLabel})`
+      `[environment-tick] Core Max: ${coreMax.toFixed(1)}°C (baseline ${evaluation.nextBaseline.toFixed(1)}°C / Δ${deltaLabel}°C / thermal ${thermalLoad.normalizedValue}/100 / energy ${energyLabel})`
+    );
+
+    await setEnvironmentObservation(
+      "environment_thermal_load",
+      `${formatDecimal(coreMax)} °C`,
+      thermalLoad.normalizedValue,
+      {
+        source: "LHM/Core Max",
+        reason: thermalLoad.reason,
+        recordHistoryOnUnchanged: true,
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_thermal_baseline",
+      `${formatDecimal(evaluation.nextBaseline)} °C`,
+      {
+        note: "Core Max の EMA 基準値",
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_sample_count",
+      String(sampleCount + 1),
+      {
+        note: "baseline 算出に使ったサンプル数",
+      }
     );
 
     if (evaluation.energyDelta !== 0) {
@@ -209,15 +338,44 @@ async function main() {
   // カメラ明るさ → mood
   const brightness = await getRoomBrightness();
   if (brightness !== null) {
+    const brightnessObservation = describeBrightnessObservation(brightness);
     console.log(`[environment-tick] Brightness: ${brightness.toFixed(1)}/255`);
+
+    nextState = {
+      ...nextState,
+      lastBrightness: brightness,
+      lastBrightnessNormalized: brightnessObservation.normalizedValue,
+      lastBrightnessBand: brightnessObservation.band,
+      lastBrightnessAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    stateDirty = true;
+
+    await setEnvironmentObservation(
+      "ambient_brightness",
+      `${Math.round(brightness)} / 255`,
+      brightnessObservation.normalizedValue,
+      {
+        source: "usb-webcam brightness",
+        reason: brightnessObservation.reason,
+        recordHistoryOnUnchanged: true,
+      }
+    );
+
     if (brightness > 150) {
-      await updateStatus("mood", 2, `部屋が明るい（輝度${brightness.toFixed(0)}）。`);
+      await updateStatus("mood", 2, brightnessObservation.reason);
     } else if (brightness < 50) {
-      await updateStatus("mood", -3, `部屋が暗い（輝度${brightness.toFixed(0)}）。`);
+      await updateStatus("mood", -3, brightnessObservation.reason);
     }
   } else {
     console.log("[environment-tick] Camera unavailable, skipping brightness");
   }
+
+  if (stateDirty) {
+    await writeEnvironmentState(nextState);
+  }
+
+  await syncPersonaStructuredStore();
 }
 
 if (import.meta.main) {

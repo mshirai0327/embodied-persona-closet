@@ -1,10 +1,23 @@
 #!/bin/bash
 # session-boot.sh — セッション開始時の身支度フック
 # SessionStart(startup|resume) で発火する
-# SOUL.md と state.md の内容をコンテキストに注入し、BOOT_SHUTDOWN.md の身支度手順を案内する
+# SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md をコンテキストに注入し、BOOT_SHUTDOWN.md の身支度手順を案内する
 # stdout の内容がコンテキストに追加される
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
+inject_context_file() {
+  local path="$1"
+  local label="$2"
+
+  if [ -f "$path" ]; then
+    echo "--- ${label} ---"
+    cat "$path"
+    echo ""
+    echo "--- end ${label} ---"
+    echo ""
+  fi
+}
 
 # --- matcher を JSON stdin から取得 ---
 INPUT=$(cat)
@@ -12,14 +25,15 @@ MATCHER=$(echo "$INPUT" | grep -o '"matcher":"[^"]*"' | head -1 | cut -d'"' -f4 
 
 echo "[session-boot] type=${MATCHER:-unknown}"
 echo ""
+echo "⚠ 身支度: SOUL.md等は自動注入済み。BOOT_SHUTDOWN.md の第二手〜第五手（memory_stats・working_memory・great-recall・state.md確認）を必ず実行すること。"
+echo ""
 
-# --- SOUL.md 注入 ---
+# --- SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md 注入 ---
 if [ -f "$PROJECT_DIR/SOUL.md" ]; then
-  echo "--- SOUL.md ---"
-  cat "$PROJECT_DIR/SOUL.md"
-  echo ""
-  echo "--- end SOUL.md ---"
-  echo ""
+  inject_context_file "$PROJECT_DIR/SOUL.md" "SOUL.md"
+  inject_context_file "$PROJECT_DIR/BODY.md" "BODY.md"
+  inject_context_file "$PROJECT_DIR/STATUS.md" "STATUS.md"
+  inject_context_file "$PROJECT_DIR/ENVIRONMENT.md" "ENVIRONMENT.md"
 else
   echo "[SOUL.md が見つかりません。/wd-setup を実行してください]"
   echo ""
@@ -45,4 +59,4 @@ if grep -qi "microsoft" /proc/version 2>/dev/null; then
 fi
 
 # --- 身支度の案内 ---
-echo "SOUL.md と state.md は自動注入済み。BOOT_SHUTDOWN.md の身支度手順に従い、残りを実行してください。"
+echo "SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md は自動注入済み。BOOT_SHUTDOWN.md の身支度手順に従い、残りを実行してください。"

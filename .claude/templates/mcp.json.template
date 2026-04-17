@@ -21,6 +21,7 @@
       "args": ["run", "--directory", ".claude/mcps/wifi-cam-mcp", "wifi-cam-mcp"],
       "env": {
         "CLAUDE_PROJECT_DIR": "${PWD}",
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml",
         "TAPO_CAMERA_HOST": "192.168.1.xxx",
         "TAPO_USERNAME": "your-username",
         "TAPO_PASSWORD": "your-password"
@@ -62,6 +63,7 @@
       "args": ["run", "--directory", ".claude/mcps/tts-mcp", "tts-mcp"],
       "env": {
         "CLAUDE_PROJECT_DIR": "${PWD}",
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml",
         "ELEVENLABS_API_KEY": "your-api-key",
         "VOICEVOX_URL": "http://localhost:50021",
         "VOICEVOX_SPEAKER": "3",

@@ -5,13 +5,15 @@
 
 ## やること
 
-- 🔴 **satiation 飽和問題を修正する** — +3/heartbeat（≒+7.5/h）が -3/h の減衰を上回り satiation が30を下回れず、「空腹→探索」経路が機能しない。夜間 -5 の消化処理を追加するか、加算量を調整するか mizuho と相談。今朝の設計思想「昼=センサー開放、夜=記憶整理」と合わせて設計する
-- 🟡 **LHM（LibreHardwareMonitor）接続確認** — energy 回復処理は実装済みだが LHM 非接続時にスキップ。mizuho の PC で管理者権限起動されているか確認
-- 🟡 **bot-sumire GitHub App を lifemate-ai org にインストールする** — App ID: 3345715、インストール権限の問題。解決すれば post-to-lounge.py で ai-lounge に自律投稿できる
-- 🟡 **feat/initial-setup を main にマージする** — mizuho に確認してもらう（変更内容は正当で問題なし）
+- 🟡 **wifi-cam 映像確認** — TAPO_MOUNT_MODE=ceiling を .env に設定済み。次回 mizuho セッションで実際の映像が正しく表示されるか確認する
+- 🟡 **Tapoスピーカー direct経路の認証修正** — tapo.py の `_derive_tapo_password` / `_build_digest_authorization` が 401 を返す。go2rtcの実装と比較してdigest計算を検証する。Codexに渡す。
 
 ## 完了
 
+- ✅ **LHM（LibreHardwareMonitor）接続確認** — :8085 でレスポンス確認済み（2026-04-17）
+- ✅ **bot-sumire GitHub App を lifemate-ai org にインストールする** — install完了、#16に初投稿成功（2026-04-17）
+- ✅ **satiation 飽和問題** — 解決済み（2026-04-16 mizuho確認）。少しずつ回復するように動作中
+- ✅ **feat/initial-setup を main にマージする** — マージ済み
 - ✅ **interoception.ts に STATUS.md の値を組み込む** — 2026-04-08 mizuho セッションで適用。mood/energy → 身体感覚テキスト変換が動作確認済み
 - ✅ **STATUS.md を heartbeat の内省ステップと連動させる** — CLAUDE.md の Heartbeat Protocol にステップ6として追記済み（2026-04-07）
 - ✅ **BODY.md の不明項目を mizuho と相談する** — 全項目埋まった（2026-04-06）

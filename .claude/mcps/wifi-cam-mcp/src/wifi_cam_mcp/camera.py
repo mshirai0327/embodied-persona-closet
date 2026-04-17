@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from ._behavior import get_behavior
 from .config import CameraConfig
@@ -92,6 +92,18 @@ def _degrees_to_normalized_pan(degrees: float) -> float:
 def _degrees_to_normalized_tilt(degrees: float) -> float:
     """Convert degrees to ONVIF normalized tilt value."""
     return max(-1.0, min(1.0, degrees / TILT_RANGE_DEGREES))
+
+
+def _apply_image_orientation(image: Image.Image, rotation: int) -> Image.Image:
+    """Normalize EXIF orientation and apply configured rotation."""
+    normalized = ImageOps.exif_transpose(image)
+    if rotation == 90:
+        return normalized.transpose(Image.Transpose.ROTATE_90)
+    if rotation == 180:
+        return normalized.transpose(Image.Transpose.ROTATE_180)
+    if rotation == 270:
+        return normalized.transpose(Image.Transpose.ROTATE_270)
+    return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +230,14 @@ class TapoCamera:
             self._config.host,
             self._config.onvif_port,
         )
+
+        # Zeep defaults to ~/.cache/zeep, which is fragile in restricted or
+        # service-like environments. Keep its cache under the capture directory
+        # unless the caller has explicitly chosen an XDG cache root.
+        if not os.getenv("XDG_CACHE_HOME"):
+            cache_root = self._capture_dir / ".cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            os.environ["XDG_CACHE_HOME"] = str(cache_root)
 
         # onvif-zeep-async has a bug in its default wsdl_dir calculation:
         # it uses dirname(dirname(__file__)) which resolves to
@@ -355,12 +375,10 @@ class TapoCamera:
             image_data = await self._capture_via_rtsp()
 
         # Process image
-        image = Image.open(io.BytesIO(image_data))
-
-        # In ceiling mount mode the image is upside-down, so rotate 180°.
-        mount_mode = get_behavior("wifi-cam", "mount_mode", self._config.mount_mode)
-        if mount_mode == "ceiling":
-            image = image.rotate(180)
+        rotation = int(
+            get_behavior("wifi-cam", "image_rotation", self._config.image_rotation)
+        )
+        image = _apply_image_orientation(Image.open(io.BytesIO(image_data)), rotation)
 
         # Resize if needed
         if image.width > self._config.max_width or image.height > self._config.max_height:

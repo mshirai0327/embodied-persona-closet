@@ -12,6 +12,7 @@
       "args": ["run", "--directory", ".claude/mcps/tts-mcp", "tts-mcp"],
       "env": {
         "CLAUDE_PROJECT_DIR": "${PWD}",
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml",
         "VOICEVOX_URL": "http://localhost:50021",
         "VOICEVOX_SPEAKER": "10",
         "TTS_PLAYBACK": "auto",
@@ -39,6 +40,19 @@
         "CLAUDE_PROJECT_DIR": "${PWD}",
         "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml"
       }
+    },
+    "wifi-cam": {
+      "command": "uv",
+      "args": ["run", "--directory", ".claude/mcps/wifi-cam-mcp", "wifi-cam-mcp"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${PWD}",
+        "MCP_BEHAVIOR_TOML": "${PWD}/mcpBehavior.toml",
+        "TAPO_MOUNT_MODE": "ceiling"
+      }
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }

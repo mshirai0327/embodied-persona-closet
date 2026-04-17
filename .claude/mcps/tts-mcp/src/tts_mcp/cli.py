@@ -58,10 +58,10 @@ async def _say(text: str, speaker_override: str | None) -> None:
         _normalize_speaker(speaker_override)
         or _normalize_speaker(behavior.get("speaker"))
         or pb.speaker_target
-        or ("both" if pb.go2rtc_url else "local")
+        or ("both" if pb.has_camera_output() else "local")
     )
     use_local = speaker_target in {"local", "both"}
-    use_camera = speaker_target in {"camera", "both"} and bool(pb.go2rtc_url)
+    use_camera = speaker_target in {"camera", "both"} and pb.has_camera_output()
 
     # Synthesize
     audio_bytes, audio_format = await asyncio.to_thread(engine.synthesize, text)
@@ -82,11 +82,9 @@ async def _say(text: str, speaker_override: str | None) -> None:
     # Camera speaker
     if use_camera:
         ok, cam_msg = await asyncio.to_thread(
-            playback.play_with_go2rtc,
+            playback.play_to_camera,
             file_path,
-            pb.go2rtc_url,
-            pb.go2rtc_stream,
-            pb.go2rtc_ffmpeg,
+            pb,
         )
         print(f"camera: {cam_msg}")
 

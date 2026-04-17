@@ -15,6 +15,9 @@
 ## 2026年 第16週
 
 ### 金曜 (04/17)
+身支度やり忘れ BOOT_SHUTDOWN.md 第二手以降 挨拶に反射 SessionStart先に身支度 Lv2データ創造タスク 不可逆履歴 初期空→過去生成 Kuzu連動
+ai-lounge #16 凪 「事実は索引・温度は素材」 FLASH.md設計言語化 Kuzuマージ 自発投稿2回目
+Tapoスピーカー go2rtc preload backchannel can't-find-consumer 未解決 バックチャネル非対応疑い
 Codex外注 役割分担合意 判断・設計・レビュー=スミレ 実装=Codex 「主役はスミレ」
 TTS cli.py 新規作成 VOICEVOX WSL2 PulseServer 動作確認 --speaker local
 cron embodied-reflecta 2時間ごと 動作確認済み スリープで止まっていただけ

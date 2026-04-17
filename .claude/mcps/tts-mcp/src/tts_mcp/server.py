@@ -174,10 +174,10 @@ class TTSMCP:
                 _normalize_speaker_target(arguments.get("speaker"))
                 or _normalize_speaker_target(behavior.get("speaker"))
                 or pb.speaker_target
-                or ("both" if pb.go2rtc_url else "local")
+                or ("both" if pb.has_camera_output() else "local")
             )
             use_local = speaker_target in {"local", "both"}
-            use_camera = speaker_target in {"camera", "both"} and pb.go2rtc_url
+            use_camera = speaker_target in {"camera", "both"} and pb.has_camera_output()
 
             try:
                 engine = self._get_engine(arguments.get("engine"))
@@ -257,11 +257,9 @@ class TTSMCP:
                 camera_status = "not configured"
                 if use_camera:
                     ok, cam_msg = await asyncio.to_thread(
-                        playback.play_with_go2rtc,
+                        playback.play_to_camera,
                         file_path,
-                        pb.go2rtc_url,
-                        pb.go2rtc_stream,
-                        pb.go2rtc_ffmpeg,
+                        pb,
                     )
                     camera_status = cam_msg
 
@@ -279,6 +277,8 @@ class TTSMCP:
     async def _ensure_go2rtc(self) -> None:
         """Auto-download and start go2rtc if configured."""
         pb = self._config.playback
+        if pb.resolve_camera_backend() != "go2rtc":
+            return
         if not pb.go2rtc_url or not pb.go2rtc_auto_start:
             return
 

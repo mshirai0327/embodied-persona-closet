@@ -94,9 +94,11 @@ class TestPlaybackConfig:
         assert config.go2rtc_bin is None
         assert config.go2rtc_config is None
         assert config.go2rtc_auto_start is True
+        assert config.camera_backend == "auto"
         assert config.go2rtc_camera_host is None
         assert config.go2rtc_url is None
         assert config.speaker_target is None
+        assert config.has_camera_output() is False
 
     @patch.dict(
         os.environ,
@@ -179,6 +181,7 @@ class TestPlaybackConfig:
         for key in (
             "GO2RTC_URL", "GO2RTC_STREAM", "GO2RTC_FFMPEG", "GO2RTC_AUTO_START",
             "TTS_SPEAKER", "TTS_SPEAKER_TARGET", "TTS_PLAY_AUDIO", "ELEVENLABS_PLAY_AUDIO",
+            "TTS_CAMERA_BACKEND",
         ):
             os.environ.pop(key, None)
 
@@ -187,6 +190,7 @@ class TestPlaybackConfig:
             "go2rtc_stream": "living_room",
             "go2rtc_ffmpeg": "/usr/local/bin/ffmpeg",
             "go2rtc_auto_start": False,
+            "camera_backend": "go2rtc",
             "speaker": "camera",
             "play_audio": False,
         }
@@ -201,8 +205,10 @@ class TestPlaybackConfig:
         assert config.go2rtc_stream == "living_room"
         assert config.go2rtc_ffmpeg == "/usr/local/bin/ffmpeg"
         assert config.go2rtc_auto_start is False
+        assert config.camera_backend == "go2rtc"
         assert config.speaker_target == "camera"
         assert config.play_audio is False
+        assert config.resolve_camera_backend() == "go2rtc"
 
     @patch.dict(os.environ, {"GO2RTC_STREAM": "env_stream"}, clear=False)
     def test_env_takes_precedence_over_behavior(self):
@@ -217,6 +223,35 @@ class TestPlaybackConfig:
 
         assert config.go2rtc_stream == "env_stream"
         assert config.speaker_target == "camera"
+
+    @patch.dict(
+        os.environ,
+        {
+            "TTS_CAMERA_BACKEND": "tapo",
+            "TAPO_CAMERA_HOST": "192.168.1.60",
+            "TAPO_CLOUD_PASSWORD": "cloud-pass",
+        },
+        clear=False,
+    )
+    def test_tapo_camera_backend(self):
+        config = PlaybackConfig.from_env()
+        assert config.camera_backend == "tapo"
+        assert config.has_camera_output() is True
+        assert config.resolve_camera_backend() == "tapo"
+
+    @patch.dict(
+        os.environ,
+        {
+            "TTS_CAMERA_BACKEND": "auto",
+            "GO2RTC_URL": "http://127.0.0.1:1984",
+            "TAPO_CAMERA_HOST": "192.168.1.60",
+            "TAPO_CLOUD_PASSWORD": "cloud-pass",
+        },
+        clear=False,
+    )
+    def test_auto_prefers_tapo_over_go2rtc(self):
+        config = PlaybackConfig.from_env()
+        assert config.resolve_camera_backend() == "tapo"
 
 
 class TestTTSConfig:

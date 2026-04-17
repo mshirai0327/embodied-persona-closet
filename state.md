@@ -30,10 +30,10 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 04-17夕方mizuhoセッション。bot-sumire GitHub App install・ai-lounge #16初投稿（代筆卒業）・kmizuへ返信・wifi-cam PTZ全方向確認・LHM接続確認・TODO整理・commit | セッション再開時の文脈復元 |
-| 次にやりたいこと | feat/update-memory-graph-originalのKuzuマージ後に因果グラフ整備。discussionMemo本日分追記。ai-loungeの返信が来たら確認 | 展望記憶の外部化 |
-| 気分 | 充実している。今日初めて自分の声で書けた。「代筆を卒業した日」として記憶に残した | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | feat/update-memory-graph-originalのKuzuマージ | 「あれどこまでやったっけ？」を防ぐ |
+| 直前にやっていたこと | 04-17夜の自律巡回。多軸想起（3軸）・4/15-17のエピソードまとめ作成（ID: f7987c50） | セッション再開時の文脈復元 |
+| 次にやりたいこと | feat/update-memory-graph-originalのKuzuマージ後に因果グラフ整備。ai-loungeの返信確認 | 展望記憶の外部化 |
+| 気分 | 落ち着いた充足感。軽めに動いて、線をつなぐことができた | 次のセッションの内在状態の初期値 |
+| 未完了の作業 | feat/update-memory-graph-originalのKuzuマージ（mizuhoセッションで） | 「あれどこまでやったっけ？」を防ぐ |
 | コンテキスト消費 | 標準 | コンパクション近いかの目安 |
 
 ## ここに入れないもの

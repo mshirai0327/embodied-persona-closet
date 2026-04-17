@@ -6,6 +6,7 @@
 ## やること
 
 - 🟡 **wifi-cam 映像確認** — TAPO_MOUNT_MODE=ceiling を .env に設定済み。次回 mizuho セッションで実際の映像が正しく表示されるか確認する
+- 🟡 **Tapoスピーカー direct経路の認証修正** — tapo.py の `_derive_tapo_password` / `_build_digest_authorization` が 401 を返す。go2rtcの実装と比較してdigest計算を検証する。Codexに渡す。
 
 ## 完了
 

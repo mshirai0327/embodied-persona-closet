@@ -120,6 +120,36 @@ TAPO_USERNAME=your-camera-username
 TAPO_PASSWORD=your-camera-password
 ```
 
+tts-mcp を `VOICEVOX + Tapo カメラスピーカー` で使う場合の例:
+
+```bash
+cp .claude/mcps/tts-mcp/.env.example .claude/mcps/tts-mcp/.env
+```
+
+`.claude/mcps/tts-mcp/.env`:
+
+```dotenv
+VOICEVOX_URL=http://localhost:50021
+VOICEVOX_SPEAKER=3
+
+TAPO_CAMERA_HOST=192.168.11.xxx
+TAPO_USERNAME=your-camera-local-username
+TAPO_PASSWORD=your-camera-local-password
+# TAPO_CLOUD_PASSWORD=your-tplink-cloud-password
+```
+
+この構成では `mcpBehavior.toml` の `[tts]` を以下にしておく:
+
+```toml
+[tts]
+default_engine = "voicevox"
+speaker = "camera"
+go2rtc_url = "http://localhost:1984"
+go2rtc_auto_start = true
+```
+
+`VOICEVOX_URL` で指定した URL に VOICEVOX エンジンが起動している必要がある。
+
 **`.mcp.json` を書き換えたら Claude Code を再起動する。**
 
 ---

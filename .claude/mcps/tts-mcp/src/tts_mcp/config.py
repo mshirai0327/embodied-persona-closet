@@ -132,6 +132,7 @@ class PlaybackConfig:
     playback: str
     pulse_sink: str | None
     pulse_server: str | None
+    camera_backend: str
     go2rtc_url: str | None
     speaker_target: str | None
     go2rtc_stream: str
@@ -175,6 +176,13 @@ class PlaybackConfig:
             ),
             pulse_sink=os.getenv("ELEVENLABS_PULSE_SINK") or None,
             pulse_server=_detect_pulse_server(),
+            camera_backend=str(
+                _get_tts_setting(
+                    "TTS_CAMERA_BACKEND",
+                    behavior_key="camera_backend",
+                    default="auto",
+                )
+            ).strip().lower(),
             go2rtc_url=_get_tts_setting(
                 "GO2RTC_URL",
                 behavior_key="go2rtc_url",
@@ -233,6 +241,29 @@ class PlaybackConfig:
                 or None
             ),
         )
+
+    def has_camera_output(self) -> bool:
+        """Return whether any camera playback backend is configured."""
+        return self.resolve_camera_backend() is not None
+
+    def resolve_camera_backend(self) -> str | None:
+        """Resolve which camera playback backend should be used."""
+        if self.camera_backend in {"auto", "go2rtc", "tapo"}:
+            backend = self.camera_backend
+        else:
+            backend = "auto"
+        has_tapo = bool(self.go2rtc_camera_host and self.go2rtc_camera_cloud_password)
+        has_go2rtc = bool(self.go2rtc_url)
+
+        if backend == "tapo":
+            return "tapo" if has_tapo else None
+        if backend == "go2rtc":
+            return "go2rtc" if has_go2rtc else None
+        if has_tapo:
+            return "tapo"
+        if has_go2rtc:
+            return "go2rtc"
+        return None
 
 
 @dataclass(frozen=True)

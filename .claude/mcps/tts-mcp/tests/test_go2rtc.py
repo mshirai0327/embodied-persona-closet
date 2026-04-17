@@ -93,6 +93,7 @@ class TestGenerateConfig:
         assert "tapo_cam:" in content
         assert "rtsp://admin:secret@192.168.1.100:554/stream1" in content
         assert "tapo://secret@192.168.1.100" in content
+        assert 'preload:\n  tapo_cam: "video&audio"' in content
         assert "/usr/bin/ffmpeg" in content
         assert '":1984"' in content
 

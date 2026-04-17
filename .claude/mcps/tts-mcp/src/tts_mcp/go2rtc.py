@@ -149,6 +149,11 @@ def generate_config(
         f"    - rtsp://{username}:{password}@{camera_host}:554/stream1\n"
         f"    - tapo://{tapo_password}@{camera_host}\n"
         f"\n"
+        # Keep the target stream active so backchannel playback can attach
+        # even when no browser/WebRTC client is currently viewing it.
+        f"preload:\n"
+        f"  {stream_name}: \"video&audio\"\n"
+        f"\n"
         f"ffmpeg:\n"
         f"  bin: {resolved_ffmpeg}\n"
         f"\n"

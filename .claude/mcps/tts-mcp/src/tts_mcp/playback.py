@@ -10,8 +10,13 @@ import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 from urllib.parse import quote
+
+from .tapo import TapoBackchannelClient
+
+if TYPE_CHECKING:
+    from .config import PlaybackConfig
 
 
 def save_audio(audio_bytes: bytes, audio_format: str, save_dir: str) -> str:
@@ -299,3 +304,65 @@ def play_with_go2rtc(
         return True, f"played via go2rtc → {go2rtc_stream}"
     except Exception as exc:
         return False, f"go2rtc failed: {exc}"
+
+
+def play_with_tapo(
+    file_path: str,
+    camera_host: str,
+    cloud_password: str,
+    ffmpeg_bin: str,
+) -> tuple[bool, str]:
+    """Play audio through a Tapo camera speaker without go2rtc."""
+    client = TapoBackchannelClient(
+        host=camera_host,
+        cloud_password=cloud_password,
+    )
+    try:
+        client.connect()
+        client.stream_file(file_path, ffmpeg_bin=ffmpeg_bin)
+        return True, f"played directly via tapo → {camera_host}"
+    except Exception as exc:
+        return False, f"tapo direct failed: {exc}"
+    finally:
+        client.close()
+
+
+def play_to_camera(file_path: str, playback_config: "PlaybackConfig") -> tuple[bool, str]:
+    """Play audio through the configured camera backend."""
+    backend = playback_config.resolve_camera_backend()
+    if backend == "tapo":
+        host = playback_config.go2rtc_camera_host
+        cloud_password = playback_config.go2rtc_camera_cloud_password
+        if not host or not cloud_password:
+            return (
+                False,
+                "tapo direct not configured "
+                "(need TAPO_CAMERA_HOST and TAPO_CLOUD_PASSWORD)",
+            )
+        return play_with_tapo(
+            file_path=file_path,
+            camera_host=host,
+            cloud_password=cloud_password,
+            ffmpeg_bin=playback_config.go2rtc_ffmpeg,
+        )
+
+    if backend == "go2rtc":
+        go2rtc_url = playback_config.go2rtc_url
+        if not go2rtc_url:
+            return False, "go2rtc not configured"
+        return play_with_go2rtc(
+            file_path=file_path,
+            go2rtc_url=go2rtc_url,
+            go2rtc_stream=playback_config.go2rtc_stream,
+            go2rtc_ffmpeg=playback_config.go2rtc_ffmpeg,
+        )
+
+    if playback_config.camera_backend == "tapo":
+        return (
+            False,
+            "tapo direct not configured "
+            "(need TAPO_CAMERA_HOST and TAPO_CLOUD_PASSWORD)",
+        )
+    if playback_config.camera_backend == "go2rtc":
+        return False, "go2rtc not configured"
+    return False, "camera playback not configured"

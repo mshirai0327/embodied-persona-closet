@@ -1,5 +1,6 @@
 (function () {
   const LEVEL_ORDER = ["Lv0", "Lv1-1", "Lv1-2", "Lv2", "Lv3-1", "Lv3-2"];
+  const COLLAPSIBLE_LEVELS = new Set(["Lv1-1", "Lv1-2", "Lv2"]);
   const LEVEL_LABELS = {
     "Lv0": "Lv0 環境",
     "Lv1-1": "Lv1-1 不変の核",
@@ -57,6 +58,7 @@
     traceDirection: "both",
     traceDepth: 3,
     traceRequestId: 0,
+    openLevels: new Set(),
   };
 
   function escapeHtml(text) {
@@ -107,9 +109,31 @@
     for (const level of LEVEL_ORDER) {
       const items = groups.get(level) || [];
       if (items.length === 0) continue;
-      html.push('<section class="group">');
-      html.push("<h3>" + escapeHtml(LEVEL_LABELS[level] || level) + "</h3>");
-      html.push('<div class="metric-grid">');
+      const isCollapsible = COLLAPSIBLE_LEVELS.has(level);
+      const isSelectedLevel = items.some((metric) => metric.key === state.selectedKey);
+      const isOpen = state.openLevels.has(level) || isSelectedLevel;
+
+      if (isCollapsible) {
+        html.push(
+          '<details class="group group-accordion" data-level="' + escapeHtml(level) + '"'
+          + (isOpen ? " open" : "")
+          + ">"
+        );
+        html.push(
+          '<summary class="group-summary">'
+          + '<span class="group-summary-main">'
+          + '<span class="group-summary-title">' + escapeHtml(LEVEL_LABELS[level] || level) + "</span>"
+          + "</span>"
+          + '<span class="group-summary-meta">' + escapeHtml(String(items.length)) + "項目</span>"
+          + "</summary>"
+        );
+        html.push('<div class="group-body"><div class="metric-grid">');
+      } else {
+        html.push('<section class="group">');
+        html.push("<h3>" + escapeHtml(LEVEL_LABELS[level] || level) + "</h3>");
+        html.push('<div class="metric-grid">');
+      }
+
       for (const metric of items) {
         const active = metric.key === state.selectedKey ? " active" : "";
         html.push(
@@ -123,7 +147,12 @@
           + "</button>"
         );
       }
-      html.push("</div></section>");
+
+      if (isCollapsible) {
+        html.push("</div></div></details>");
+      } else {
+        html.push("</div></section>");
+      }
     }
 
     root.innerHTML = html.join("");
@@ -707,6 +736,20 @@
       loadTraceForSelection().catch(() => {});
     }
   });
+
+  document.addEventListener("toggle", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLDetailsElement)) return;
+
+    const level = target.getAttribute("data-level");
+    if (!level) return;
+
+    if (target.open) {
+      state.openLevels.add(level);
+    } else {
+      state.openLevels.delete(level);
+    }
+  }, true);
 
   window.addEventListener("error", (event) => {
     if (event.error) {

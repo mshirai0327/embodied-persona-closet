@@ -214,6 +214,72 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         margin-bottom: 10px;
       }
 
+      .group-accordion {
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .group-summary {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        cursor: pointer;
+      }
+
+      .group-summary,
+      .group-summary * {
+        cursor: pointer;
+      }
+
+      .group-summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .group-summary::marker {
+        content: "";
+      }
+
+      .group-summary::after {
+        content: "▾";
+        color: var(--muted);
+        font-size: 14px;
+        transition: transform 140ms ease;
+      }
+
+      .group-accordion:not([open]) .group-summary::after {
+        transform: rotate(-90deg);
+      }
+
+      .group-accordion[open] .group-summary {
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 12px;
+      }
+
+      .group-summary-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .group-summary-title {
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+
+      .group-summary-meta {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .group-body {
+        padding: 0 12px 12px;
+      }
+
       .metric-grid {
         display: grid;
         gap: 10px;

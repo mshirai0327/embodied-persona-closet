@@ -32,6 +32,13 @@
     Lv2: { color: "#c4622d", label: "Lv2 経験・proxy", markerId: "graph-arrow-lv2" },
     Lv3: { color: "#3f7db4", label: "Lv3 文脈依存", markerId: "graph-arrow-lv3" },
   };
+  const GRAPH_LEVEL_COLUMNS = [
+    { key: "Lv0", label: "Lv0" },
+    { key: "Lv1", label: "Lv1" },
+    { key: "Lv2", label: "Lv2" },
+    { key: "Lv3-1", label: "Lv3-1" },
+    { key: "Lv3-2", label: "Lv3-2" },
+  ];
   const NODE_HALF_WIDTH = 74;
   const NODE_HALF_HEIGHT = 22;
 
@@ -290,6 +297,18 @@
       .join("");
   }
 
+  function graphLevelForNode(node) {
+    if (node.dataLevel === "Lv0") return "Lv0";
+    if (node.dataLevel === "Lv2") return "Lv2";
+    if (typeof node.dataLevel === "string" && node.dataLevel.startsWith("Lv1")) return "Lv1";
+    if (node.dataLevel === "Lv3-1") return "Lv3-1";
+    if (node.dataLevel === "Lv3-2") return "Lv3-2";
+
+    if (node.kind === "environment" || node.kind === "sensor") return "Lv0";
+    if (node.kind === "vital") return "Lv3-1";
+    return "Lv3-2";
+  }
+
   function renderTimelineChart(config) {
     const svg = document.getElementById(config.svgId);
     const detailRoot = document.getElementById(config.detailId);
@@ -421,30 +440,38 @@
   }
 
   function buildGraphLayout(nodes) {
-    const columns = [
-      ["environment", "sensor"],
-      ["vital"],
-      ["emotion", "latent"],
-      ["action", "outcome"],
-    ];
     const positioned = new Map();
     const width = 980;
     const height = 560;
-    const xPositions = [120, 350, 610, 850];
+    const topPadding = 74;
+    const bottomPadding = 28;
+    const columnWidth = width / GRAPH_LEVEL_COLUMNS.length;
+    const columns = GRAPH_LEVEL_COLUMNS.map((column, index) => ({
+      ...column,
+      xStart: columnWidth * index,
+      xCenter: columnWidth * index + columnWidth / 2,
+      width: columnWidth,
+    }));
 
-    columns.forEach((kindSet, columnIndex) => {
-      const columnNodes = nodes.filter((node) => kindSet.includes(node.kind));
-      columnNodes.sort((a, b) => a.id.localeCompare(b.id));
-      const gap = height / (columnNodes.length + 1);
+    columns.forEach((column) => {
+      const columnNodes = nodes
+        .filter((node) => graphLevelForNode(node) === column.key)
+        .sort((left, right) => {
+          if (left.kind !== right.kind) {
+            return left.kind.localeCompare(right.kind, "ja");
+          }
+          return left.label.localeCompare(right.label, "ja");
+        });
+      const gap = (height - topPadding - bottomPadding) / (columnNodes.length + 1);
       columnNodes.forEach((node, index) => {
         positioned.set(node.id, {
-          x: xPositions[columnIndex],
-          y: gap * (index + 1),
+          x: column.xCenter,
+          y: topPadding + gap * (index + 1),
         });
       });
     });
 
-    return { width, height, positioned };
+    return { width, height, positioned, columns };
   }
 
   function renderGraph() {
@@ -471,6 +498,20 @@
       "</defs>",
       '<rect x="0" y="0" width="' + layout.width + '" height="' + layout.height + '" rx="18" fill="transparent"></rect>',
     ];
+
+    layout.columns.forEach((column, index) => {
+      parts.push(
+        '<rect x="' + (column.xStart + 8) + '" y="10" width="' + (column.width - 16) + '" height="' + (layout.height - 20) + '" rx="18" fill="' + (index % 2 === 0 ? "rgba(255,255,255,0.5)" : "rgba(244,248,244,0.68)") + '" stroke="rgba(32,53,42,0.08)"></rect>'
+      );
+      parts.push(
+        '<text x="' + column.xCenter + '" y="34" text-anchor="middle" font-size="16" font-weight="600" fill="#68756d">' + escapeHtml(column.label) + "</text>"
+      );
+      if (index > 0) {
+        parts.push(
+          '<line x1="' + column.xStart + '" y1="18" x2="' + column.xStart + '" y2="' + (layout.height - 18) + '" stroke="rgba(32,53,42,0.1)" stroke-dasharray="6 8"></line>'
+        );
+      }
+    });
 
     for (const edge of edges) {
       const source = layout.positioned.get(edge.sourceId);

@@ -29,6 +29,7 @@ import { dirname } from "node:path";
 
 import { $ } from "bun";
 
+import { saveCausalRuntimeSnapshot } from "./causal-hint-store";
 import {
   deriveEnvironmentCausalProposals,
   type EnvironmentCausalSourceInput,
@@ -448,6 +449,13 @@ async function main() {
     try {
       const proposals = await deriveEnvironmentCausalProposals(causalInputs);
       runtimeApplied = true;
+
+      try {
+        await saveCausalRuntimeSnapshot(proposals);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`[environment-tick] failed to save causal runtime snapshot: ${message}`);
+      }
 
       if (proposals.length === 0) {
         console.log("[environment-tick] causal runtime produced no status proposals");

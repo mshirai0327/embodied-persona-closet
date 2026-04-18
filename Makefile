@@ -38,4 +38,4 @@ persona-causal-trace:
 	$(BUN) .claude/scripts/causal-kuzu-inspect.ts trace $(KEY) --direction=$(DIRECTION) --depth=$(DEPTH)
 
 persona-test:
-	$(BUN) test ./.claude/scripts/causal-kuzu.test.ts ./.claude/scripts/causal-runtime.test.ts ./.claude/scripts/causal-graph.test.ts ./.claude/scripts/persona-data.test.ts ./.claude/scripts/environment-store.test.ts ./.claude/scripts/environment-tick.test.ts
+	$(BUN) test ./.claude/scripts/causal-kuzu.test.ts ./.claude/scripts/causal-runtime.test.ts ./.claude/scripts/causal-hint-store.test.ts ./.claude/scripts/causal-graph.test.ts ./.claude/scripts/persona-data.test.ts ./.claude/scripts/environment-store.test.ts ./.claude/scripts/environment-tick.test.ts

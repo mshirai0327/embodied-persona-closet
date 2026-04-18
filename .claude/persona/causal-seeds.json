@@ -121,7 +121,7 @@
     {
       "source": "ambient_temperature",
       "target": "health",
-      "relation": "modulates",
+      "relation": "pressures",
       "causalLevel": "Lv1",
       "weight": 0.63,
       "description": "暑すぎる・寒すぎる環境は健康感を下げやすい"

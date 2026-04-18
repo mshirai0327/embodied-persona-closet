@@ -63,7 +63,7 @@ async function setupSeedGraph() {
       {
         source: "ambient_temperature",
         target: "health",
-        relation: "modulates",
+        relation: "pressures",
         causalLevel: "Lv1",
         weight: 0.63,
         description: null,
@@ -104,6 +104,16 @@ describe("causal-runtime", () => {
     expect(module.normalizeCausalActivation(50)).toBe(0);
     expect(module.normalizeCausalActivation(75)).toBeCloseTo(0.5, 5);
     expect(module.normalizeCausalActivation(100)).toBe(1);
+  });
+
+  test("treats modulates as direction-agnostic in phase 1 scoring", async () => {
+    const module = await setupSeedGraph();
+
+    expect(module.getPhase1RelationSign("modulates")).toBe(0);
+    expect(module.computeCausalPathScore(0.6, {
+      relations: ["modulates"],
+      weights: [0.82],
+    })).toBe(0);
   });
 
   test("maps bright environments to a positive mood proposal", async () => {

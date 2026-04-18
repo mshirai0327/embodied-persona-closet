@@ -36,7 +36,8 @@ const TRACE_DEPTH = 3;
 const DEPTH_DECAY = 0.85;
 const STATUS_FIELDS: readonly Phase1StatusField[] = ["mood", "energy", "health"];
 const POSITIVE_RELATIONS = new Set(["supports", "lifts", "raises"]);
-const NEGATIVE_RELATIONS = new Set(["drains", "pressures", "lowers", "modulates"]);
+const NEGATIVE_RELATIONS = new Set(["drains", "pressures", "lowers"]);
+const AMBIGUOUS_RELATIONS = new Set(["modulates"]);
 const PASS_THROUGH_RELATIONS = new Set(["proxies"]);
 
 const TARGET_SCALES: Record<Phase1StatusField, number> = {
@@ -85,6 +86,7 @@ export function normalizeCausalActivation(normalizedValue: number): number {
 export function getPhase1RelationSign(relation: string): number {
   if (POSITIVE_RELATIONS.has(relation)) return 1;
   if (NEGATIVE_RELATIONS.has(relation)) return -1;
+  if (AMBIGUOUS_RELATIONS.has(relation)) return 0;
   if (PASS_THROUGH_RELATIONS.has(relation)) return 1;
   return 0;
 }

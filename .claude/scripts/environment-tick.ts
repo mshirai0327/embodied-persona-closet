@@ -35,7 +35,7 @@ import {
   type EnvironmentCausalSourceInput,
 } from "./causal-runtime";
 import { readEnvironmentDocument, setEnvironmentAuxValue, setEnvironmentObservation } from "./environment-store";
-import { fetchJmaWeatherSnapshot } from "./jma-weather";
+import { fetchJmaWeatherSnapshot, type JmaWeatherSnapshot } from "./jma-weather";
 import { syncPersonaStructuredStore } from "./persona-data";
 import { adjustStatusValue } from "./status-store";
 
@@ -89,6 +89,12 @@ interface StatusFallbackUpdate {
   field: "energy" | "mood" | "health";
   delta: number;
   reason: string;
+}
+
+export interface JmaWeatherObservationBundle {
+  weather: JmaWeatherSnapshot | null;
+  causalInputs: EnvironmentCausalSourceInput[];
+  errorMessage: string | null;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -259,6 +265,43 @@ export function evaluateHealthFromThermalLoad(normalizedValue: number, reason: s
     healthDelta,
     reason: `${reason} ${stateText}`,
   };
+}
+
+export async function loadJmaWeatherObservationBundle(
+  fetchWeather: () => Promise<JmaWeatherSnapshot> = fetchJmaWeatherSnapshot,
+): Promise<JmaWeatherObservationBundle> {
+  try {
+    const weather = await fetchWeather();
+    const causalInputs: EnvironmentCausalSourceInput[] = [];
+
+    if (weather.temperature) {
+      causalInputs.push({
+        sourceId: "ambient_temperature",
+        normalizedValue: weather.temperature.normalizedValue,
+        reason: weather.temperature.reason,
+      });
+    }
+
+    if (weather.humidity) {
+      causalInputs.push({
+        sourceId: "ambient_humidity",
+        normalizedValue: weather.humidity.normalizedValue,
+        reason: weather.humidity.reason,
+      });
+    }
+
+    return {
+      weather,
+      causalInputs,
+      errorMessage: null,
+    };
+  } catch (error) {
+    return {
+      weather: null,
+      causalInputs: [],
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 // ── センサー取得 ──
@@ -446,8 +489,9 @@ async function main() {
   }
 
   // 気象庁アメダス → 気温 / 湿度
-  try {
-    const weather = await fetchJmaWeatherSnapshot();
+  const jmaWeather = await loadJmaWeatherObservationBundle();
+  if (jmaWeather.weather) {
+    const { weather } = jmaWeather;
 
     if (weather.temperature) {
       console.log(
@@ -482,9 +526,12 @@ async function main() {
         }
       );
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(`[environment-tick] JMA weather unavailable, skipping ambient temperature/humidity: ${message}`);
+
+    causalInputs.push(...jmaWeather.causalInputs);
+  } else if (jmaWeather.errorMessage) {
+    console.log(
+      `[environment-tick] JMA weather unavailable, skipping ambient temperature/humidity: ${jmaWeather.errorMessage}`
+    );
   }
 
   let runtimeApplied = false;

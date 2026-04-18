@@ -6,7 +6,11 @@ import {
 } from "./causal-kuzu";
 import type { StatusField } from "./status-store";
 
-export type EnvironmentCausalSourceId = "ambient_brightness" | "environment_thermal_load";
+export type EnvironmentCausalSourceId =
+  | "ambient_brightness"
+  | "environment_thermal_load"
+  | "ambient_temperature"
+  | "ambient_humidity";
 export type Phase1StatusField = Extract<StatusField, "mood" | "energy" | "health">;
 
 export interface EnvironmentCausalSourceInput {
@@ -66,6 +70,9 @@ const TARGET_REASON_TEXT: Record<Phase1StatusField, { positive: string; negative
     negative: "健康感を圧迫する",
   },
 };
+
+const WEATHER_INTERACTION_THRESHOLD = 0.2;
+const WEATHER_INTERACTION_SCALE = 0.4;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -175,6 +182,15 @@ export function evaluateEnvironmentTraceBundle(
   return contributions;
 }
 
+function pushContribution(
+  contributions: Map<Phase1StatusField, CausalContribution[]>,
+  contribution: CausalContribution,
+): void {
+  const list = contributions.get(contribution.field) ?? [];
+  list.push(contribution);
+  contributions.set(contribution.field, list);
+}
+
 function toDelta(field: Phase1StatusField, score: number): number {
   const limits = TARGET_LIMITS[field];
   return clamp(Math.round(score * TARGET_SCALES[field]), limits.min, limits.max);
@@ -184,6 +200,41 @@ function buildProposalReason(field: Phase1StatusField, top: CausalContribution, 
   const direction = totalScore >= 0 ? "positive" : "negative";
   const targetText = TARGET_REASON_TEXT[field][direction];
   return `${top.observationReason} Kuzu因果: ${top.pathDescription} が${targetText}方向に働いた（score ${formatSigned(totalScore)}）`;
+}
+
+function applyWeatherInteraction(
+  inputs: EnvironmentCausalSourceInput[],
+  contributions: Map<Phase1StatusField, CausalContribution[]>,
+): void {
+  const tempInput = inputs.find((input) => input.sourceId === "ambient_temperature");
+  const humidityInput = inputs.find((input) => input.sourceId === "ambient_humidity");
+  if (!tempInput || !humidityInput) {
+    return;
+  }
+
+  const tempActivation = normalizeCausalActivation(tempInput.normalizedValue);
+  const humidityActivation = normalizeCausalActivation(humidityInput.normalizedValue);
+  if (tempActivation <= WEATHER_INTERACTION_THRESHOLD || humidityActivation <= WEATHER_INTERACTION_THRESHOLD) {
+    return;
+  }
+
+  const interactionScore = -(tempActivation * humidityActivation * WEATHER_INTERACTION_SCALE);
+  const observationReason = `${tempInput.reason} ${humidityInput.reason}`.trim();
+
+  pushContribution(contributions, {
+    sourceId: "ambient_humidity",
+    field: "energy",
+    score: interactionScore,
+    observationReason,
+    pathDescription: "気温 × 湿度 → energy",
+  });
+  pushContribution(contributions, {
+    sourceId: "ambient_humidity",
+    field: "health",
+    score: interactionScore,
+    observationReason,
+    pathDescription: "気温 × 湿度 → health",
+  });
 }
 
 export async function deriveEnvironmentCausalProposals(
@@ -196,11 +247,11 @@ export async function deriveEnvironmentCausalProposals(
     const rows = evaluateEnvironmentTraceBundle(input, bundle);
 
     for (const row of rows) {
-      const list = contributions.get(row.field) ?? [];
-      list.push(row);
-      contributions.set(row.field, list);
+      pushContribution(contributions, row);
     }
   }
+
+  applyWeatherInteraction(inputs, contributions);
 
   const proposals: CausalStatusProposal[] = [];
   for (const field of STATUS_FIELDS) {

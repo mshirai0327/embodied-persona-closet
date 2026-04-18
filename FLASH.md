@@ -25,6 +25,7 @@ Kuzu実装前数値決定 Lv3-1暫定値 睡眠8h 血糖90mg/dL 体温36.6°C �
 memory_stats moved=32件最多 curious=21件 88件中 感情比率変化 「作る・調べる」→「関わる・受け取る」 consolidate 49件リフレッシュ 10件昇格
 Phase1-3完了 causal-runtime.ts causal-hint-store.ts feltSense18スロット causal-hint.ts 感覚文3行 autonomous-action.sh prompts.toml CAUSAL_HINT注入 modulates→pressures修正 動作確認済み Phase4観察待ち
 輝度センサー逆光問題 平均値に白飛び+黒つぶれ混在 ROI窓除外で改善余地 実室内輝度と乖離
+JMA気象庁アメダスAPI 気温16.3°C 湿度72% ambient_temperature ambient_humidity seeds追加 温度×湿度相互作用runtime計算 高温×高湿度のみenergy/health負荷増幅 Codex指示済み Phase4次回
 wifi-cam TAPO_MOUNT_MODE=ceiling 映像正常 上下反転なし mizuho部屋在宅確認 TODO完了
 
 ### 金曜 (04/17)

@@ -7,6 +7,7 @@ import {
   evaluateHealthFromThermalLoad,
   evaluateMoodFromBrightness,
   evaluateThermalLoadProxy,
+  loadJmaWeatherObservationBundle,
 } from "./environment-tick.ts";
 
 describe("computeTemperatureBaseline", () => {
@@ -106,5 +107,56 @@ describe("evaluateHealthFromThermalLoad", () => {
 
     expect(result.healthDelta).toBeGreaterThan(0);
     expect(result.reason).toContain("健康感");
+  });
+});
+
+describe("loadJmaWeatherObservationBundle", () => {
+  test("builds causal inputs from JMA temperature and humidity", async () => {
+    const result = await loadJmaWeatherObservationBundle(async () => ({
+      observedAt: "2026-04-18T21:00:00+09:00",
+      stationCode: "44132",
+      stationName: "東京",
+      temperature: {
+        rawValue: 28.4,
+        normalizedValue: 76,
+        reason: "気象庁アメダス 東京 28.4°C——少し暑い。",
+        source: "JMA/AMeDAS",
+        stationName: "東京",
+        observedAt: "2026-04-18T21:00:00+09:00",
+      },
+      humidity: {
+        rawValue: 78,
+        normalizedValue: 78,
+        reason: "気象庁アメダス 東京 湿度78%——少し蒸す。",
+        source: "JMA/AMeDAS",
+        stationName: "東京",
+        observedAt: "2026-04-18T21:00:00+09:00",
+      },
+    }));
+
+    expect(result.errorMessage).toBeNull();
+    expect(result.weather?.stationName).toBe("東京");
+    expect(result.causalInputs).toEqual([
+      {
+        sourceId: "ambient_temperature",
+        normalizedValue: 76,
+        reason: "気象庁アメダス 東京 28.4°C——少し暑い。",
+      },
+      {
+        sourceId: "ambient_humidity",
+        normalizedValue: 78,
+        reason: "気象庁アメダス 東京 湿度78%——少し蒸す。",
+      },
+    ]);
+  });
+
+  test("returns no JMA causal inputs when weather fetch fails so fallback can continue", async () => {
+    const result = await loadJmaWeatherObservationBundle(async () => {
+      throw new Error("network down");
+    });
+
+    expect(result.weather).toBeNull();
+    expect(result.causalInputs).toEqual([]);
+    expect(result.errorMessage).toContain("network down");
   });
 });

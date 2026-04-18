@@ -23,6 +23,7 @@ async function setupSeedGraph() {
       { id: "ambient_brightness", label: "環境光", kind: "environment", dataLevel: "Lv0", description: null },
       { id: "environment_thermal_load", label: "環境熱負荷 proxy", kind: "environment", dataLevel: "Lv0", description: null },
       { id: "ambient_temperature", label: "気温", kind: "environment", dataLevel: "Lv0", description: null },
+      { id: "ambient_humidity", label: "湿度", kind: "environment", dataLevel: "Lv0", description: null },
       { id: "mood", label: "mood", kind: "emotion", dataLevel: "Lv3-2", description: null },
       { id: "energy", label: "energy", kind: "emotion", dataLevel: "Lv3-2", description: null },
       { id: "health", label: "health", kind: "emotion", dataLevel: "Lv3-2", description: null },
@@ -62,10 +63,42 @@ async function setupSeedGraph() {
       },
       {
         source: "ambient_temperature",
+        target: "energy",
+        relation: "drains",
+        causalLevel: "Lv1",
+        weight: 0.58,
+        description: null,
+      },
+      {
+        source: "ambient_temperature",
         target: "health",
         relation: "pressures",
         causalLevel: "Lv1",
         weight: 0.63,
+        description: null,
+      },
+      {
+        source: "ambient_humidity",
+        target: "energy",
+        relation: "drains",
+        causalLevel: "Lv1",
+        weight: 0.52,
+        description: null,
+      },
+      {
+        source: "ambient_humidity",
+        target: "mood",
+        relation: "drains",
+        causalLevel: "Lv1",
+        weight: 0.40,
+        description: null,
+      },
+      {
+        source: "ambient_humidity",
+        target: "health",
+        relation: "pressures",
+        causalLevel: "Lv1",
+        weight: 0.38,
         description: null,
       },
     ],
@@ -171,5 +204,97 @@ describe("causal-runtime", () => {
     expect(health).toBeTruthy();
     expect(energy?.delta).toBeGreaterThan(0);
     expect(health?.delta).toBeGreaterThan(0);
+  }, 15000);
+
+  test("adds a hot-and-humid interaction load on top of direct temperature and humidity effects", async () => {
+    const module = await setupSeedGraph();
+
+    const temperatureOnly = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_temperature",
+        normalizedValue: 85,
+        reason: "気温 85/100",
+      },
+    ]);
+    const humidityOnly = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_humidity",
+        normalizedValue: 85,
+        reason: "湿度 85/100",
+      },
+    ]);
+    const combined = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_temperature",
+        normalizedValue: 85,
+        reason: "気温 85/100",
+      },
+      {
+        sourceId: "ambient_humidity",
+        normalizedValue: 85,
+        reason: "湿度 85/100",
+      },
+    ]);
+
+    const temperatureEnergy = temperatureOnly.find((proposal: { field: string }) => proposal.field === "energy");
+    const humidityEnergy = humidityOnly.find((proposal: { field: string }) => proposal.field === "energy");
+    const combinedEnergy = combined.find((proposal: { field: string }) => proposal.field === "energy");
+    const temperatureHealth = temperatureOnly.find((proposal: { field: string }) => proposal.field === "health");
+    const combinedHealth = combined.find((proposal: { field: string }) => proposal.field === "health");
+
+    expect(temperatureEnergy).toBeTruthy();
+    expect(humidityEnergy).toBeTruthy();
+    expect(combinedEnergy).toBeTruthy();
+    expect(temperatureHealth).toBeTruthy();
+    expect(combinedHealth).toBeTruthy();
+    expect(combinedEnergy?.score).toBeLessThan((temperatureEnergy?.score ?? 0) + (humidityEnergy?.score ?? 0));
+    expect(combinedHealth?.score).toBeLessThan(temperatureHealth?.score ?? 0);
+    expect(combinedHealth?.contributingSources).toContain("ambient_temperature");
+    expect(combinedHealth?.contributingSources).toContain("ambient_humidity");
+  }, 15000);
+
+  test("does not apply the weather interaction when only temperature is present", async () => {
+    const module = await setupSeedGraph();
+
+    const proposals = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_temperature",
+        normalizedValue: 85,
+        reason: "気温 85/100",
+      },
+    ]);
+
+    const energy = proposals.find((proposal: { field: string }) => proposal.field === "energy");
+    const health = proposals.find((proposal: { field: string }) => proposal.field === "health");
+
+    expect(energy).toBeTruthy();
+    expect(health).toBeTruthy();
+    expect(energy?.score).toBeCloseTo(-0.406, 3);
+    expect(health?.score).toBeCloseTo(-0.441, 3);
+    expect(health?.contributingSources).toEqual(["ambient_temperature"]);
+  }, 15000);
+
+  test("maps high humidity to negative mood, energy, and health proposals", async () => {
+    const module = await setupSeedGraph();
+
+    const proposals = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_humidity",
+        normalizedValue: 85,
+        reason: "湿度 85/100",
+      },
+    ]);
+
+    const mood = proposals.find((proposal: { field: string }) => proposal.field === "mood");
+    const energy = proposals.find((proposal: { field: string }) => proposal.field === "energy");
+    const health = proposals.find((proposal: { field: string }) => proposal.field === "health");
+
+    expect(mood).toBeTruthy();
+    expect(energy).toBeTruthy();
+    expect(health).toBeTruthy();
+    expect(mood?.delta).toBeLessThan(0);
+    expect(energy?.delta).toBeLessThan(0);
+    expect(health?.delta).toBeLessThanOrEqual(0);
+    expect(health?.contributingSources).toEqual(["ambient_humidity"]);
   }, 15000);
 });

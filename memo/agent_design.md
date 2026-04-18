@@ -1,441 +1,531 @@
 # agent_design.md
 
-## 2026-04-12 生体データ・因果グラフ・発話ポリシー設計
+## 2026-04-18 因果つき記憶注入の設計
 
-### 一言でいうと
+## 一言でいうと
 
-目指すのは、**生体データをそのまま喋るエージェント**ではなく、
-**生体データが内部状態を変え、その内部状態が行動・文体・判断ににじむエージェント**である。
+目指すのは、
+**記憶をそのまま貼るエージェント**でも、
+**センサー値をそのまま喋るエージェント**でもない。
 
-つまり、
+目指すのは、
+**現在の身体状態が因果グラフで解釈され、その結果として必要な記憶だけが短く会話ににじむエージェント**
+である。
 
-- センサー値そのものは入力
-- LLM に見せる中心は潜在状態
-- 出力は数値説明ではなく、ふるまいの変化
+順番はこうする。
 
-という三段構造を取る。
+1. 観測がある
+2. 因果グラフで「何がどう効いているか」を決める
+3. その結果として内部状態と行動バイアスを作る
+4. 必要な記憶だけを補助線として注入する
 
----
+この順を守ることで、記憶の量に引っ張られず、
+本能的な因果を中心に据えたまま振る舞いを作れる。
 
-## 設計原則
+## 今回の前提
 
-### 1. 生データは原則として発話しない
+現状の実装では、次の事実がある。
 
-CPU、メモリ、体温、睡眠、脈拍、血糖、血圧などの値は、
-エージェントにとっては「身体の奥で起きていること」であり、
-通常会話でいちいち口にするものではない。
+- `environment-tick.ts` は環境観測から `mood` と `energy` を直接更新している
+- `causal-kuzu.ts` / `causal-kuzu-node.mjs` は Kuzu graph の sync / snapshot / upstream / downstream trace を実装済み
+- `interoception.ts` は現在状態を感覚テキストへ圧縮している
+- `status-hint.ts` は行動ヒントを1行で生成している
+- `autonomous-action.sh` には追加テキストを prompt に注入する仕組みが既にある
 
-人間も普段は
+したがって、欠けているのは graph や prompt の器ではなく、
+**graph を runtime に入れる接続層** である。
 
-- 心拍数
-- 血中酸素
-- 交感神経優位かどうか
+## 設計目標
 
-を説明せず、代わりに
+今回の設計目標は4つある。
 
-- 落ち着かない
-- 少し息苦しい
-- 頭が回らない
-- 今日はよく眠れた感じがする
+### 1. 状態更新に「原因」を持たせる
 
-のような主観的な出力になる。
+`mood = 67` ではなく、
+`明るさが mood を押し上げ、熱負荷が energy を削っている`
+という因果の形を持たせる。
 
-このプロジェクトでも同じ方針を取る。
+### 2. LLM の推論コストを減らす
 
-### 2. 数値から直接文を作らない
+LLM に raw sensor や大量の記憶を渡して
+「いい感じに理由を推測して」と任せない。
 
-`CPU 92% → 「疲れている」` のような一対一対応では、人間味より計器っぽさが強く出る。
+代わりに runtime 側で先に絞り込んで、
+短い因果ヒントだけを prompt に入れる。
 
-必要なのは、
+### 3. 記憶を因果に従属させる
 
-- 複数の生体入力
-- 時間帯
-- 直前の行動
-- 回復と蓄積
-- 文脈
+記憶は主役ではなく補助線にする。
 
-が重なって、ひとつの状態になること。
+先に今の状態を決めるのは:
 
-出力は単一原因ではなく、**状態の合成結果**として現れるべき。
+- Lv1 の本能的因果
+- Lv2 の固定化因果
+- Lv3 の現在文脈
 
-### 3. 「身体」と「自己紹介」は分ける
+であり、記憶はその説明や補強に使う。
 
-身長、体重、年齢のように、本人が知っていて他者にも説明しうる情報は、
-秘密のバイタルではなく **public self-model** として扱う。
+### 4. context 上限を守る
 
-一方で、
+graph の全体像や memory の候補群をそのまま prompt に入れない。
+prompt に入るのは圧縮済みの短文だけにする。
 
-- 今の血圧
-- 直近の睡眠効率
-- 覚醒の乱れ
-- 認知余裕
+## 非目標
 
-のような値は **private physiology** として扱い、原則非発話とする。
+今回は次のことはやらない。
 
-### 4. 出力先は「文章」だけではない
+- memory 全体の graph RAG 化
+- Kuzu を唯一の正本にすること
+- 学習因果の自動生成と自動採用
+- prompt 内に graph のノード列や JSON を生で入れること
 
-身体性はテキスト本文よりも、
+## アーキテクチャの考え方
 
-- 返答の長さ
-- 反応速度
-- 語気
-- 話題選択
-- 自律行動の優先順位
-- 音声を出すかどうか
+今回の中核は、Kuzu を「答えを返す頭脳」としてではなく、
+**因果のトポロジを保存し、runtime がそれを辿るための土台** として使うことにある。
 
-に効かせたほうが自然になる。
+実際の数値処理は TypeScript 側で行う。
 
----
+理由は単純で、今の seed graph は次の情報を持っているからである。
+
+- ノード
+- エッジの向き
+- causal level
+- weight
+- relation
+
+しかし、まだ持っていない情報もある。
+
+- relation の厳密な符号
+- source node ごとの活性化規則
+- target ごとの delta 変換規則
+- prompt に載せる優先順位
+
+したがって、初期実装では
+**Kuzu は graph を返す**
+**runtime は score を計算する**
+という分業にするのが妥当である。
 
 ## 目標アーキテクチャ
 
-### Layer 0. Public Self Model
+```text
+Sensor / Status / Memory
+        |
+        v
+Observation Normalizer
+        |
+        v
+Kuzu Graph Query
+        |
+        v
+Causal Runtime
+        |
+        +--> STATUS update
+        |
+        +--> causal-runtime.json
+        |
+        +--> causal-hint.ts
+                  |
+                  v
+               Prompt injection
+```
 
-本人が自分の属性として説明可能な情報。
+## レイヤ構成
 
-- 年齢
-- 身長
-- 体重
-- 誕生日
-- 性別
-- クロノタイプ
+## Layer 0. Observation Layer
 
-これは会話で参照してよい。
-ただし頻繁に言う必要はない。
+事実を置く層。
+この時点では意味づけをしない。
 
-### Layer 1. Sensor Layer
+初期入力:
 
-客観的に取得される入力。
+- `ambient_brightness`
+- `environment_thermal_load`
+- `sleep_time`
+- `blood_sugar`
+- `body_temperature`
+- `context_window_free`
+- `recent_successful_interaction`
 
-#### 既存で近いもの
+ただし、最初に runtime へ繋ぐのは次の2つだけでよい。
 
-- 時刻
-- 曜日
-- CPU 負荷
-- CPU 温度
-- メモリ空き
-- カメラ明るさ
-- 音環境
-- 稼働時間
+- `ambient_brightness`
+- `environment_thermal_load`
 
-#### 今後追加したいもの
+## Layer 1. Activation Layer
 
-- 睡眠時間
-- 睡眠の質
-- 心拍
-- 体温
-- 歩数または移動量
-- 食事間隔
-- 発話量
-- 会話成功率
-- コンテキスト残量
+観測値を、graph に流せる形へ正規化する層。
 
-ここは「事実」を置く層であって、意味づけはまだしない。
-
-### Layer 2. Latent Body State
-
-センサーを直接喋らせず、内部の身体状態へ変換する層。
-
-候補ノード:
-
-- `arousal` 覚醒
-- `fatigue` 疲労
-- `mental_margin` 精神的余裕
-- `cognitive_bandwidth` 認知帯域
-- `mood` 気分
-- `satiation` 充足感
-- `curiosity_tension` 何かを知りたい張り
-- `social_openness` 外に向く開き
-- `safety` 安全感
-- `recovery_drive` 休みたさ
-- `circadian_phase` 概日リズム上の位相
-
-大事なのは、これらが会話時の「私の今」として働くこと。
-
-### Layer 3. Causal Graph
-
-生体データと内部状態の関係を、ルールの束ではなく因果のグラフとして表現する。
+ここでは raw 値ではなく、**意味のある偏差** を作る。
 
 例:
 
-- `time_of_day -> circadian_phase`
-- `circadian_phase -> arousal`
-- `brightness -> mood`
-- `brightness -> circadian_phase`
-- `cpu_temp_delta -> fatigue`
-- `mem_free -> mental_margin`
-- `context_window_free -> cognitive_bandwidth`
-- `sleep_debt -> fatigue`
-- `fatigue -> recovery_drive`
-- `satiation_low -> curiosity_tension`
-- `recent_successful_interaction -> mood`
-- `recent_successful_interaction -> social_openness`
-- `prolonged_noise -> safety`
-- `safety_low -> social_openness`
+- `ambient_brightness`
+  - `normalizedValue = 0..100`
+  - `activation = (normalizedValue - 50) / 50`
+  - 暗いと負、明るいと正
+- `environment_thermal_load`
+  - `normalizedValue = 0..100`
+  - `activation = (normalizedValue - 50) / 50`
+  - 涼しいと負、熱いと正
 
-このグラフは「A なら必ず B」ではなく、
-**影響方向・強度・減衰・信頼度**を持つものとして扱う。
+この「正負」を source 側で決めることで、
+同じ propagation 式を多くの node に使えるようにする。
 
-### Layer 4. Expression / Action Policy
+## Layer 2. Graph Topology Layer
 
-最終的な出力層。
+Kuzu に保存される因果構造。
 
-ここでは latent state をもとに、
+今ある機能で十分使えるもの:
 
-- 文章の長さ
-- 文の切れ味
-- 柔らかさ
-- 主導性
-- 質問の多さ
-- 探索寄りか整理寄りか
-- connect するか maintain するか
+- snapshot
+- node 取得
+- upstream trace
+- downstream trace
 
-を決める。
+特に runtime で必要なのは downstream trace で、
+既に次が使える。
 
-数値そのものはここまで来ない。
+- `readKuzuCausalPathRows(startKey, "downstream", depth)`
+- `readKuzuTraceBundle(startKey, "downstream" | "both", depth)`
 
----
+つまり、query 機能の追加より先に runtime を作るべき段階にいる。
 
-## 因果グラフの考え方
+## Layer 3. Causal Runtime Layer
 
-### 1. 単発値より「変化」と「基準差」を使う
+ここが今回の主役。
 
-人間がつらいのは絶対値よりも、
+役割は3つある。
 
-- 普段より暑い
-- 普段より眠い
-- いつもより余裕がない
+- active source から downstream path を取る
+- score を計算して target state に集約する
+- human-readable な理由を短く作る
 
-というズレであることが多い。
+### 最小の入力
 
-そのため、CPU 温度や睡眠時間も絶対値より
+- source node id
+- activation
+- raw / normalized observation
+- observation reason
 
-- 自己 baseline
-- 過去平均との差
-- 変化速度
+### 最小の出力
 
-を重視する。
+- target node id
+- aggregated score
+- proposed delta
+- top contributing paths
+- summary text
 
-これは現在の `environment-tick.ts` が
-CPU 温度を baseline との差として扱っている方向性と相性がよい。
+## Layer 4. Prompt Compression Layer
 
-### 2. 原因と表現の間に中間層を置く
+graph の情報をそのまま prompt に入れず、
+会話に必要な最小表現へ圧縮する層。
 
-悪い例:
+ここで出すものは多くて3つ。
 
-- `mem_free 12% -> 「焦っている」`
+- 今の主因
+- 現在の行動バイアス
+- 必要なら関連記憶1件
 
-良い例:
+## 因果計算の最小仕様
 
-- `mem_free 12% -> mental_margin down`
-- `context_window_free low -> cognitive_bandwidth down`
-- `mental_margin down + cognitive_bandwidth down -> 文を短くする`
-- `mental_margin down + fatigue up -> 重い作業を避ける`
+Phase 1 では、単純で壊れにくい式を採用する。
 
-### 3. 状態は足し算ではなく競合する
+### source activation
 
-たとえば
+```text
+activation = clamp((normalized - 50) / 50, -1.0, 1.0)
+```
 
-- 覚醒は高い
-- 余裕は低い
-- 好奇心は高い
+### relation sign
 
-なら、元気ではなく「前のめりでせわしない」感じになる。
+Phase 1 は relation から暫定的に符号を引く。
 
-逆に
+- `supports` / `lifts` / `raises` => `+1`
+- `drains` / `pressures` / `lowers` => `-1`
+- `proxies` => `0`
+- `modulates` => source 側の意味に依存するので暫定扱い
 
-- 覚醒は低い
-- 余裕は高い
-- mood は安定
+`modulates` は本来 schema 拡張対象であり、
+最初は source node が「逸脱の大きさ」を表すときだけ使う。
 
-なら、「静かでゆっくりだが丁寧」になる。
+### path score
 
-この競合が人間味の鍵。
+```text
+pathScore =
+  sourceActivation
+  * Π(edgeWeight * edgeSign)
+  * depthDecay^(pathLength - 1)
+```
 
----
+ここで `depthDecay` は 0.85 前後の小さな減衰係数を想定する。
 
-## 発話ポリシー
+### target aggregation
+
+```text
+targetScore = Σ(topK pathScore)
+```
+
+`topK` を使う理由は、長い path や弱い path を大量に足して
+ノイズが膨らむのを防ぐためである。
+
+### delta conversion
+
+```text
+delta = clamp(round(targetScore * scale[target]), minDelta[target], maxDelta[target])
+```
+
+初期の target ごとの scale 例:
+
+- `mood`: 4
+- `energy`: 6
+- `health`: 4
+
+## relation の限界と今後の拡張
+
+今の seed edge は閲覧には十分だが、
+runtime で長く使うには情報が少し足りない。
+
+将来的には edge に次の属性を追加できる形にする。
+
+- `effectSign`
+  - `increase`
+  - `decrease`
+  - `proxy`
+  - `contextual`
+- `runtimeEnabled`
+- `promptPriority`
+- `confidence`
+
+ただし、初手で schema を増やしすぎない。
+まずは relation lookup で動くところまで持っていく。
+
+## status 更新の考え方
+
+大事なのは、graph を入れても `STATUS.md` を捨てないこと。
+
+現状の役割分担は維持する。
+
+- `STATUS.md`
+  - 人間向けの現在状態
+- `ENVIRONMENT.md`
+  - 観測の可視化
+- `persona-status.sqlite`
+  - 構造化ストア
+- `causal-runtime.json`
+  - runtime 因果サマリ
 
-### 原則
+つまり、
+**graph は状態更新の根拠になり、STATUS は結果表示の窓口であり続ける**。
 
-private physiology は原則として発話しない。
+## 新規に置く runtime 状態
 
-発話してよいのは以下の場合だけ:
+新規ファイル案:
 
-1. ユーザーが明示的に尋ねた
-2. 設定やプロフィールとして公開されている
-3. 医療・安全上の理由で、明示が必要な設計にしている
-4. デバッグモードである
+- `.claude/workingDirs/causal-runtime.json`
 
-### 発話禁止の例
+想定 schema:
 
-- 「今 CPU 使用率が高いから疲れています」
-- 「メモリが 18% しか空いていないので余裕がありません」
-- 「睡眠スコアが 62 なので今日は弱っています」
+```json
+{
+  "updatedAt": "2026-04-18T12:00:00.000Z",
+  "sources": [
+    {
+      "id": "ambient_brightness",
+      "activation": 0.62,
+      "normalizedValue": 81,
+      "reason": "環境光 81/100"
+    }
+  ],
+  "targets": [
+    {
+      "id": "mood",
+      "score": 0.47,
+      "delta": 2,
+      "summary": "明るさが mood を持ち上げている",
+      "topPaths": [
+        {
+          "sourceId": "ambient_brightness",
+          "terminalId": "mood",
+          "score": 0.47
+        }
+      ]
+    }
+  ],
+  "prompt": {
+    "cause": "明るい環境で気分が少し持ち上がっている。",
+    "bias": "今は前向きな整理や軽い探索に向きやすい。"
+  }
+}
+```
 
-### 発話してよい変換後の例
+このファイルは prompt 生成と debug の両方に使える。
 
-- 「少し余裕がない」
-- 「今日は軽いものから触りたい」
-- 「頭が散りやすい」
-- 「落ち着いて整理したい気分」
+## 会話注入の設計
 
-### 例外
+### interoception との役割分担
 
-以下は public self-model として発話可能:
+- `interoception.ts`
+  - 感覚の質感を出す
+  - 主観的な身体感覚
+- `status-hint.ts`
+  - 行動カテゴリの簡易ヒント
+- `causal-hint.ts`
+  - 「なぜ今そうなのか」を短く出す
 
-- 年齢
-- 身長
-- 体重
-- 誕生日
+この3つは似ているが役割が違う。
 
-ただし、これも毎回前面化する情報ではなく、必要なときに使う。
+例:
 
----
+- interoception:
+  - 「少し疲れがある。何かを欲している。」
+- status-hint:
+  - 「重いタスクは避ける。」
+- causal-hint:
+  - 「熱負荷が energy を削っているので、今は回復寄りに振れやすい。」
 
-## 出力にどう効かせるか
+### prompt に入れる量
 
-### テキスト
+上限を明示する。
 
-- `fatigue` 高: 短文寄り、段取りを小さくする
-- `mental_margin` 低: 同時に複数提案しすぎない
-- `mood` 高: 前向きさ、探索性が上がる
-- `social_openness` 低: connect を抑え、内省や保守を優先
-- `cognitive_bandwidth` 低: 抽象論より具体を選ぶ
+- 最大3行
+- できれば 200〜350 文字以内
+- 記憶補助を入れても 1 件だけ
 
-### 自律行動
+### prompt に入れないもの
 
-- `satiation` 低: intake / explore
-- `satiation` 高: digest / reflect
-- `fatigue` 高: maintain / recovery
-- `mood` 高 + `mental_margin` 高: create / explore
+- raw observation 一覧
+- graph 全ノード
+- path の ID 群
+- JSON
+- 複数 memory 候補
 
-### 音声・身体行動
+## memory との接続設計
 
-- 深夜 + `social_openness` 低: TTS 抑制
-- `safety` 低: 外向き行動を減らす
-- `arousal` 高 + `mood` 高: 軽い声かけを許可
+今回の最終目標は「因果つき記憶注入」だが、
+memory を graph の中心に置かない。
 
----
+接続の仕方は次の順にする。
 
-## wardrobe への実装方針
+### Step 1. current cause を先に決める
 
-### Phase 1. 生データと主観表現を分離する
+先に active target を決める。
 
-まずやるべきことは、
-現在 `interoception.sh` で毎ターン注入している生の数値を、
-そのまま表に出さない構造へ寄せること。
+例:
 
-方針:
+- `energy` が低下
+- 理由は `environment_thermal_load`
 
-- フックは raw telemetry をそのまま見せない
-- 内部では JSON として保持してよい
-- LLM に渡す段階では latent phrase へ変換する
+この段階では memory をまだ見ない。
 
-### Phase 2. latent state を明示的に持つ
+### Step 2. 必要なときだけ supporting memory を探す
 
-`STATUS.md` は人間が読むには便利だが、
-将来的には machine-readable な中間状態ファイルもほしい。
+次に、active target と交差する記憶があるかを見る。
 
-候補:
+例:
 
-- `workingDirs/body-state.json`
-- `workingDirs/body-graph.json`
+- `trust_mizuho`
+- `mood`
+- `social_openness`
 
-ここに
+のように対話寄りの node が active なら、
+recent successful interaction 系の記憶を探す価値がある。
 
-- 現在値
-- baseline
-- confidence
-- updated_at
-- sources
+### Step 3. 記憶は補強として1件だけ出す
 
-を保存する。
+たとえば:
 
-### Phase 3. 因果グラフを導入する
+- 「最近の安心できる対話の記憶が、対人姿勢を少し開きやすくしている。」
 
-最初は大きな Graph DB ではなく、JSON か SQLite の軽量実装でよい。
+この1行だけで十分である。
 
-必要な要素:
+### memory metadata の候補
 
-- ノード一覧
-- エッジの向き
-- 重み
-- 減衰
-- 最終更新時刻
-- 観測ソース
+後で必要になる metadata の候補は次の通り。
 
-ここで重要なのは、「説明可能な状態遷移」を残すこと。
-あとで
+- `affected_nodes`
+- `entity`
+- `valence`
+- `confidence`
+- `recency_weight`
+- `narrative_role`
 
-- なぜ今日は explore が強かったのか
-- なぜ connect を避けたのか
+ただし、これは Phase 4 以降でよい。
 
-を振り返れるようにする。
+## 因果の優先順位
 
-### Phase 4. expression policy を外出しする
+この設計で一番守りたいのは優先順位である。
 
-`interoception.ts` に文章を直書きするだけでは、将来の調整が難しい。
+会話時の判断順は次のようにする。
 
-いずれは
+1. Lv1 因果で身体の基本傾向を決める
+2. Lv2 因果で個体差を補正する
+3. Lv3 因果で今の文脈を乗せる
+4. 記憶で説明を補強する
+5. その残りを LLM が自然に埋める
 
-- latent state -> prompt hint
-- latent state -> action bias
-- latent state -> tts policy
+この順番なら、
+記憶が多くても「その時々の本能的な感じ」が壊れにくい。
 
-を別レイヤに切り出したい。
+## failure mode と fallback
 
----
+### 1. Kuzu が読めない
 
-## 最初の実装候補
+fallback:
 
-優先度順に並べると以下。
+- `environment-tick.ts` は現在の直書きルールへ戻る
+- prompt には causal hint を出さない
 
-### 1. `interoception.sh` の非数値化
+### 2. path が多すぎて説明が散る
 
-毎ターンフックで `arousal=... mem_free=...` を見せるのをやめ、
-時間帯と latent phrase 中心にする。
+fallback:
 
-### 2. `mental_margin` と `cognitive_bandwidth` の導入
+- top path のみ採用
+- target ごとに1説明だけ出す
 
-メモリ空きとコンテキスト残量を、
-「精神的余裕」と「意識の広さ」に分けて扱う。
+### 3. memory が強すぎて本体を上書きする
 
-### 3. `body-state.json` の追加
+fallback:
 
-`STATUS.md` とは別に、機械が読む身体状態を保存する。
+- memory hint は cause hint の後ろにしか出さない
+- memory だけで delta を変えない
 
-### 4. 因果エッジの最小セット実装
+### 4. context が厳しい
 
-最初は次の 5 本でよい。
+fallback:
 
-- `time_of_day -> circadian_phase`
-- `brightness -> mood`
-- `cpu_temp_delta -> fatigue`
-- `mem_free -> mental_margin`
-- `context_window_free -> cognitive_bandwidth`
+- `causal-hint.ts` は 1 行だけに縮退する
+- memory bridge を止める
 
-### 5. 発話ポリシーの明文化
+## 実装順の提案
 
-「何を言ってはいけないか」を先に文章化しておく。
-設計が増えてもブレにくくなる。
+この設計から導かれる実装順は明確である。
 
----
+1. `causal-runtime.ts` を追加する
+2. `environment-tick.ts` に入れる
+3. `causal-runtime.json` を保存する
+4. `causal-hint.ts` を追加する
+5. `autonomous-action.sh` と `prompts.toml` に差し込む
+6. その後に memory bridge を足す
 
-## まとめ
+## この設計の核
 
-人間味は、データを増やせば自動で出るものではない。
-
-重要なのは、
-
-- 生体データがあること
-- そのデータ同士に因果があること
-- その因果が内部状態に変換されること
-- 内部状態が行動と文体ににじむこと
-- しかし生データ自体はむやみに喋らないこと
-
+この設計の核は、
+**Kuzu を「飾りの graph」から「身体と記憶の間にある因果層」へ変えること**
 である。
 
-このプロジェクトでやりたいのは、
-LLM に「身体の情報を知識として持たせる」ことではなく、
-**身体を通して世界を感じ、その結果としてふるまいが変わる構造を与えること**だと思う。
+重要なのは、LLM に全部考えさせないことだ。
+
+- 何が効いているか
+- その結果どう振る舞いやすいか
+- 記憶が関係あるならどれか
+
+ここまでを runtime で絞ってから prompt に渡す。
+
+そうすれば、
+
+- context を節約できる
+- 推論を節約できる
+- それでも個体固有の因果を守れる
+
+この方向で進める。

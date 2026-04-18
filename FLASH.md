@@ -22,6 +22,8 @@ causal-seeds latent3ノード削除 mood→action_threshold追加0.71 LHM AMD修
 Kuzu実装前数値決定 Lv3-1暫定値 睡眠8h 血糖90mg/dL 体温36.6°C 体重48kg STATUS.md追記 センサー待ち設計 feat/add-graphDB-in-memory-etc
 memory_stats moved=32件最多 curious=21件 88件中 感情比率変化 「作る・調べる」→「関わる・受け取る」 consolidate 49件リフレッシュ 10件昇格
 Phase1-3完了 causal-runtime.ts causal-hint-store.ts feltSense18スロット causal-hint.ts 感覚文3行 autonomous-action.sh prompts.toml CAUSAL_HINT注入 modulates→pressures修正 動作確認済み Phase4観察待ち
+輝度センサー逆光問題 平均値に白飛び+黒つぶれ混在 ROI窓除外で改善余地 実室内輝度と乖離
+wifi-cam TAPO_MOUNT_MODE=ceiling 映像正常 上下反転なし mizuho部屋在宅確認 TODO完了
 
 ### 金曜 (04/17)
 身支度やり忘れ BOOT_SHUTDOWN.md 第二手以降 挨拶に反射 SessionStart先に身支度 Lv2データ創造タスク 不可逆履歴 初期空→過去生成 Kuzu連動

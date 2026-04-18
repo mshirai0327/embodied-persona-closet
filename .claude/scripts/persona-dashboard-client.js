@@ -16,6 +16,8 @@
     health: "#3f7db4",
     trust_mizuho: "#8d5fd3",
     ambient_brightness: "#5f9a3b",
+    ambient_temperature: "#2b7b88",
+    ambient_humidity: "#4d82c4",
     environment_thermal_load: "#b14c2a",
   };
   const KIND_COLORS = {
@@ -120,7 +122,8 @@
   function formatMetricValue(metric) {
     if (metric.valueText == null) return "—";
     if (metric.domain === "environment" && metric.unit === "score") {
-      return (metric.valueNumber ?? "—") + "/100";
+      if (metric.valueNumber == null) return metric.valueText;
+      return metric.valueText + " (" + metric.valueNumber + "/100)";
     }
     if (!metric.unit || metric.unit === "score") {
       return metric.unit === "score" ? metric.valueText + "/100" : metric.valueText;
@@ -216,9 +219,36 @@
 
   function collectTimelineEntries(levels) {
     const reversibleLevels = new Set(levels);
-    return state.data.history.filter(
+    const historyEntries = state.data.history.filter(
       (entry) => entry.nextValueNumber != null && entry.changedAt && reversibleLevels.has(entry.level)
     );
+
+    const seenKeys = new Set(historyEntries.map((entry) => entry.key));
+    const currentEntries = state.data.current
+      .filter((metric) =>
+        metric.valueNumber != null
+        && reversibleLevels.has(metric.level)
+        && (metric.observedAt || metric.recordedAt || metric.personaTime)
+        && !metric.metadata?.auxiliary
+        && !seenKeys.has(metric.key)
+      )
+      .map((metric) => ({
+        key: metric.key,
+        label: metric.label,
+        level: metric.level,
+        domain: metric.domain,
+        previousValueText: null,
+        previousValueNumber: null,
+        nextValueText: metric.valueText,
+        nextValueNumber: metric.valueNumber,
+        unit: metric.unit,
+        changedAt: metric.observedAt || metric.recordedAt || metric.personaTime,
+        sourceFile: metric.sourceFile,
+        sourceType: metric.sourceType,
+        reason: metric.reason,
+      }));
+
+    return [...historyEntries, ...currentEntries];
   }
 
   function buildSeries(entries, selectedSet, selectedOnly) {

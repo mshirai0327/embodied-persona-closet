@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import { afterEach, describe, expect, test } from "bun:test";
 
 import {
+  formatEnvironmentTimestamp,
   parseEnvironmentDocument,
   readEnvironmentDocument,
   setEnvironmentAuxValue,
@@ -56,6 +57,32 @@ describe("parseEnvironmentDocument", () => {
 });
 
 describe("environment markdown updates", () => {
+  test("formats update timestamps in UTC like STATUS.md", () => {
+    expect(formatEnvironmentTimestamp(new Date("2026-04-18T21:10:00+09:00"))).toBe("2026-04-18 12:10");
+  });
+
+  test("writes observation timestamps in UTC even when the input date has a JST offset", async () => {
+    await Bun.write(TMP_ENVIRONMENT_PATH, ENVIRONMENT_SAMPLE);
+
+    await setEnvironmentObservation(
+      "ambient_temperature",
+      "16.3 °C",
+      27,
+      {
+        environmentPath: TMP_ENVIRONMENT_PATH,
+        observedAt: new Date("2026-04-18T21:10:00+09:00"),
+        reason: "気象庁アメダス 東京 16.3°C——少しひんやりしている。",
+        source: "気象庁アメダス（東京）",
+        recordHistoryOnUnchanged: true,
+      }
+    );
+
+    const parsed = await readEnvironmentDocument(TMP_ENVIRONMENT_PATH);
+    expect(parsed?.current.ambient_temperature?.updatedAt).toBe("2026-04-18 12:10");
+    expect(parsed?.history[0]?.key).toBe("ambient_temperature");
+    expect(parsed?.history[0]?.changedAt).toBe("2026-04-18 12:10");
+  });
+
   test("writes current observations and auxiliary state", async () => {
     await Bun.write(TMP_ENVIRONMENT_PATH, ENVIRONMENT_SAMPLE);
 

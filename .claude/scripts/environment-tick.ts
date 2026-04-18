@@ -6,7 +6,7 @@
  *
  * 知覚源:
  *   - システム温度 (LHM HTTP API, port 8085) → 環境熱負荷 proxy → energy
- *   - カメラ明るさ (usb-webcam-mcp, capture-brightness.py) → mood
+ *   - wifi-cam 輝度 (RTSP snapshot) → ambient_brightness → mood
  *
  * CPU Core Max 温度 → energy:
  *   絶対温度ではなく、自分の通常温度のEMAからの乖離で判断する。
@@ -29,6 +29,10 @@ import { dirname } from "node:path";
 
 import { $ } from "bun";
 
+import {
+  deriveEnvironmentCausalProposals,
+  type EnvironmentCausalSourceInput,
+} from "./causal-runtime";
 import { readEnvironmentDocument, setEnvironmentAuxValue, setEnvironmentObservation } from "./environment-store";
 import { syncPersonaStructuredStore } from "./persona-data";
 import { adjustStatusValue } from "./status-store";
@@ -76,6 +80,12 @@ export interface ThermalLoadProxy {
 export interface BrightnessObservation {
   normalizedValue: number;
   band: "dark" | "dim" | "neutral" | "bright";
+  reason: string;
+}
+
+interface StatusFallbackUpdate {
+  field: "energy" | "mood" | "health";
+  delta: number;
   reason: string;
 }
 
@@ -207,6 +217,48 @@ export function describeBrightnessObservation(brightness: number): BrightnessObs
   };
 }
 
+export function evaluateMoodFromBrightness(
+  brightness: number,
+  observation: BrightnessObservation = describeBrightnessObservation(brightness),
+): { moodDelta: number; reason: string } {
+  if (brightness > 150) {
+    return { moodDelta: 2, reason: observation.reason };
+  }
+
+  if (brightness < 50) {
+    return { moodDelta: -3, reason: observation.reason };
+  }
+
+  return { moodDelta: 0, reason: observation.reason };
+}
+
+export function evaluateHealthFromThermalLoad(normalizedValue: number, reason: string): {
+  healthDelta: number;
+  reason: string;
+} {
+  let healthDelta = 0;
+  let stateText = "熱環境は健康感を大きく揺らしていない。";
+
+  if (normalizedValue >= 80) {
+    healthDelta = -4;
+    stateText = "熱がかなりこもり、健康感も落ちやすい。";
+  } else if (normalizedValue >= 60) {
+    healthDelta = -2;
+    stateText = "少し熱がこもり、健康感にも負荷がある。";
+  } else if (normalizedValue <= 20) {
+    healthDelta = 3;
+    stateText = "かなり涼しく、健康感が戻りやすい。";
+  } else if (normalizedValue <= 40) {
+    healthDelta = 1;
+    stateText = "熱負荷は軽く、健康感を保ちやすい。";
+  }
+
+  return {
+    healthDelta,
+    reason: `${reason} ${stateText}`,
+  };
+}
+
 // ── センサー取得 ──
 
 async function getCpuCoreMax(): Promise<number | null> {
@@ -250,7 +302,7 @@ async function getRoomBrightness(): Promise<number | null> {
 
 // ── STATUS.md のフィールドを更新 ──
 
-async function updateStatus(field: "energy" | "mood", delta: number, reason: string) {
+async function updateStatus(field: "energy" | "mood" | "health", delta: number, reason: string) {
   const result = await adjustStatusValue(field, delta, { reason });
   if (!result || !result.changed) return;
 
@@ -278,6 +330,8 @@ async function main() {
 
   let nextState: EnvironmentState = { ...legacyState };
   let stateDirty = false;
+  const causalInputs: EnvironmentCausalSourceInput[] = [];
+  const fallbackUpdates: StatusFallbackUpdate[] = [];
 
   // CPU 温度 → energy
   const coreMax = await getCpuCoreMax();
@@ -327,11 +381,22 @@ async function main() {
       }
     );
 
-    if (evaluation.energyDelta !== 0) {
-      await updateStatus("energy", evaluation.energyDelta, evaluation.reason);
-    } else {
-      console.log("[environment-tick] energy unchanged");
-    }
+    causalInputs.push({
+      sourceId: "environment_thermal_load",
+      normalizedValue: thermalLoad.normalizedValue,
+      reason: thermalLoad.reason,
+    });
+    fallbackUpdates.push({
+      field: "energy",
+      delta: evaluation.energyDelta,
+      reason: evaluation.reason,
+    });
+    const healthFallback = evaluateHealthFromThermalLoad(thermalLoad.normalizedValue, thermalLoad.reason);
+    fallbackUpdates.push({
+      field: "health",
+      delta: healthFallback.healthDelta,
+      reason: healthFallback.reason,
+    });
   } else {
     console.log("[environment-tick] LHM unavailable, skipping temperature");
   }
@@ -357,19 +422,64 @@ async function main() {
       `${Math.round(brightness)} / 255`,
       brightnessObservation.normalizedValue,
       {
-        source: "usb-webcam brightness",
+        source: "wifi-cam RTSP brightness",
         reason: brightnessObservation.reason,
         recordHistoryOnUnchanged: true,
       }
     );
 
-    if (brightness > 150) {
-      await updateStatus("mood", 2, brightnessObservation.reason);
-    } else if (brightness < 50) {
-      await updateStatus("mood", -3, brightnessObservation.reason);
-    }
+    causalInputs.push({
+      sourceId: "ambient_brightness",
+      normalizedValue: brightnessObservation.normalizedValue,
+      reason: brightnessObservation.reason,
+    });
+    const moodFallback = evaluateMoodFromBrightness(brightness, brightnessObservation);
+    fallbackUpdates.push({
+      field: "mood",
+      delta: moodFallback.moodDelta,
+      reason: moodFallback.reason,
+    });
   } else {
     console.log("[environment-tick] Camera unavailable, skipping brightness");
+  }
+
+  let runtimeApplied = false;
+  if (causalInputs.length > 0) {
+    try {
+      const proposals = await deriveEnvironmentCausalProposals(causalInputs);
+      runtimeApplied = true;
+
+      if (proposals.length === 0) {
+        console.log("[environment-tick] causal runtime produced no status proposals");
+      }
+
+      for (const proposal of proposals) {
+        const deltaLabel = `${proposal.delta >= 0 ? "+" : ""}${proposal.delta}`;
+        console.log(
+          `[environment-tick] causal ${proposal.field}: ${proposal.topPathDescription} ` +
+          `(score ${proposal.score.toFixed(2)} / delta ${deltaLabel})`
+        );
+
+        if (proposal.delta !== 0) {
+          await updateStatus(proposal.field, proposal.delta, proposal.reason);
+        } else {
+          console.log(`[environment-tick] ${proposal.field} unchanged (causal runtime)`);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`[environment-tick] causal runtime failed, using fallback rules: ${message}`);
+    }
+  }
+
+  if (!runtimeApplied) {
+    for (const update of fallbackUpdates) {
+      if (update.delta !== 0) {
+        await updateStatus(update.field, update.delta, update.reason);
+      } else {
+        console.log(`[environment-tick] ${update.field} unchanged (fallback)`);
+      }
+    }
   }
 
   if (stateDirty) {

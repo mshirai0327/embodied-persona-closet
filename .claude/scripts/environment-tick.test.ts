@@ -4,6 +4,8 @@ import {
   computeTemperatureBaseline,
   describeBrightnessObservation,
   evaluateEnergyFromTemperature,
+  evaluateHealthFromThermalLoad,
+  evaluateMoodFromBrightness,
   evaluateThermalLoadProxy,
 } from "./environment-tick.ts";
 
@@ -74,5 +76,35 @@ describe("describeBrightnessObservation", () => {
     expect(observation.normalizedValue).toBe(75);
     expect(observation.band).toBe("bright");
     expect(observation.reason).toContain("環境光");
+  });
+});
+
+describe("evaluateMoodFromBrightness", () => {
+  test("keeps the legacy bright-room uplift", () => {
+    const result = evaluateMoodFromBrightness(180);
+
+    expect(result.moodDelta).toBe(2);
+  });
+
+  test("keeps the legacy dark-room penalty", () => {
+    const result = evaluateMoodFromBrightness(30);
+
+    expect(result.moodDelta).toBe(-3);
+  });
+});
+
+describe("evaluateHealthFromThermalLoad", () => {
+  test("penalizes health when thermal load is high", () => {
+    const result = evaluateHealthFromThermalLoad(85, "環境熱負荷 proxy 85/100");
+
+    expect(result.healthDelta).toBeLessThan(0);
+    expect(result.reason).toContain("健康感");
+  });
+
+  test("supports health when thermal load is light", () => {
+    const result = evaluateHealthFromThermalLoad(20, "環境熱負荷 proxy 20/100");
+
+    expect(result.healthDelta).toBeGreaterThan(0);
+    expect(result.reason).toContain("健康感");
   });
 });

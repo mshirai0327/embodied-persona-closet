@@ -27,10 +27,45 @@
     action: "#d9e6f5",
     outcome: "#d8edf2",
   };
-  const CAUSAL_LEVEL_STYLES = {
-    Lv1: { color: "#0e8b63", label: "Lv1 生理・環境", markerId: "graph-arrow-lv1" },
-    Lv2: { color: "#c4622d", label: "Lv2 経験・proxy", markerId: "graph-arrow-lv2" },
-    Lv3: { color: "#3f7db4", label: "Lv3 文脈依存", markerId: "graph-arrow-lv3" },
+  const RELATION_STYLE_ORDER = [
+    "support",
+    "lift",
+    "raise",
+    "modulate",
+    "drain",
+    "pressure",
+    "lower",
+    "proxy",
+    "other",
+  ];
+  const RELATION_ALIASES = {
+    support: "support",
+    supports: "support",
+    lift: "lift",
+    lifts: "lift",
+    raise: "raise",
+    raises: "raise",
+    modulate: "modulate",
+    modulates: "modulate",
+    drain: "drain",
+    drains: "drain",
+    pressure: "pressure",
+    pressures: "pressure",
+    lower: "lower",
+    lowers: "lower",
+    proxy: "proxy",
+    proxies: "proxy",
+  };
+  const RELATION_STYLES = {
+    support: { color: "#2d8f6f", label: "support", markerId: "graph-arrow-support" },
+    lift: { color: "#65a93a", label: "lift", markerId: "graph-arrow-lift" },
+    raise: { color: "#2b7b88", label: "raise", markerId: "graph-arrow-raise" },
+    modulate: { color: "#b98928", label: "modulate", markerId: "graph-arrow-modulate" },
+    drain: { color: "#cf6236", label: "drain", markerId: "graph-arrow-drain" },
+    pressure: { color: "#a94643", label: "pressure", markerId: "graph-arrow-pressure" },
+    lower: { color: "#7d5aa6", label: "lower", markerId: "graph-arrow-lower" },
+    proxy: { color: "#64768b", label: "proxy", markerId: "graph-arrow-proxy" },
+    other: { color: "#6c7b73", label: "other", markerId: "graph-arrow-other" },
   };
   const GRAPH_LEVEL_COLUMNS = [
     { key: "Lv0", label: "Lv0" },
@@ -92,6 +127,19 @@
     }
     if (String(metric.valueText).includes(metric.unit)) return metric.valueText;
     return metric.valueText + " " + metric.unit;
+  }
+
+  function normalizeRelationKey(relation) {
+    const key = String(relation || "").trim().toLowerCase();
+    return RELATION_ALIASES[key] || "other";
+  }
+
+  function relationStyleFor(relation) {
+    return RELATION_STYLES[normalizeRelationKey(relation)] || RELATION_STYLES.other;
+  }
+
+  function legendLineStyle(color) {
+    return "color:" + color;
   }
 
   function groupByLevel(metrics) {
@@ -241,15 +289,20 @@
     const root = document.getElementById("graph-legend");
     if (!root) return;
 
-    root.innerHTML = ["Lv1", "Lv2", "Lv3"]
-      .map((level) => {
-        const item = CAUSAL_LEVEL_STYLES[level];
+    const relationKeys = Array.from(
+      new Set((state.data?.graph?.edges ?? []).map((edge) => normalizeRelationKey(edge.relation)))
+    ).sort((left, right) => RELATION_STYLE_ORDER.indexOf(left) - RELATION_STYLE_ORDER.indexOf(right));
+
+    const relationLegend = relationKeys
+      .map((relationKey) => {
+        const item = RELATION_STYLES[relationKey] || RELATION_STYLES.other;
         return '<span class="pill legend-chip">'
-          + '<span class="legend-line" style="color:' + item.color + '"></span>'
+          + '<span class="legend-line" style="' + legendLineStyle(item.color) + '"></span>'
           + escapeHtml(item.label)
           + "</span>";
       })
       .join("");
+    root.innerHTML = relationLegend;
   }
 
   function buildGraphEdgePath(source, target) {
@@ -490,7 +543,14 @@
 
     const parts = [
       "<defs>",
-      ...Object.values(CAUSAL_LEVEL_STYLES).map((style) =>
+      ...Array.from(
+        new Map(
+          edges.map((edge) => {
+            const style = relationStyleFor(edge.relation);
+            return [style.markerId, style];
+          })
+        ).values()
+      ).map((style) =>
         '<marker id="' + style.markerId + '" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">'
         + '<path d="M 0 0 L 10 5 L 0 10 z" fill="' + style.color + '"></path>'
         + "</marker>"
@@ -522,11 +582,11 @@
       const backwardKey = "upstream:" + edge.sourceId + ":" + edge.targetId + ":" + edge.relation;
       const highlighted = tracedEdgeIds.has(forwardKey) || tracedEdgeIds.has(backwardKey);
       const opacity = hasTraceFocus ? (highlighted ? 1 : 0.12) : 0.55;
-      const style = CAUSAL_LEVEL_STYLES[edge.causalLevel] || CAUSAL_LEVEL_STYLES.Lv3;
+      const relationStyle = relationStyleFor(edge.relation);
       const path = buildGraphEdgePath(source, target);
 
       parts.push(
-        '<path d="' + path + '" fill="none" stroke="' + style.color + '" stroke-width="' + (1.8 + edge.weight * 1.2) + '" opacity="' + opacity + '" marker-end="url(#' + style.markerId + ')"></path>'
+        '<path d="' + path + '" fill="none" stroke="' + relationStyle.color + '" stroke-width="' + (1.8 + edge.weight * 1.2) + '" opacity="' + opacity + '" stroke-linecap="round" marker-end="url(#' + relationStyle.markerId + ')"></path>'
       );
     }
 

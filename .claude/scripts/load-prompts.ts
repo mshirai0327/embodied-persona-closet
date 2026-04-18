@@ -171,7 +171,7 @@ const DEFAULTS: Record<string, string> = {
 {DESIRE_SECTION}## 補足ルール
 - {TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査せよ
-{INTEROCEPTION}{RECALL_LITE}`,
+{INTEROCEPTION}{RECALL_LITE}{STATUS_HINT}{CAUSAL_HINT}`,
 };
 
 async function main() {

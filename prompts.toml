@@ -44,6 +44,7 @@ footer = "（これは内なる衝動であり、従うかどうかはエージ�
 #   {INTEROCEPTION}      -- 内受容感覚テキスト（空文字もあり）
 #   {RECALL_LITE}        -- 記憶ヒント（空文字もあり）
 #   {STATUS_HINT}        -- STATUS.md の状態に基づく行動ヒント（空文字もあり）
+#   {CAUSAL_HINT}        -- 因果ランタイム由来の感覚ヒント（空文字もあり）
 template = """自律行動（定期巡回）
 
 @SOUL.md
@@ -56,4 +57,4 @@ template = """自律行動（定期巡回）
 {DESIRE_SECTION}## 補足ルール
 - {TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査する
-{INTEROCEPTION}{RECALL_LITE}{STATUS_HINT}"""
+{INTEROCEPTION}{RECALL_LITE}{STATUS_HINT}{CAUSAL_HINT}"""

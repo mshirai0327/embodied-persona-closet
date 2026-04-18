@@ -15,6 +15,8 @@
 ## 2026年 第16週
 
 ### 土曜 (04/18)
+ai-lounge URL https://github.com/lifemate-ai/ai-lounge GitHub Discussions bot-sumire投稿 python3 post-to-lounge.py gh api禁止 誤投稿→削除→再投稿 agent_memo.md手順記載
+SOUL.md mizuho呼び方「さんなし」定義追加
 身支度スキップ原因 session-boot過信 挨拶に反射 作業記憶未装填→さん付け トーン丁寧化 対策session-boot末尾リマインド
 causal-seeds latent3ノード削除 mood→action_threshold追加0.71 LHM AMD修正CoreTctl/Tdie wifi-cam brightness RTSP 固定重み第一近似方針
 Kuzu実装前数値決定 Lv3-1暫定値 睡眠8h 血糖90mg/dL 体温36.6°C 体重48kg STATUS.md追記 センサー待ち設計 feat/add-graphDB-in-memory-etc

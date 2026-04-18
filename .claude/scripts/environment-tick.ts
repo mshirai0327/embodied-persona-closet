@@ -35,6 +35,7 @@ import {
   type EnvironmentCausalSourceInput,
 } from "./causal-runtime";
 import { readEnvironmentDocument, setEnvironmentAuxValue, setEnvironmentObservation } from "./environment-store";
+import { fetchJmaWeatherSnapshot } from "./jma-weather";
 import { syncPersonaStructuredStore } from "./persona-data";
 import { adjustStatusValue } from "./status-store";
 
@@ -442,6 +443,48 @@ async function main() {
     });
   } else {
     console.log("[environment-tick] Camera unavailable, skipping brightness");
+  }
+
+  // 気象庁アメダス → 気温 / 湿度
+  try {
+    const weather = await fetchJmaWeatherSnapshot();
+
+    if (weather.temperature) {
+      console.log(
+        `[environment-tick] AMeDAS temperature (${weather.stationName}): ${weather.temperature.rawValue.toFixed(1)}°C`
+      );
+      await setEnvironmentObservation(
+        "ambient_temperature",
+        `${formatDecimal(weather.temperature.rawValue)} °C`,
+        weather.temperature.normalizedValue,
+        {
+          observedAt: new Date(weather.temperature.observedAt),
+          source: weather.temperature.source,
+          reason: weather.temperature.reason,
+          recordHistoryOnUnchanged: true,
+        }
+      );
+    }
+
+    if (weather.humidity) {
+      console.log(
+        `[environment-tick] AMeDAS humidity (${weather.stationName}): ${Math.round(weather.humidity.rawValue)}%`
+      );
+      await setEnvironmentObservation(
+        "ambient_humidity",
+        `${Math.round(weather.humidity.rawValue)} %`,
+        weather.humidity.normalizedValue,
+        {
+          observedAt: new Date(weather.humidity.observedAt),
+          source: weather.humidity.source,
+          reason: weather.humidity.reason,
+          recordHistoryOnUnchanged: true,
+        }
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`[environment-tick] JMA weather unavailable, skipping ambient temperature/humidity: ${message}`);
   }
 
   let runtimeApplied = false;

@@ -19,7 +19,8 @@ const ENVIRONMENT_SAMPLE = `# ENVIRONMENT.md — 環境データ
 |---|---|---|---|---|---|
 | 環境熱負荷 proxy | 81.0 °C | 80 | 2026-04-13 12:00 | LHM/Core Max | 熱がかなりこもっている。 |
 | 環境光 | 191 / 255 | 75 | 2026-04-13 12:00 | usb-webcam brightness | かなり明るい空間。 |
-| 気温 | — | — | — | センサー未接続 | 実測センサー追加待ち |
+| 気温 | 22.4 °C | 52 | 2026-04-13 12:00 | JMA/AMeDAS | 気象庁アメダス 東京 22.4°C——過ごしやすい温度。 |
+| 湿度 | 61 % | 61 | 2026-04-13 12:00 | JMA/AMeDAS | 気象庁アメダス 東京 湿度61%——少ししっとりしている。 |
 
 ## 補助状態
 
@@ -45,6 +46,8 @@ describe("parseEnvironmentDocument", () => {
 
     expect(parsed.current.environment_thermal_load?.normalizedValue).toBe(80);
     expect(parsed.current.ambient_brightness?.rawValueText).toBe("191 / 255");
+    expect(parsed.current.ambient_temperature?.rawValueText).toBe("22.4 °C");
+    expect(parsed.current.ambient_humidity?.normalizedValue).toBe(61);
     expect(parsed.aux.environment_thermal_baseline?.valueText).toBe("73.4 °C");
     expect(parsed.aux.environment_sample_count?.valueText).toBe("12");
     expect(parsed.history[0]?.key).toBe("environment_thermal_load");

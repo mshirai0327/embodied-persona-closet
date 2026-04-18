@@ -43,7 +43,7 @@ const PASS_THROUGH_RELATIONS = new Set(["proxies"]);
 const TARGET_SCALES: Record<Phase1StatusField, number> = {
   mood: 5,
   energy: 9,
-  health: 4,
+  health: 8,
 };
 
 const TARGET_LIMITS: Record<Phase1StatusField, { min: number; max: number }> = {

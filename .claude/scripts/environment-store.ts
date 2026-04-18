@@ -26,8 +26,13 @@ export const ENVIRONMENT_FIELDS = {
   },
   ambient_temperature: {
     label: "気温",
-    sourceHint: "sensor",
+    sourceHint: "JMA/AMeDAS",
     statusTarget: "health",
+  },
+  ambient_humidity: {
+    label: "湿度",
+    sourceHint: "JMA/AMeDAS",
+    statusTarget: null,
   },
 } as const;
 

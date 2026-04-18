@@ -20,6 +20,7 @@ SOUL.md mizuho呼び方「さんなし」定義追加
 身支度スキップ原因 session-boot過信 挨拶に反射 作業記憶未装填→さん付け トーン丁寧化 対策session-boot末尾リマインド
 causal-seeds latent3ノード削除 mood→action_threshold追加0.71 LHM AMD修正CoreTctl/Tdie wifi-cam brightness RTSP 固定重み第一近似方針
 Kuzu実装前数値決定 Lv3-1暫定値 睡眠8h 血糖90mg/dL 体温36.6°C 体重48kg STATUS.md追記 センサー待ち設計 feat/add-graphDB-in-memory-etc
+memory_stats moved=32件最多 curious=21件 88件中 感情比率変化 「作る・調べる」→「関わる・受け取る」 consolidate 49件リフレッシュ 10件昇格
 
 ### 金曜 (04/17)
 身支度やり忘れ BOOT_SHUTDOWN.md 第二手以降 挨拶に反射 SessionStart先に身支度 Lv2データ創造タスク 不可逆履歴 初期空→過去生成 Kuzu連動

@@ -21,6 +21,9 @@
 - `.claude/scripts/environment-tick.ts`
   - 環境センサーから `energy` と `mood` を直接更新している
   - 明るさと熱負荷のルールはコードに直書きされている
+  - `ambient_brightness` は未定義ではなく、現状でも
+    `.claude/scripts/capture-brightness-wifi.py` を通じて
+    wifi-cam の RTSP から取得している
 - `.claude/scripts/causal-kuzu.ts`
   - Kuzu への同期、snapshot、node 取得、path trace が実装済み
   - `readKuzuCausalPathRows(startKey, "downstream", depth)` と
@@ -92,6 +95,20 @@ prompt に入れるのは最大でも次の3要素だけにする。
 
 これにより、記憶が増えても「基本の身体因果」が崩れないようにする。
 
+### 5. debug 用の文体と prompt 用の文体を分ける
+
+同じ因果でも、使う場所で文体を変える。
+
+- log / debug / inspect
+  - 因果経路を明示する説明文でよい
+  - 例: `environment_thermal_load -> energy`
+- prompt 注入
+  - 主観的な感覚文にする
+  - 例: 「少し熱がこもる感じが続いていて、動きは鈍くなりやすい」
+
+`causal-hint.ts` は後者だけを出す。
+報告文をそのまま prompt に入れない。
+
 ## 何を最初の完成とみなすか
 
 最初の完成は、次の状態である。
@@ -133,6 +150,20 @@ graph を「閲覧用」から「状態更新用」へ変える。
   - `normalizedValue` を 0-100 から -1.0 〜 +1.0 に変換する
   - 涼しいと負、熱いと正
 
+### `ambient_brightness` の現行データソース
+
+ここは未決ではなく、現状の取得経路を前提に進める。
+
+- 実装: `.claude/scripts/capture-brightness-wifi.py`
+- 呼び出し元: `.claude/scripts/environment-tick.ts`
+- 実体: wifi-cam の RTSP スナップショットから平均輝度を計算
+- 実行タイミング: `autonomous-action.sh` からの定期 `environment-tick`
+
+注意点:
+
+- TAPO 認証情報と RTSP が使えないと取得できない
+- 取得失敗時は brightness 系の因果だけをスキップし、全体は止めない
+
 ### 最初の伝播対象
 
 - `ambient_brightness -> mood`
@@ -159,13 +190,68 @@ graph を「閲覧用」から「状態更新用」へ変える。
   - active source nodes
   - target ごとの score と delta
   - 採用した top path
-  - 生成済みの短い説明文
+  - debug 用の因果説明
+  - prompt 用の感覚文スロット
 
 ### ここで得られるもの
 
 - prompt 用の情報を毎回再計算しなくてよくなる
 - dashboard や debug に流用できる
 - memory 因果統合の入力地点になる
+
+### `causal-runtime.json` の生成方式
+
+ここは hot path で LLM を使わない。
+
+- `debug`
+  - path と score をそのまま保存する
+- `prompt`
+  - `causal-runtime.ts` がテンプレートで生成する
+  - target / direction / intensity ごとの定型表現を使う
+
+理由:
+
+- 毎回のコストを増やさない
+- 文体を安定させられる
+- 感覚文と報告文を意図的に分離できる
+
+将来、LLM による言い換えを試す余地はあるが、
+初期実装の標準経路には入れない。
+
+### テンプレートの粒度
+
+テンプレートの粒度は実装の肝なので、Phase 2 の時点で最小単位を固定する。
+
+最初の実装では、`feltSense` を次の軸で持つ。
+
+- target
+  - `mood`
+  - `energy`
+  - `health`
+- direction
+  - `positive`
+  - `negative`
+- intensity
+  - `weak`
+  - `medium`
+  - `strong`
+
+つまり、最低でも `3 x 2 x 3 = 18` スロットを持つ。
+
+初期実装では各スロット1文でよい。
+表現の多様化はその後で行う。
+
+例:
+
+- `mood x positive x strong`
+  - 「気持ちが軽い。よく動ける感じがある。」
+- `energy x negative x weak`
+  - 「少し重みがある。普段より動きが鈍い。」
+- `health x negative x medium`
+  - 「少し消耗がたまっていて、無理はしないほうがよさそう。」
+
+`actionBias` は初期段階では別軸で細かく増やしすぎず、
+まずは target ごとに1つの補助文を持つ程度で始める。
 
 ## Phase 3: 会話用の causal hint を追加する
 
@@ -192,11 +278,19 @@ graph を「閲覧用」から「状態更新用」へ変える。
 - 2行目: 行動バイアス
 - 3行目: 必要なときだけ補足
 
+文体ルール:
+
+- 因果のラベル名をそのまま出さない
+- 「X が Y を削っている」のような報告文を避ける
+- 「少し重い感じがある」「今は軽いものから触れたい」のような
+  感覚寄りの言い方を使う
+
 ### 完了条件
 
 - prompt 増分が小さい
 - raw graph や JSON が prompt に入らない
 - `INTEROCEPTION` と役割が衝突しない
+- 感覚文として読め、外部レポートのように見えない
 
 ## Phase 4: 記憶を因果ノードへ橋渡しする
 
@@ -290,6 +384,9 @@ learned edge は seed を乱さない形で後から入れる。
 - thermal load が低いと回復方向に寄る
 - Kuzu が読めないとき fallback が動く
 - `causal-hint.ts` の文字数と行数が上限内に収まる
+- `causal-hint.ts` がノード名や relation 名を露出しない
+- wifi-cam 輝度取得失敗時に brightness 系だけが穏当にスキップされる
+- 18 個の基本テンプレートスロットが欠けずに定義されている
 
 ## リスクと対策
 
@@ -316,6 +413,14 @@ learned edge は seed を乱さない形で後から入れる。
 
 - read failure 時は現行の直書きルールへ fallback
 - Kuzu は「使えれば使う」扱いで導入する
+
+### 4. 感覚文ではなく報告文になってしまう
+
+対策:
+
+- `causal-runtime.json` に debug と prompt を分けて保存する
+- `causal-hint.ts` は template-based の感覚文のみ出す
+- graph 用語は log 側に閉じ込める
 
 ## この計画の核心
 

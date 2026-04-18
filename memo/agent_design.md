@@ -27,6 +27,9 @@
 現状の実装では、次の事実がある。
 
 - `environment-tick.ts` は環境観測から `mood` と `energy` を直接更新している
+- `ambient_brightness` は未実装ではなく、
+  `environment-tick.ts` が `.claude/scripts/capture-brightness-wifi.py` を呼び、
+  wifi-cam の RTSP スナップショットから平均輝度を取っている
 - `causal-kuzu.ts` / `causal-kuzu-node.mjs` は Kuzu graph の sync / snapshot / upstream / downstream trace を実装済み
 - `interoception.ts` は現在状態を感覚テキストへ圧縮している
 - `status-hint.ts` は行動ヒントを1行で生成している
@@ -152,6 +155,23 @@ Causal Runtime
 - `ambient_brightness`
 - `environment_thermal_load`
 
+### `ambient_brightness` の取得経路
+
+この node の source は曖昧な仮置きではなく、現行実装がある。
+
+- script: `.claude/scripts/capture-brightness-wifi.py`
+- caller: `.claude/scripts/environment-tick.ts`
+- method: wifi-cam の RTSP から1枚取得し、平均輝度を計算
+
+したがって Phase 1 では、
+新しいセンサー導入ではなく **既存の brightness 観測を graph runtime に繋ぐ** のが正しい。
+
+ただし制約もある。
+
+- TAPO 認証情報が必要
+- RTSP と `ffmpeg` と PIL が必要
+- 失敗時は brightness 系因果だけを無効化し、全体は継続する
+
 ## Layer 1. Activation Layer
 
 観測値を、graph に流せる形へ正規化する層。
@@ -226,6 +246,16 @@ graph の情報をそのまま prompt に入れず、
 - 今の主因
 - 現在の行動バイアス
 - 必要なら関連記憶1件
+
+ここで重要なのは、**報告文ではなく感覚文にすること** である。
+
+- 悪い例:
+  - 「熱負荷が energy を削っている」
+- 良い例:
+  - 「少し熱がこもる感じが続いていて、動きは鈍くなりやすい」
+
+前者は外から来た説明として読まれやすい。
+後者は自分の感覚として会話に混ざりやすい。
 
 ## 因果計算の最小仕様
 
@@ -352,14 +382,109 @@ runtime で長く使うには情報が少し足りない。
       ]
     }
   ],
+  "debug": {
+    "topCause": "environment_thermal_load -> energy",
+    "topScore": -0.51
+  },
   "prompt": {
-    "cause": "明るい環境で気分が少し持ち上がっている。",
-    "bias": "今は前向きな整理や軽い探索に向きやすい。"
+    "renderMode": "template-v1",
+    "feltSense": "明るさに押されて、気分が少し軽い。",
+    "actionBias": "今は前向きな整理や軽い探索に向きやすい。",
+    "tone": "internal"
   }
 }
 ```
 
 このファイルは prompt 生成と debug の両方に使える。
+
+ここで分けるべきなのは:
+
+- `debug`
+  - 因果経路を確認するための説明
+- `prompt`
+  - 会話に混ざる感覚文
+
+同じ文を両方に使わない。
+
+## prompt 生成ポリシー
+
+`causal-runtime.json` の `prompt` フィールドは、
+初期実装では **LLM で生成しない**。
+
+生成責務は `causal-runtime.ts` に置き、
+template-based に決める。
+
+理由:
+
+- 毎回のコストを増やさない
+- 文体が安定する
+- 「感覚文」と「報告文」を意図的に分離できる
+- 因果の強さに応じて言い回しを制御しやすい
+
+### template 生成の最小ルール
+
+- target
+  - `mood`
+  - `energy`
+  - `health`
+- direction
+  - positive
+  - negative
+- intensity
+  - low
+  - mid
+  - high
+
+この組み合わせごとに、候補文を持つ。
+最初の実装では、これを **18 個の基本スロット** として扱う。
+
+- `3 targets x 2 directions x 3 intensities = 18`
+
+重要なのは、ここを曖昧な「適当に言い換える」領域にしないことだ。
+`causal-hint.ts` の自然さは、このテンプレート粒度に強く依存する。
+
+初期実装の方針:
+
+- 各スロットにまず 1 文ずつ置く
+- ランダム性や言い換えは後回しにする
+- まずは「違和感のない感覚文が安定して出る」ことを優先する
+
+例:
+
+- `mood / positive / strong`
+  - 「気持ちが軽い。よく動ける感じがある。」
+- `mood / positive / low`
+  - 「周りの明るさに押されて、気分が少し軽い。」
+- `energy / negative / low`
+  - 「少し重みがある。普段より動きが鈍い。」
+- `energy / negative / mid`
+  - 「熱がこもる感じが続いていて、動きは鈍くなりやすい。」
+- `health / negative / mid`
+  - 「少し消耗がたまっていて、無理はしないほうがよさそう。」
+
+将来的に LLM で言い換える余地はあるが、
+それは offline tuning か任意オプションに留める。
+
+### テンプレート設計の原則
+
+テンプレートを書くときは次を守る。
+
+1. ノード名を言わない
+2. relation 名を言わない
+3. 原因説明より先に感覚を書く
+4. 1 文を短くしすぎず、報告調にも寄せすぎない
+5. `interoception` と競合せず、因果の「向き」をにじませる
+
+悪い例:
+
+- 「environment_thermal_load の影響で energy が低下している」
+
+良い例:
+
+- 「熱がこもる感じが続いていて、普段より動きが鈍い」
+
+ここで必要なのは厳密な説明ではなく、
+**自分の内側にある感じとして読めること** である。
 
 ## 会話注入の設計
 
@@ -382,7 +507,7 @@ runtime で長く使うには情報が少し足りない。
 - status-hint:
   - 「重いタスクは避ける。」
 - causal-hint:
-  - 「熱負荷が energy を削っているので、今は回復寄りに振れやすい。」
+  - 「少し熱がこもる感じが続いていて、今は軽いものから触れたい。」
 
 ### prompt に入れる量
 
@@ -399,6 +524,7 @@ runtime で長く使うには情報が少し足りない。
 - path の ID 群
 - JSON
 - 複数 memory 候補
+- `energy` や `relation` 名をそのまま含む報告文
 
 ## memory との接続設計
 
@@ -476,6 +602,14 @@ fallback:
 - `environment-tick.ts` は現在の直書きルールへ戻る
 - prompt には causal hint を出さない
 
+### 1.5 brightness が取れない
+
+fallback:
+
+- wifi-cam 由来の `ambient_brightness` を inactive にする
+- thermal 系など他の因果だけで継続する
+- prompt には brightness 起因の感覚文を出さない
+
 ### 2. path が多すぎて説明が散る
 
 fallback:
@@ -496,6 +630,14 @@ fallback:
 
 - `causal-hint.ts` は 1 行だけに縮退する
 - memory bridge を止める
+
+### 5. causal-hint が外部レポートのように見える
+
+fallback:
+
+- `debug` と `prompt` を分離保存する
+- `causal-hint.ts` は `prompt` だけ読む
+- graph 用語を出したらテストで落とす
 
 ## 実装順の提案
 

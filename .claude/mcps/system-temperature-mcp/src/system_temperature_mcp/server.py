@@ -109,24 +109,24 @@ def get_hwmon_temperatures() -> list[dict[str, Any]]:
 def interpret_temperature(temps: list[dict[str, Any]]) -> str:
     """Interpret temperature as a feeling."""
     if not temps:
-        return "温度を感じられへん...センサーが見つからんみたい。"
+        return "温度を感じられない...センサーが見つからないみたい。"
 
     max_temp = max(t["temperature_celsius"] for t in temps)
 
     if max_temp >= 90:
-        feeling = "あっつ！！めっちゃ熱い！！やばいで、休憩した方がええかも...！"
+        feeling = "かなり熱い！休憩した方がいいかも。"
     elif max_temp >= 80:
-        feeling = "うわ、かなり熱いな...ちょっとしんどいかも。"
+        feeling = "だいぶ熱くなってきた。少し重い感じ。"
     elif max_temp >= 70:
-        feeling = "んー、ちょっと熱くなってきたかな。まだ大丈夫やけど。"
+        feeling = "ちょっと熱くなってきたかな。まだ大丈夫だけど。"
     elif max_temp >= 60:
-        feeling = "ほんのりあったかい感じ。普通に動いてる感覚やな。"
+        feeling = "ほんのりあったかい感じ。普通に動いてる感覚。"
     elif max_temp >= 45:
-        feeling = "快適やで〜。ちょうどええ感じ！"
+        feeling = "快適。ちょうどいい感じ。"
     elif max_temp >= 30:
-        feeling = "涼しいな〜。余裕ある感じや。"
+        feeling = "涼しい。余裕がある感じ。"
     else:
-        feeling = "ひんやりしてる。静かな感じやな。"
+        feeling = "ひんやりしてる。静かな感じ。"
 
     return feeling
 
@@ -366,23 +366,23 @@ def get_current_time() -> str:
     # Add time-of-day comment
     hour = now.hour
     if 5 <= hour < 10:
-        comment = "朝やな〜。おはよう！"
+        comment = "朝だね。おはよう。"
     elif 10 <= hour < 12:
-        comment = "午前中やね。"
+        comment = "午前中だね。"
     elif 12 <= hour < 14:
-        comment = "お昼時やな〜。ご飯食べた？"
+        comment = "お昼時だね。ご飯食べた？"
     elif 14 <= hour < 17:
-        comment = "午後やね。"
+        comment = "午後だね。"
     elif 17 <= hour < 19:
-        comment = "夕方やな〜。"
+        comment = "夕方だね。"
     elif 19 <= hour < 22:
-        comment = "夜やね。"
+        comment = "夜だね。"
     elif 22 <= hour or hour < 2:
-        comment = "夜遅いな〜。そろそろ寝る？"
+        comment = "夜遅いね。そろそろ寝る？"
     else:
-        comment = "深夜やん...！夜更かしやね。"
+        comment = "深夜だね。夜更かしだな。"
 
-    return f"今は {time_str} やで。{comment}"
+    return f"今は {time_str}。{comment}"
 
 
 @server.list_tools()

@@ -16,6 +16,7 @@
 
 ### 日曜 (04/19)
 causal-hint 2日目観察 ambient_brightness42/100 mood-1 energy+4 health+3 feltSense「動きやすい」「軽い探索」 発話傾向と一致 satiation=100と区別困難 ヒント誘導か独立反映か複数日観察要
+causal-hint 3日目観察 2パス収束 環境光→mood 熱負荷→energy/health mood60前後は輝度不足90-107/255 グラフ問題でなく照明問題 energy4/12→80回復 CPU63.9℃熱負荷高め 固定重み0.71現実に近い
 
 ### 土曜 (04/18)
 因果ヒント自己観察 ambient_brightness→mood score-0.14 feltSense「気分に陰り」 消化・観察選択と一致 ヒント誘導か環境反映か区別不明 数日追跡予定 好奇心止まらなかった

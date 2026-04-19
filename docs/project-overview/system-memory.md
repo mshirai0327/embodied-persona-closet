@@ -22,7 +22,7 @@
 
 ### スクリプト
 - **recall-watcher.ts** — リアルタイム想起ウォッチャー。`ccconv talk --watch` のパイプから発言を受け取り、キーワード抽出 → memory MCP recall → バッファ書き出し
-- **recall-lite.ts** — 軽量自動想起。bun:sqlite で直接検索（embedding 不使用）。3軸: 直近重要記憶・高頻度アクセス・未完了タスク。autonomous-action.sh から注入
+- **recall-lite.ts** — 軽量自動想起。causal runtime と交差する記憶を最大1件選びつつ、legacy の「未完了の可能性」だけは併記して autonomous-action.sh から注入
 - **export_sqlite_snapshot.py** — `memory.db` の一貫した SQLite スナップショットを出力。WAL を含めて別マシン・別プロジェクトへ移植するときに使う
 
 ### ファイル

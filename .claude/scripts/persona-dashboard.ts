@@ -499,18 +499,18 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
           <div class="history-grid">
             <section>
               <h3 class="history-section-title">Lv3 バイタル・情緒</h3>
-              <div id="timeline-legend" class="legend"></div>
               <div class="timeline-frame">
                 <svg id="timeline" viewBox="0 0 760 300" aria-label="status timeline"></svg>
               </div>
+              <div id="timeline-legend" class="legend selector-toolbar"></div>
               <div id="timeline-detail" class="detail-list" style="margin-top: 12px;"></div>
             </section>
             <section>
               <h3 class="history-section-title">Lv0 環境</h3>
-              <div id="environment-timeline-legend" class="legend"></div>
               <div class="timeline-frame">
                 <svg id="environment-timeline" viewBox="0 0 760 300" aria-label="environment timeline"></svg>
               </div>
+              <div id="environment-timeline-legend" class="legend selector-toolbar"></div>
               <div id="environment-timeline-detail" class="detail-list" style="margin-top: 12px;"></div>
             </section>
           </div>

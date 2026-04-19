@@ -130,13 +130,22 @@ afterEach(async () => {
 });
 
 describe("causal-runtime", () => {
-  test("normalizes source activation into the -1..1 range", async () => {
+  test("normalizes each source with its own neutral band", async () => {
     const module = await setupSeedGraph();
 
-    expect(module.normalizeCausalActivation(0)).toBe(-1);
-    expect(module.normalizeCausalActivation(50)).toBe(0);
-    expect(module.normalizeCausalActivation(75)).toBeCloseTo(0.5, 5);
-    expect(module.normalizeCausalActivation(100)).toBe(1);
+    expect(module.normalizeCausalActivation("ambient_brightness", 0)).toBe(-1);
+    expect(module.normalizeCausalActivation("ambient_brightness", 45)).toBe(0);
+    expect(module.normalizeCausalActivation("ambient_brightness", 90)).toBeGreaterThan(0);
+
+    expect(module.normalizeCausalActivation("environment_thermal_load", 20)).toBeLessThan(0);
+    expect(module.normalizeCausalActivation("environment_thermal_load", 45)).toBeCloseTo(0, 10);
+    expect(module.normalizeCausalActivation("environment_thermal_load", 85)).toBeGreaterThan(0);
+
+    expect(module.normalizeCausalActivation("ambient_temperature", 44)).toBe(0);
+    expect(module.normalizeCausalActivation("ambient_temperature", 85)).toBeGreaterThan(0);
+
+    expect(module.normalizeCausalActivation("ambient_humidity", 60)).toBe(0);
+    expect(module.normalizeCausalActivation("ambient_humidity", 85)).toBeGreaterThan(0);
   });
 
   test("treats modulates as direction-agnostic in phase 1 scoring", async () => {
@@ -206,6 +215,44 @@ describe("causal-runtime", () => {
     expect(health?.delta).toBeGreaterThan(0);
   }, 15000);
 
+  test("does not keep nudging status when brightness and thermal load stay in the neutral band", async () => {
+    const module = await setupSeedGraph();
+
+    const proposals = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_brightness",
+        normalizedValue: 45,
+        reason: "環境光 45/100",
+      },
+      {
+        sourceId: "environment_thermal_load",
+        normalizedValue: 45,
+        reason: "環境熱負荷 proxy 45/100",
+      },
+    ]);
+
+    expect(proposals).toEqual([]);
+  }, 15000);
+
+  test("does not treat comfortable temperature and moderate humidity as automatic recovery", async () => {
+    const module = await setupSeedGraph();
+
+    const proposals = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "ambient_temperature",
+        normalizedValue: 44,
+        reason: "気温 44/100",
+      },
+      {
+        sourceId: "ambient_humidity",
+        normalizedValue: 60,
+        reason: "湿度 60/100",
+      },
+    ]);
+
+    expect(proposals).toEqual([]);
+  }, 15000);
+
   test("adds a hot-and-humid interaction load on top of direct temperature and humidity effects", async () => {
     const module = await setupSeedGraph();
 
@@ -269,8 +316,8 @@ describe("causal-runtime", () => {
 
     expect(energy).toBeTruthy();
     expect(health).toBeTruthy();
-    expect(energy?.score).toBeCloseTo(-0.406, 3);
-    expect(health?.score).toBeCloseTo(-0.441, 3);
+    expect(energy?.score).toBeCloseTo(-0.331, 3);
+    expect(health?.score).toBeCloseTo(-0.360, 3);
     expect(health?.contributingSources).toEqual(["ambient_temperature"]);
   }, 15000);
 

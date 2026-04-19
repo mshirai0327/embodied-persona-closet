@@ -335,6 +335,34 @@
     root.innerHTML = relationLegend;
   }
 
+  function renderGraphSelector() {
+    const root = document.getElementById("graph-selector");
+    if (!root) return;
+
+    const items = (state.data?.current ?? [])
+      .filter((metric) =>
+        metric.valueNumber != null
+        && (metric.domain === "environment" || metric.domain === "status")
+        && !metric.metadata?.auxiliary
+      )
+      .sort((left, right) => {
+        const leftLevel = LEVEL_ORDER.indexOf(left.level);
+        const rightLevel = LEVEL_ORDER.indexOf(right.level);
+        if (leftLevel !== rightLevel) return leftLevel - rightLevel;
+        if (left.domain !== right.domain) return left.domain.localeCompare(right.domain, "ja");
+        return left.label.localeCompare(right.label, "ja");
+      });
+
+    root.innerHTML = items
+      .map((metric) => {
+        const active = state.selectedKey === metric.key ? "active" : "";
+        return '<button class="' + active + '" data-select-key="' + escapeHtml(metric.key) + '">'
+          + escapeHtml(metric.label)
+          + "</button>";
+      })
+      .join("");
+  }
+
   function buildGraphEdgePath(source, target) {
     const dx = target.x - source.x;
     const dy = target.y - source.y;
@@ -738,6 +766,7 @@
     initializeSelectedSeries();
     renderTraceControls();
     renderGraphLegend();
+    renderGraphSelector();
     renderHeader();
     renderCurrent();
     renderHistory();
@@ -845,6 +874,14 @@
     const metricButton = target.closest("[data-metric-key]");
     if (metricButton) {
       state.selectedKey = metricButton.getAttribute("data-metric-key");
+      render();
+      loadTraceForSelection().catch(() => {});
+      return;
+    }
+
+    const selectorButton = target.closest("[data-select-key]");
+    if (selectorButton) {
+      state.selectedKey = selectorButton.getAttribute("data-select-key");
       render();
       loadTraceForSelection().catch(() => {});
       return;

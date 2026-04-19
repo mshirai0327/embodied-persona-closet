@@ -78,6 +78,30 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeNegativeBelowBand(value: number, bandMax: number): number {
+  if (value >= bandMax) return 0;
+  return -clamp((bandMax - value) / bandMax, 0, 1);
+}
+
+function normalizePositiveAboveBand(value: number, bandMin: number): number {
+  if (value <= bandMin) return 0;
+  return clamp((value - bandMin) / (100 - bandMin), 0, 1);
+}
+
+function normalizeBidirectionalBand(
+  value: number,
+  neutralMin: number,
+  neutralMax: number,
+): number {
+  if (value < neutralMin) {
+    return normalizeNegativeBelowBand(value, neutralMin);
+  }
+  if (value > neutralMax) {
+    return normalizePositiveAboveBand(value, neutralMax);
+  }
+  return 0;
+}
+
 function isPhase1StatusField(value: string): value is Phase1StatusField {
   return (STATUS_FIELDS as readonly string[]).includes(value);
 }
@@ -86,8 +110,27 @@ function formatSigned(value: number, digits = 2): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
 }
 
-export function normalizeCausalActivation(normalizedValue: number): number {
-  return clamp((normalizedValue - 50) / 50, -1, 1);
+export function normalizeCausalActivation(
+  sourceId: EnvironmentCausalSourceId,
+  normalizedValue: number,
+): number {
+  const bounded = clamp(normalizedValue, 0, 100);
+
+  switch (sourceId) {
+    case "ambient_brightness":
+      // Keep clearly dim rooms negative and clearly bright rooms positive,
+      // but stop treating near-neutral light as continuous mood decay.
+      return normalizeBidirectionalBand(bounded, 40, 60);
+    case "environment_thermal_load":
+      // 40-60 is the "stable" band. Lower load supports recovery, higher load drains.
+      return normalizeBidirectionalBand(bounded, 40, 60);
+    case "ambient_temperature":
+      // High temperature drains; comfortable/cool temperatures are neutral unless modeled separately.
+      return normalizePositiveAboveBand(bounded, 65);
+    case "ambient_humidity":
+      // High humidity drains; lower humidity should not act as a free recovery bonus.
+      return normalizePositiveAboveBand(bounded, 65);
+  }
 }
 
 export function getPhase1RelationSign(relation: string): number {
@@ -157,7 +200,7 @@ export function evaluateEnvironmentTraceBundle(
     throw new Error(`Kuzu trace could not find source node: ${input.sourceId}`);
   }
 
-  const activation = normalizeCausalActivation(input.normalizedValue);
+  const activation = normalizeCausalActivation(input.sourceId, input.normalizedValue);
   const contributions: CausalContribution[] = [];
 
   for (const row of bundle.downstreamRows) {
@@ -212,8 +255,8 @@ function applyWeatherInteraction(
     return;
   }
 
-  const tempActivation = normalizeCausalActivation(tempInput.normalizedValue);
-  const humidityActivation = normalizeCausalActivation(humidityInput.normalizedValue);
+  const tempActivation = normalizeCausalActivation(tempInput.sourceId, tempInput.normalizedValue);
+  const humidityActivation = normalizeCausalActivation(humidityInput.sourceId, humidityInput.normalizedValue);
   if (tempActivation <= WEATHER_INTERACTION_THRESHOLD || humidityActivation <= WEATHER_INTERACTION_THRESHOLD) {
     return;
   }

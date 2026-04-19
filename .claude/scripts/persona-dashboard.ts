@@ -348,6 +348,10 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         margin-bottom: 12px;
       }
 
+      .selector-toolbar {
+        margin-top: 14px;
+      }
+
       .legend button,
       .pill {
         border: 1px solid var(--line);
@@ -534,6 +538,7 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
           <div class="graph-frame">
             <svg id="graph" viewBox="0 0 980 560" aria-label="causal graph"></svg>
           </div>
+          <div class="legend selector-toolbar" id="graph-selector" aria-label="graph quick selector"></div>
         </article>
 
         <article class="panel">

@@ -2,7 +2,7 @@
 
 `tts-mcp` は `ElevenLabs` または `VOICEVOX` で音声を合成し、PC スピーカーか Tapo カメラの内蔵スピーカーへ再生する MCP サーバーです。
 
-`Tapo C200` でしゃべらせたい場合は、`VOICEVOX` で音声生成し、既定では `Tapo direct` バックチャネルでカメラへ直送します。`go2rtc` は fallback または明示指定時だけ使います。
+`Tapo C200` でしゃべらせたい場合は、`VOICEVOX` で音声生成し、`Tapo direct` バックチャネルでカメラへ直送します。
 
 ## できること
 
@@ -10,8 +10,7 @@
 - `speaker=local` で PC 再生
 - `speaker=camera` で Tapo カメラ再生
 - `speaker=both` で両方再生
-- `Tapo direct` と `go2rtc` の切り替え
-- `go2rtc` の自動起動
+- `Tapo direct` によるカメラスピーカー再生
 
 ## 必要なもの
 
@@ -19,7 +18,6 @@
 - `VOICEVOX` を使うなら VOICEVOX エンジン
 - Tapo C200/C210/C220 など、`tapo://` バックチャネルが使えるカメラ
 - Tapo 直送を使うなら TP-Link クラウドアカウントのパスワード
-- `go2rtc` も使うなら Tapo カメラのローカルカメラアカウント
 
 ## VOICEVOX + Tapo C200 セットアップ
 
@@ -47,7 +45,7 @@ TAPO_CAMERA_HOST=192.168.11.xxx
 TAPO_CLOUD_PASSWORD=your-tplink-cloud-password
 ```
 
-`TTS_CAMERA_BACKEND=auto` は `TAPO_CAMERA_HOST` と `TAPO_CLOUD_PASSWORD` が揃っていれば `Tapo direct` を優先します。`go2rtc` を強制したい場合だけ `TTS_CAMERA_BACKEND=go2rtc` にします。
+`TTS_CAMERA_BACKEND=auto` は `TAPO_CAMERA_HOST` と `TAPO_CLOUD_PASSWORD` が揃っていれば `Tapo direct` を使います。明示したい場合は `TTS_CAMERA_BACKEND=tapo` にします。
 
 3. `mcpBehavior.toml` の `[tts]` を確認する
 
@@ -55,6 +53,7 @@ TAPO_CLOUD_PASSWORD=your-tplink-cloud-password
 [tts]
 default_engine = "voicevox"
 speaker = "camera"
+camera_ffmpeg = "ffmpeg"
 ```
 
 4. VOICEVOX エンジンを起動する
@@ -67,8 +66,6 @@ speaker = "camera"
 uv run --directory .claude/mcps/tts-mcp python -m tts_mcp.cli --speaker camera "こんにちは、Tapo C200 から話しています"
 ```
 
-`TTS_CAMERA_BACKEND=go2rtc` の場合だけ、`GO2RTC_AUTO_START=true` かつカメラ情報が揃っていれば `tts-mcp` 側で起動を試みます。
-
 ## トラブルシュート
 
 ### VOICEVOX に接続できない
@@ -79,9 +76,8 @@ uv run --directory .claude/mcps/tts-mcp python -m tts_mcp.cli --speaker camera "
 ### カメラから音が出ない
 
 - `speaker = "camera"` または `--speaker camera` になっているか確認する
-- `TTS_CAMERA_BACKEND=tapo` か `auto` なら `TAPO_CLOUD_PASSWORD` を確認する
-- `TTS_CAMERA_BACKEND=go2rtc` なら `go2rtc` が `http://127.0.0.1:1984/api` で応答するか確認する
-- `TTS_CAMERA_BACKEND=go2rtc` なら `TAPO_USERNAME` / `TAPO_PASSWORD` がローカルカメラアカウントか確認する
+- `TTS_CAMERA_BACKEND=tapo` か `auto` なら `TAPO_CAMERA_HOST` と `TAPO_CLOUD_PASSWORD` を確認する
+- `TTS_CAMERA_FFMPEG` をカスタム指定している場合は、その `ffmpeg` パスが存在するか確認する
 
 ### PC からも同時に鳴らしたい
 

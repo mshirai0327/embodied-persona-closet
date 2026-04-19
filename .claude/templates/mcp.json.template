@@ -68,8 +68,9 @@
         "VOICEVOX_URL": "http://localhost:50021",
         "VOICEVOX_SPEAKER": "3",
         "TTS_PLAYBACK": "auto",
-        "GO2RTC_URL": "http://localhost:1984",
-        "GO2RTC_STREAM": "tapo_cam"
+        "TTS_CAMERA_BACKEND": "auto",
+        "TAPO_CAMERA_HOST": "192.168.1.xxx",
+        "TAPO_CLOUD_PASSWORD": "your-tplink-cloud-password"
       }
     },
     "toio": {

@@ -25,17 +25,10 @@ class TestCameraPlayback:
             pulse_sink=None,
             pulse_server=None,
             camera_backend="tapo",
-            go2rtc_url="http://127.0.0.1:1984",
             speaker_target="camera",
-            go2rtc_stream="tapo_cam",
-            go2rtc_ffmpeg="ffmpeg",
-            go2rtc_bin=None,
-            go2rtc_config=None,
-            go2rtc_auto_start=True,
-            go2rtc_camera_host="192.168.1.60",
-            go2rtc_camera_username=None,
-            go2rtc_camera_password=None,
-            go2rtc_camera_cloud_password="cloud-pass",
+            camera_ffmpeg="ffmpeg",
+            tapo_camera_host="192.168.1.60",
+            tapo_cloud_password="cloud-pass",
         )
 
         ok, message = play_to_camera("/tmp/test.wav", config)
@@ -49,37 +42,33 @@ class TestCameraPlayback:
             ffmpeg_bin="ffmpeg",
         )
 
-    @patch("tts_mcp.playback.play_with_go2rtc", return_value=(True, "played via go2rtc → tapo_cam"))
-    def test_play_to_camera_uses_go2rtc_backend(self, mock_go2rtc):
+    @patch(
+        "tts_mcp.playback.play_with_tapo",
+        return_value=(True, "played directly via tapo → 192.168.1.60"),
+    )
+    def test_play_to_camera_uses_auto_backend_when_tapo_is_configured(self, mock_tapo):
         config = PlaybackConfig(
             play_audio=True,
             save_dir="/tmp/tts-mcp",
             playback="auto",
             pulse_sink=None,
             pulse_server=None,
-            camera_backend="go2rtc",
-            go2rtc_url="http://127.0.0.1:1984",
+            camera_backend="auto",
             speaker_target="camera",
-            go2rtc_stream="tapo_cam",
-            go2rtc_ffmpeg="ffmpeg",
-            go2rtc_bin=None,
-            go2rtc_config=None,
-            go2rtc_auto_start=True,
-            go2rtc_camera_host=None,
-            go2rtc_camera_username=None,
-            go2rtc_camera_password=None,
-            go2rtc_camera_cloud_password=None,
+            camera_ffmpeg="ffmpeg",
+            tapo_camera_host="192.168.1.60",
+            tapo_cloud_password="cloud-pass",
         )
 
         ok, message = play_to_camera("/tmp/test.wav", config)
 
         assert ok is True
-        assert "played via go2rtc" in message
-        mock_go2rtc.assert_called_once_with(
+        assert "played directly via tapo" in message
+        mock_tapo.assert_called_once_with(
             file_path="/tmp/test.wav",
-            go2rtc_url="http://127.0.0.1:1984",
-            go2rtc_stream="tapo_cam",
-            go2rtc_ffmpeg="ffmpeg",
+            camera_host="192.168.1.60",
+            cloud_password="cloud-pass",
+            ffmpeg_bin="ffmpeg",
         )
 
     def test_play_to_camera_reports_missing_tapo_config(self):
@@ -90,17 +79,10 @@ class TestCameraPlayback:
             pulse_sink=None,
             pulse_server=None,
             camera_backend="tapo",
-            go2rtc_url=None,
             speaker_target="camera",
-            go2rtc_stream="tapo_cam",
-            go2rtc_ffmpeg="ffmpeg",
-            go2rtc_bin=None,
-            go2rtc_config=None,
-            go2rtc_auto_start=True,
-            go2rtc_camera_host="192.168.1.60",
-            go2rtc_camera_username=None,
-            go2rtc_camera_password=None,
-            go2rtc_camera_cloud_password=None,
+            camera_ffmpeg="ffmpeg",
+            tapo_camera_host="192.168.1.60",
+            tapo_cloud_password=None,
         )
 
         ok, message = play_to_camera("/tmp/test.wav", config)

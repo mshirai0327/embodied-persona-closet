@@ -173,7 +173,7 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
 
       .grid-top {
         display: grid;
-        grid-template-columns: 1.15fr 1fr 1fr;
+        grid-template-columns: 1.15fr 1fr;
         gap: 18px;
       }
 
@@ -182,6 +182,10 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         grid-template-columns: 1.25fr 0.95fr;
         gap: 18px;
         margin-top: 18px;
+      }
+
+      .history-band {
+        margin-bottom: 18px;
       }
 
       .panel {
@@ -389,6 +393,12 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         gap: 16px;
       }
 
+      .history-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
       .history-section-title {
         font-size: 13px;
         color: var(--muted);
@@ -453,7 +463,8 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
 
       @media (max-width: 1100px) {
         .grid-top,
-        .grid-bottom {
+        .grid-bottom,
+        .history-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -478,15 +489,10 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         </div>
       </section>
 
-      <section class="grid-top">
-        <article class="panel">
-          <h2>Now</h2>
-          <div id="current-groups" class="stack"></div>
-        </article>
-
+      <section class="history-band">
         <article class="panel">
           <h2>History</h2>
-          <div class="history-stack">
+          <div class="history-grid">
             <section>
               <h3 class="history-section-title">Lv3 バイタル・情緒</h3>
               <div id="timeline-legend" class="legend"></div>
@@ -504,6 +510,13 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
               <div id="environment-timeline-detail" class="detail-list" style="margin-top: 12px;"></div>
             </section>
           </div>
+        </article>
+      </section>
+
+      <section class="grid-top">
+        <article class="panel">
+          <h2>Now</h2>
+          <div id="current-groups" class="stack"></div>
         </article>
 
         <article class="panel">

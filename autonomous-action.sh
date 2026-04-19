@@ -446,7 +446,7 @@ ${_MORNING}"
     MORNING_SECTION="
 ## 今日の初回セッション
 今日の最初の召喚だ。以下を実施せよ：
-1. /wd-great-recall で多軸想起を実行（直近の重要な決定・未完了タスク・curiosity_target）
+1. /wd-great-recall で前回からの重要な判断と流れを多軸想起する
 2. 前日のタスクを確認し、今日の方針を決めよ
 3. curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入せよ
 "

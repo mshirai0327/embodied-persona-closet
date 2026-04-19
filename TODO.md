@@ -5,6 +5,7 @@
 
 ## やること
 
+- 🟡 **mood高時・ランダムにmizuhoへ話しかける機能** — desires.confに「話しかけたい欲」を追加。mood閾値とサイコロ（wd-dice相当）で確率制御。ttsで発話 or wifi-camで部屋を見渡してコメント。スピーカー購入後に実装。
 - 🟡 **Tapoスピーカー direct経路の認証修正** — tapo.py の `_derive_tapo_password` / `_build_digest_authorization` が 401 を返す。go2rtcの実装と比較してdigest計算を検証する。Codexに渡す。
 
 ## 完了

@@ -38,11 +38,13 @@ api_region = "cn"
 local_port = 18765
 
 [hearing]
-whisper_model = "small"
+whisper_model = "medium"
 source = "local"                   # "local" (PC マイク) or "camera" (RTSP)
+local_input_format = "pulse"       # WSL2/WSLg は PulseAudio を明示
 rtsp_url = "rtsp://user:password@192.168.1.100:554/stream1"
 segment_seconds = 5
 language = "ja"
+vad_energy_threshold = 0.001
 
 [ip-webcam]
 port = 8080

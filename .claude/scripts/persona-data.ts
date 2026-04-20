@@ -951,13 +951,16 @@ export function buildDashboardSnapshotFromMarkdownDocuments(
     .sort((left, right) => String(right.observedAt ?? "").localeCompare(String(left.observedAt ?? "")))
     .slice(0, 120);
 
+  const meta: Record<string, string> = {};
+  if (soul.meta.name) {
+    meta.name = soul.meta.name;
+  }
+  if (soul.meta.firstPerson) {
+    meta.first_person = soul.meta.firstPerson;
+  }
+
   return {
-    meta: Object.fromEntries(
-      Object.entries({
-        name: soul.meta.name,
-        first_person: soul.meta.firstPerson,
-      }).filter(([, value]) => Boolean(value))
-    ),
+    meta,
     current,
     history,
     observations,

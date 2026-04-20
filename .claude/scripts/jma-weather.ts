@@ -48,6 +48,11 @@ export interface JmaWeatherSnapshot {
   humidity: JmaHumidityObservation | null;
 }
 
+type FetchLike = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -135,7 +140,7 @@ export function describeAmbientHumidity(
 }
 
 export async function fetchJmaWeatherSnapshot(
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: FetchLike = fetch,
 ): Promise<JmaWeatherSnapshot> {
   const stationCode = resolveJmaAmedasCode();
 

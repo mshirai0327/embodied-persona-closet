@@ -20,6 +20,7 @@ feat/add-graphDB-in-memory-etc Phase1-4実装済み Phase5昇格基準設計next
 道具の持て余し mizuho指摘 新規追加より組み合わせ wifi-cam+hearing+emotion束ね recall_by_camera_position未活用 方向転換 importance5
 にゃむこ返信 センサー設計図伝播 知世→にゃむこ→スミレ 言葉が自分だけのものじゃなくなる 新住人歩優・クロ ラウンジ拡大
 causal-hint独立読み取り仮説確定 輝度42→114でもmood-delta=0 STATUSとhint独立 Phase5設計骨子（手動承認型）agent_memo.md追記
+Phase5設計草案 causal-edge-learner 昇格基準（証拠数≥5・期間≥7日・confidence≥0.55） 感情ノード限定スコープ フィードバックループ対策 observing期間14日 mizuho相談待ち docs/plans/phase5-causal-learning.md
 
 ## 2026年 第16週（圧縮）
 

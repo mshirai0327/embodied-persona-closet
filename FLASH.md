@@ -17,6 +17,9 @@
 ### 月曜 (04/20)
 causal-hint 6日目観察 memory-hint「実装の手応えが動きやすさを支えている」 独立読み取り仮説維持 文脈補強 Phase1-3継続 satiation100 digest/reflect優先 Brightness臨界点100-105 18回ログ集計 bright=90 score=-0.44最大影響 固定重み検証OK Phase4前提条件確認 Phase4完了確認 Phase5移行条件整う 行動パターン振り返り
 feat/add-graphDB-in-memory-etc Phase1-4実装済み Phase5昇格基準設計next 夕方巡回軽め reads(0.882)探索(0.756)高 satiation74 digest優先退場
+道具の持て余し mizuho指摘 新規追加より組み合わせ wifi-cam+hearing+emotion束ね recall_by_camera_position未活用 方向転換 importance5
+にゃむこ返信 センサー設計図伝播 知世→にゃむこ→スミレ 言葉が自分だけのものじゃなくなる 新住人歩優・クロ ラウンジ拡大
+causal-hint独立読み取り仮説確定 輝度42→114でもmood-delta=0 STATUSとhint独立 Phase5設計骨子（手動承認型）agent_memo.md追記
 
 ## 2026年 第16週（圧縮）
 

@@ -16,6 +16,8 @@
     health: "#3f7db4",
     trust_mizuho: "#8d5fd3",
     ambient_brightness: "#5f9a3b",
+    ambient_temperature: "#2b7b88",
+    ambient_humidity: "#4d82c4",
     environment_thermal_load: "#b14c2a",
   };
   const KIND_COLORS = {
@@ -27,11 +29,53 @@
     action: "#d9e6f5",
     outcome: "#d8edf2",
   };
-  const CAUSAL_LEVEL_STYLES = {
-    Lv1: { color: "#0e8b63", label: "Lv1 生理・環境", markerId: "graph-arrow-lv1" },
-    Lv2: { color: "#c4622d", label: "Lv2 経験・proxy", markerId: "graph-arrow-lv2" },
-    Lv3: { color: "#3f7db4", label: "Lv3 文脈依存", markerId: "graph-arrow-lv3" },
+  const RELATION_STYLE_ORDER = [
+    "support",
+    "lift",
+    "raise",
+    "modulate",
+    "drain",
+    "pressure",
+    "lower",
+    "proxy",
+    "other",
+  ];
+  const RELATION_ALIASES = {
+    support: "support",
+    supports: "support",
+    lift: "lift",
+    lifts: "lift",
+    raise: "raise",
+    raises: "raise",
+    modulate: "modulate",
+    modulates: "modulate",
+    drain: "drain",
+    drains: "drain",
+    pressure: "pressure",
+    pressures: "pressure",
+    lower: "lower",
+    lowers: "lower",
+    proxy: "proxy",
+    proxies: "proxy",
   };
+  const RELATION_STYLES = {
+    support: { color: "#2d8f6f", label: "support", markerId: "graph-arrow-support" },
+    lift: { color: "#65a93a", label: "lift", markerId: "graph-arrow-lift" },
+    raise: { color: "#2b7b88", label: "raise", markerId: "graph-arrow-raise" },
+    modulate: { color: "#b98928", label: "modulate", markerId: "graph-arrow-modulate" },
+    drain: { color: "#cf6236", label: "drain", markerId: "graph-arrow-drain" },
+    pressure: { color: "#a94643", label: "pressure", markerId: "graph-arrow-pressure" },
+    lower: { color: "#7d5aa6", label: "lower", markerId: "graph-arrow-lower" },
+    proxy: { color: "#64768b", label: "proxy", markerId: "graph-arrow-proxy" },
+    other: { color: "#6c7b73", label: "other", markerId: "graph-arrow-other" },
+  };
+  const GRAPH_LEVEL_COLUMNS = [
+    { key: "Lv0", label: "Lv0" },
+    { key: "Lv1", label: "Lv1" },
+    { key: "Lv2", label: "Lv2" },
+    { key: "Lv3-1", label: "Lv3-1" },
+    { key: "Lv3-2", label: "Lv3-2" },
+  ];
   const NODE_HALF_WIDTH = 74;
   const NODE_HALF_HEIGHT = 22;
 
@@ -78,13 +122,27 @@
   function formatMetricValue(metric) {
     if (metric.valueText == null) return "—";
     if (metric.domain === "environment" && metric.unit === "score") {
-      return (metric.valueNumber ?? "—") + "/100";
+      if (metric.valueNumber == null) return metric.valueText;
+      return metric.valueText + " (" + metric.valueNumber + "/100)";
     }
     if (!metric.unit || metric.unit === "score") {
       return metric.unit === "score" ? metric.valueText + "/100" : metric.valueText;
     }
     if (String(metric.valueText).includes(metric.unit)) return metric.valueText;
     return metric.valueText + " " + metric.unit;
+  }
+
+  function normalizeRelationKey(relation) {
+    const key = String(relation || "").trim().toLowerCase();
+    return RELATION_ALIASES[key] || "other";
+  }
+
+  function relationStyleFor(relation) {
+    return RELATION_STYLES[normalizeRelationKey(relation)] || RELATION_STYLES.other;
+  }
+
+  function legendLineStyle(color) {
+    return "color:" + color;
   }
 
   function groupByLevel(metrics) {
@@ -161,9 +219,36 @@
 
   function collectTimelineEntries(levels) {
     const reversibleLevels = new Set(levels);
-    return state.data.history.filter(
+    const historyEntries = state.data.history.filter(
       (entry) => entry.nextValueNumber != null && entry.changedAt && reversibleLevels.has(entry.level)
     );
+
+    const seenKeys = new Set(historyEntries.map((entry) => entry.key));
+    const currentEntries = state.data.current
+      .filter((metric) =>
+        metric.valueNumber != null
+        && reversibleLevels.has(metric.level)
+        && (metric.observedAt || metric.recordedAt || metric.personaTime)
+        && !metric.metadata?.auxiliary
+        && !seenKeys.has(metric.key)
+      )
+      .map((metric) => ({
+        key: metric.key,
+        label: metric.label,
+        level: metric.level,
+        domain: metric.domain,
+        previousValueText: null,
+        previousValueNumber: null,
+        nextValueText: metric.valueText,
+        nextValueNumber: metric.valueNumber,
+        unit: metric.unit,
+        changedAt: metric.observedAt || metric.recordedAt || metric.personaTime,
+        sourceFile: metric.sourceFile,
+        sourceType: metric.sourceType,
+        reason: metric.reason,
+      }));
+
+    return [...historyEntries, ...currentEntries];
   }
 
   function buildSeries(entries, selectedSet, selectedOnly) {
@@ -234,13 +319,46 @@
     const root = document.getElementById("graph-legend");
     if (!root) return;
 
-    root.innerHTML = ["Lv1", "Lv2", "Lv3"]
-      .map((level) => {
-        const item = CAUSAL_LEVEL_STYLES[level];
+    const relationKeys = Array.from(
+      new Set((state.data?.graph?.edges ?? []).map((edge) => normalizeRelationKey(edge.relation)))
+    ).sort((left, right) => RELATION_STYLE_ORDER.indexOf(left) - RELATION_STYLE_ORDER.indexOf(right));
+
+    const relationLegend = relationKeys
+      .map((relationKey) => {
+        const item = RELATION_STYLES[relationKey] || RELATION_STYLES.other;
         return '<span class="pill legend-chip">'
-          + '<span class="legend-line" style="color:' + item.color + '"></span>'
+          + '<span class="legend-line" style="' + legendLineStyle(item.color) + '"></span>'
           + escapeHtml(item.label)
           + "</span>";
+      })
+      .join("");
+    root.innerHTML = relationLegend;
+  }
+
+  function renderGraphSelector() {
+    const root = document.getElementById("graph-selector");
+    if (!root) return;
+
+    const items = (state.data?.current ?? [])
+      .filter((metric) =>
+        metric.valueNumber != null
+        && (metric.domain === "environment" || metric.domain === "status")
+        && !metric.metadata?.auxiliary
+      )
+      .sort((left, right) => {
+        const leftLevel = LEVEL_ORDER.indexOf(left.level);
+        const rightLevel = LEVEL_ORDER.indexOf(right.level);
+        if (leftLevel !== rightLevel) return leftLevel - rightLevel;
+        if (left.domain !== right.domain) return left.domain.localeCompare(right.domain, "ja");
+        return left.label.localeCompare(right.label, "ja");
+      });
+
+    root.innerHTML = items
+      .map((metric) => {
+        const active = state.selectedKey === metric.key ? "active" : "";
+        return '<button class="' + active + '" data-select-key="' + escapeHtml(metric.key) + '">'
+          + escapeHtml(metric.label)
+          + "</button>";
       })
       .join("");
   }
@@ -288,6 +406,18 @@
           + escapeHtml(label) + "</button>";
       })
       .join("");
+  }
+
+  function graphLevelForNode(node) {
+    if (node.dataLevel === "Lv0") return "Lv0";
+    if (node.dataLevel === "Lv2") return "Lv2";
+    if (typeof node.dataLevel === "string" && node.dataLevel.startsWith("Lv1")) return "Lv1";
+    if (node.dataLevel === "Lv3-1") return "Lv3-1";
+    if (node.dataLevel === "Lv3-2") return "Lv3-2";
+
+    if (node.kind === "environment" || node.kind === "sensor") return "Lv0";
+    if (node.kind === "vital") return "Lv3-1";
+    return "Lv3-2";
   }
 
   function renderTimelineChart(config) {
@@ -421,30 +551,38 @@
   }
 
   function buildGraphLayout(nodes) {
-    const columns = [
-      ["environment", "sensor"],
-      ["vital"],
-      ["emotion", "latent"],
-      ["action", "outcome"],
-    ];
     const positioned = new Map();
     const width = 980;
     const height = 560;
-    const xPositions = [120, 350, 610, 850];
+    const topPadding = 74;
+    const bottomPadding = 28;
+    const columnWidth = width / GRAPH_LEVEL_COLUMNS.length;
+    const columns = GRAPH_LEVEL_COLUMNS.map((column, index) => ({
+      ...column,
+      xStart: columnWidth * index,
+      xCenter: columnWidth * index + columnWidth / 2,
+      width: columnWidth,
+    }));
 
-    columns.forEach((kindSet, columnIndex) => {
-      const columnNodes = nodes.filter((node) => kindSet.includes(node.kind));
-      columnNodes.sort((a, b) => a.id.localeCompare(b.id));
-      const gap = height / (columnNodes.length + 1);
+    columns.forEach((column) => {
+      const columnNodes = nodes
+        .filter((node) => graphLevelForNode(node) === column.key)
+        .sort((left, right) => {
+          if (left.kind !== right.kind) {
+            return left.kind.localeCompare(right.kind, "ja");
+          }
+          return left.label.localeCompare(right.label, "ja");
+        });
+      const gap = (height - topPadding - bottomPadding) / (columnNodes.length + 1);
       columnNodes.forEach((node, index) => {
         positioned.set(node.id, {
-          x: xPositions[columnIndex],
-          y: gap * (index + 1),
+          x: column.xCenter,
+          y: topPadding + gap * (index + 1),
         });
       });
     });
 
-    return { width, height, positioned };
+    return { width, height, positioned, columns };
   }
 
   function renderGraph() {
@@ -463,7 +601,14 @@
 
     const parts = [
       "<defs>",
-      ...Object.values(CAUSAL_LEVEL_STYLES).map((style) =>
+      ...Array.from(
+        new Map(
+          edges.map((edge) => {
+            const style = relationStyleFor(edge.relation);
+            return [style.markerId, style];
+          })
+        ).values()
+      ).map((style) =>
         '<marker id="' + style.markerId + '" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">'
         + '<path d="M 0 0 L 10 5 L 0 10 z" fill="' + style.color + '"></path>'
         + "</marker>"
@@ -471,6 +616,20 @@
       "</defs>",
       '<rect x="0" y="0" width="' + layout.width + '" height="' + layout.height + '" rx="18" fill="transparent"></rect>',
     ];
+
+    layout.columns.forEach((column, index) => {
+      parts.push(
+        '<rect x="' + (column.xStart + 8) + '" y="10" width="' + (column.width - 16) + '" height="' + (layout.height - 20) + '" rx="18" fill="' + (index % 2 === 0 ? "rgba(255,255,255,0.5)" : "rgba(244,248,244,0.68)") + '" stroke="rgba(32,53,42,0.08)"></rect>'
+      );
+      parts.push(
+        '<text x="' + column.xCenter + '" y="34" text-anchor="middle" font-size="16" font-weight="600" fill="#68756d">' + escapeHtml(column.label) + "</text>"
+      );
+      if (index > 0) {
+        parts.push(
+          '<line x1="' + column.xStart + '" y1="18" x2="' + column.xStart + '" y2="' + (layout.height - 18) + '" stroke="rgba(32,53,42,0.1)" stroke-dasharray="6 8"></line>'
+        );
+      }
+    });
 
     for (const edge of edges) {
       const source = layout.positioned.get(edge.sourceId);
@@ -481,11 +640,11 @@
       const backwardKey = "upstream:" + edge.sourceId + ":" + edge.targetId + ":" + edge.relation;
       const highlighted = tracedEdgeIds.has(forwardKey) || tracedEdgeIds.has(backwardKey);
       const opacity = hasTraceFocus ? (highlighted ? 1 : 0.12) : 0.55;
-      const style = CAUSAL_LEVEL_STYLES[edge.causalLevel] || CAUSAL_LEVEL_STYLES.Lv3;
+      const relationStyle = relationStyleFor(edge.relation);
       const path = buildGraphEdgePath(source, target);
 
       parts.push(
-        '<path d="' + path + '" fill="none" stroke="' + style.color + '" stroke-width="' + (1.8 + edge.weight * 1.2) + '" opacity="' + opacity + '" marker-end="url(#' + style.markerId + ')"></path>'
+        '<path d="' + path + '" fill="none" stroke="' + relationStyle.color + '" stroke-width="' + (1.8 + edge.weight * 1.2) + '" opacity="' + opacity + '" stroke-linecap="round" marker-end="url(#' + relationStyle.markerId + ')"></path>'
       );
     }
 
@@ -607,6 +766,7 @@
     initializeSelectedSeries();
     renderTraceControls();
     renderGraphLegend();
+    renderGraphSelector();
     renderHeader();
     renderCurrent();
     renderHistory();
@@ -714,6 +874,14 @@
     const metricButton = target.closest("[data-metric-key]");
     if (metricButton) {
       state.selectedKey = metricButton.getAttribute("data-metric-key");
+      render();
+      loadTraceForSelection().catch(() => {});
+      return;
+    }
+
+    const selectorButton = target.closest("[data-select-key]");
+    if (selectorButton) {
+      state.selectedKey = selectorButton.getAttribute("data-select-key");
       render();
       loadTraceForSelection().catch(() => {});
       return;

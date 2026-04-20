@@ -195,6 +195,13 @@ interface DashboardEdgeRow {
   description: string | null;
 }
 
+interface DashboardMarkdownDocuments {
+  soulText?: string | null;
+  bodyText?: string | null;
+  statusText?: string | null;
+  environmentText?: string | null;
+}
+
 const BODY_LV1_FIELDS: Record<
   string,
   { key: string; label: string; domain: PersonaDomain; level: PersonaLevel }
@@ -861,6 +868,105 @@ export function parseEnvironmentMarkdown(text: string): ParsedEnvironmentDocumen
   return { metrics, history };
 }
 
+function toDashboardMetricRow(metric: PersonaMetric): DashboardMetricRow {
+  return {
+    key: metric.key,
+    label: metric.label,
+    level: metric.level,
+    domain: metric.domain,
+    valueText: metric.valueText,
+    valueNumber: metric.valueNumber,
+    unit: metric.unit,
+    sourceFile: metric.sourceFile,
+    sourceType: metric.sourceType,
+    observedAt: metric.observedAt,
+    personaTime: metric.personaTime,
+    recordedAt: metric.recordedAt,
+    reason: metric.reason,
+    metadataJson: toJson(metric.metadata),
+  };
+}
+
+function toDashboardHistoryRow(entry: PersonaHistoryEntry): DashboardHistoryRow {
+  return {
+    key: entry.key,
+    label: entry.label,
+    level: entry.level,
+    domain: entry.domain,
+    previousValueText: entry.previousValueText,
+    previousValueNumber: entry.previousValueNumber,
+    nextValueText: entry.nextValueText,
+    nextValueNumber: entry.nextValueNumber,
+    unit: entry.unit,
+    changedAt: entry.changedAt,
+    sourceFile: entry.sourceFile,
+    sourceType: entry.sourceType,
+    reason: entry.reason,
+  };
+}
+
+export function buildDashboardSnapshotFromMarkdownDocuments(
+  documents: DashboardMarkdownDocuments
+): {
+  meta: Record<string, string>;
+  current: DashboardMetricRow[];
+  history: DashboardHistoryRow[];
+  observations: EnvironmentObservationRow[];
+} {
+  const soul = documents.soulText ? parseSoulDocument(documents.soulText) : { meta: {}, metrics: [] };
+  const body = documents.bodyText ? parseBodyDocument(documents.bodyText) : { metrics: [], history: [] };
+  const status = documents.statusText ? parseStatusDocument(documents.statusText) : { metrics: [], history: [] };
+  const environment = documents.environmentText
+    ? parseEnvironmentMarkdown(documents.environmentText)
+    : { metrics: [], history: [] };
+
+  const current = [
+    ...soul.metrics,
+    ...body.metrics,
+    ...status.metrics,
+    ...environment.metrics,
+  ].map(toDashboardMetricRow);
+
+  const history = [
+    ...body.history,
+    ...status.history,
+    ...environment.history,
+  ]
+    .map(toDashboardHistoryRow)
+    .sort((left, right) => String(right.changedAt ?? "").localeCompare(String(left.changedAt ?? "")))
+    .slice(0, 300);
+
+  const observations = environment.history
+    .map((entry, index) => ({
+      id: index + 1,
+      key: entry.key,
+      label: entry.label,
+      source: "ENVIRONMENT.md",
+      sourceType: "markdown",
+      observedAt: entry.changedAt ?? "",
+      rawValueText: entry.nextValueText,
+      normalizedValue: entry.nextValueNumber,
+      reason: entry.reason,
+    }))
+    .sort((left, right) => String(right.observedAt ?? "").localeCompare(String(left.observedAt ?? "")))
+    .slice(0, 120);
+
+  const meta: Record<string, string> = {};
+  if (soul.meta.name) {
+    meta.name = soul.meta.name;
+  }
+  if (soul.meta.firstPerson) {
+    meta.first_person = soul.meta.firstPerson;
+  }
+
+  return {
+    meta,
+    current,
+    history,
+    observations,
+  };
+}
+
 function upsertMeta(db: Database, meta: PersonaMeta): void {
   const upsert = db.query(
     `INSERT INTO persona_meta (key, value)
@@ -1009,90 +1115,58 @@ export async function readPersonaDashboardSnapshot(): Promise<{
   observations: EnvironmentObservationRow[];
   graph: { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] };
 }> {
-  await syncPersonaStructuredStore();
-
-  const db = openPersonaDb();
+  const documents = await Promise.all([
+    readPathOrNull(DEFAULT_SOUL_PATH),
+    readPathOrNull(DEFAULT_BODY_PATH),
+    readPathOrNull(DEFAULT_STATUS_PATH),
+    readPathOrNull(DEFAULT_ENVIRONMENT_PATH),
+  ]);
+  const markdownSnapshot = buildDashboardSnapshotFromMarkdownDocuments({
+    soulText: documents[0],
+    bodyText: documents[1],
+    statusText: documents[2],
+    environmentText: documents[3],
+  });
 
   try {
-    const metaRows = db
-      .query<DashboardMetaRow, []>("SELECT key, value FROM persona_meta ORDER BY key")
-      .all();
-    const current = db
-      .query<DashboardMetricRow, []>(
-        `SELECT key, label, level, domain, value_text AS valueText, value_number AS valueNumber,
-                unit, source_file AS sourceFile, source_type AS sourceType,
-                observed_at AS observedAt, persona_time AS personaTime, recorded_at AS recordedAt,
-                reason, metadata_json AS metadataJson
-         FROM persona_current`
-      )
-      .all();
-    const history = db
-      .query<DashboardHistoryRow, []>(
-        `SELECT key, label, level, domain,
-                previous_value_text AS previousValueText,
-                previous_value_number AS previousValueNumber,
-                next_value_text AS nextValueText,
-                next_value_number AS nextValueNumber,
-                unit,
-                changed_at AS changedAt,
-                source_file AS sourceFile,
-                source_type AS sourceType,
-                reason
-         FROM persona_history
-         ORDER BY COALESCE(changed_at, '') DESC
-         LIMIT 300`
-      )
-      .all();
-    const observations = db
-      .query<EnvironmentObservationRow, []>(
-        `SELECT id,
-                key,
-                label,
-                source_file AS source,
-                source_type AS sourceType,
-                changed_at AS observedAt,
-                next_value_text AS rawValueText,
-                next_value_number AS normalizedValue,
-                reason
-         FROM persona_history
-         WHERE source_file = 'ENVIRONMENT.md'
-         ORDER BY COALESCE(changed_at, '') DESC
-         LIMIT 120`
-      )
-      .all();
-    const fallbackNodes = db
-      .query<DashboardNodeRow, []>(
-        `SELECT id, label, kind, data_level AS dataLevel, description
-         FROM causal_nodes
-         ORDER BY kind, id`
-      )
-      .all();
-    const fallbackEdges = db
-      .query<DashboardEdgeRow, []>(
-        `SELECT source_id AS sourceId, target_id AS targetId, relation,
-                causal_level AS causalLevel, weight, description
-         FROM causal_edges
-         ORDER BY causal_level, source_id, target_id`
-      )
-      .all();
-    let graph: { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] };
-
-    try {
-      graph = await readKuzuCausalGraphSnapshot();
-    } catch {
-      graph = { nodes: fallbackNodes, edges: fallbackEdges };
+    await syncPersonaStructuredStore();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("database is locked")) {
+      console.warn(`[persona-data] skipped dashboard sync: ${message}`);
     }
-
-    return {
-      meta: Object.fromEntries(metaRows.map((row) => [row.key, row.value])),
-      current,
-      history,
-      observations,
-      graph,
-    };
-  } finally {
-    db.close();
   }
+
+  let graph: { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] };
+
+  try {
+    graph = await readKuzuCausalGraphSnapshot();
+  } catch {
+    const seedText = await readPathOrNull(DEFAULT_CAUSAL_SEED_PATH);
+    const seed = seedText ? JSON.parse(seedText) as { nodes?: CausalNode[]; edges?: CausalEdge[] } : null;
+    graph = {
+      nodes: (seed?.nodes ?? []).map((node) => ({
+        id: node.id,
+        label: node.label,
+        kind: node.kind,
+        dataLevel: node.dataLevel,
+        description: node.description ?? null,
+      })),
+      edges: (seed?.edges ?? []).map((edge) => ({
+        sourceId: edge.source,
+        targetId: edge.target,
+        relation: edge.relation,
+        causalLevel: edge.causalLevel,
+        weight: edge.weight,
+        description: edge.description ?? null,
+      })),
+    };
+  }
+
+  return {
+    ...markdownSnapshot,
+    graph,
+  };
 }
 
 if (import.meta.main) {

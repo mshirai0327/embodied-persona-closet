@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
-import time
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
-from urllib.parse import quote
 
 from .tapo import TapoBackchannelClient
 
@@ -246,64 +242,8 @@ def play_audio(
 
 
 # ---------------------------------------------------------------------------
-# Camera speaker via go2rtc
+# Camera speaker via Tapo direct
 # ---------------------------------------------------------------------------
-
-def play_with_go2rtc(
-    file_path: str,
-    go2rtc_url: str,
-    go2rtc_stream: str,
-    go2rtc_ffmpeg: str,
-) -> tuple[bool, str]:
-    """Play audio through camera speaker via go2rtc backchannel."""
-    try:
-        abs_path = os.path.abspath(file_path)
-        src = f"ffmpeg:{abs_path}#audio=pcma#input=file"
-        url = (
-            f"{go2rtc_url}/api/streams"
-            f"?dst={quote(go2rtc_stream, safe='')}"
-            f"&src={quote(src, safe='')}"
-        )
-
-        req = urllib.request.Request(url, method="POST", data=b"")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            body = json.loads(resp.read())
-
-        has_sender = False
-        for consumer in body.get("consumers", []):
-            if consumer.get("senders"):
-                has_sender = True
-                break
-
-        if not has_sender:
-            return False, "go2rtc: no audio sender established (camera may not support backchannel)"
-
-        ffmpeg_producer_id = None
-        for p in body.get("producers", []):
-            if p.get("format_name") == "wav" or "ffmpeg" in p.get("source", ""):
-                ffmpeg_producer_id = p.get("id")
-                break
-
-        if ffmpeg_producer_id:
-            for _ in range(60):
-                time.sleep(0.5)
-                try:
-                    status_url = f"{go2rtc_url}/api/streams"
-                    with urllib.request.urlopen(status_url, timeout=5) as r:
-                        streams = json.loads(r.read())
-                    stream = streams.get(go2rtc_stream, {})
-                    still_playing = any(
-                        p.get("id") == ffmpeg_producer_id
-                        for p in stream.get("producers", [])
-                    )
-                    if not still_playing:
-                        break
-                except Exception:
-                    break
-
-        return True, f"played via go2rtc → {go2rtc_stream}"
-    except Exception as exc:
-        return False, f"go2rtc failed: {exc}"
 
 
 def play_with_tapo(
@@ -312,7 +252,7 @@ def play_with_tapo(
     cloud_password: str,
     ffmpeg_bin: str,
 ) -> tuple[bool, str]:
-    """Play audio through a Tapo camera speaker without go2rtc."""
+    """Play audio through a Tapo camera speaker."""
     client = TapoBackchannelClient(
         host=camera_host,
         cloud_password=cloud_password,
@@ -331,8 +271,8 @@ def play_to_camera(file_path: str, playback_config: "PlaybackConfig") -> tuple[b
     """Play audio through the configured camera backend."""
     backend = playback_config.resolve_camera_backend()
     if backend == "tapo":
-        host = playback_config.go2rtc_camera_host
-        cloud_password = playback_config.go2rtc_camera_cloud_password
+        host = playback_config.tapo_camera_host
+        cloud_password = playback_config.tapo_cloud_password
         if not host or not cloud_password:
             return (
                 False,
@@ -343,18 +283,7 @@ def play_to_camera(file_path: str, playback_config: "PlaybackConfig") -> tuple[b
             file_path=file_path,
             camera_host=host,
             cloud_password=cloud_password,
-            ffmpeg_bin=playback_config.go2rtc_ffmpeg,
-        )
-
-    if backend == "go2rtc":
-        go2rtc_url = playback_config.go2rtc_url
-        if not go2rtc_url:
-            return False, "go2rtc not configured"
-        return play_with_go2rtc(
-            file_path=file_path,
-            go2rtc_url=go2rtc_url,
-            go2rtc_stream=playback_config.go2rtc_stream,
-            go2rtc_ffmpeg=playback_config.go2rtc_ffmpeg,
+            ffmpeg_bin=playback_config.camera_ffmpeg,
         )
 
     if playback_config.camera_backend == "tapo":
@@ -363,6 +292,8 @@ def play_to_camera(file_path: str, playback_config: "PlaybackConfig") -> tuple[b
             "tapo direct not configured "
             "(need TAPO_CAMERA_HOST and TAPO_CLOUD_PASSWORD)",
         )
-    if playback_config.camera_backend == "go2rtc":
-        return False, "go2rtc not configured"
-    return False, "camera playback not configured"
+    return (
+        False,
+        "camera playback not configured "
+        "(need TAPO_CAMERA_HOST and TAPO_CLOUD_PASSWORD)",
+    )

@@ -22,6 +22,13 @@
       "description": "将来の実センサー入力用ノード。今は熱負荷 proxy と接続する"
     },
     {
+      "id": "ambient_humidity",
+      "label": "湿度",
+      "kind": "environment",
+      "dataLevel": "Lv0",
+      "description": "外気湿度。高湿度はenergyとmoodを圧迫する"
+    },
+    {
       "id": "sleep_time",
       "label": "睡眠時間",
       "kind": "vital",
@@ -83,27 +90,6 @@
       "kind": "emotion",
       "dataLevel": "Lv3-2",
       "description": "充足感。行動の勢いを変える"
-    },
-{
-      "id": "action_threshold",
-      "label": "action_threshold",
-      "kind": "action",
-      "dataLevel": null,
-      "description": "行動に移るしきい値"
-    },
-    {
-      "id": "social_openness",
-      "label": "social_openness",
-      "kind": "outcome",
-      "dataLevel": null,
-      "description": "人に開く傾向"
-    },
-    {
-      "id": "successful_interaction",
-      "label": "successful_interaction",
-      "kind": "outcome",
-      "dataLevel": null,
-      "description": "うまくいった対話や協働"
     }
   ],
   "edges": [
@@ -141,11 +127,43 @@
     },
     {
       "source": "ambient_temperature",
+      "target": "energy",
+      "relation": "drains",
+      "causalLevel": "Lv1",
+      "weight": 0.58,
+      "description": "高温は活動しにくくする"
+    },
+    {
+      "source": "ambient_temperature",
       "target": "health",
-      "relation": "modulates",
+      "relation": "pressures",
       "causalLevel": "Lv1",
       "weight": 0.63,
       "description": "暑すぎる・寒すぎる環境は健康感を下げやすい"
+    },
+    {
+      "source": "ambient_humidity",
+      "target": "energy",
+      "relation": "drains",
+      "causalLevel": "Lv1",
+      "weight": 0.52,
+      "description": "高湿度は活動しにくくする"
+    },
+    {
+      "source": "ambient_humidity",
+      "target": "mood",
+      "relation": "drains",
+      "causalLevel": "Lv1",
+      "weight": 0.40,
+      "description": "高湿度は気分を少し下げる"
+    },
+    {
+      "source": "ambient_humidity",
+      "target": "health",
+      "relation": "pressures",
+      "causalLevel": "Lv1",
+      "weight": 0.38,
+      "description": "高湿度は健康感にも少し重さを生む"
     },
     {
       "source": "environment_thermal_load",
@@ -186,70 +204,6 @@
       "causalLevel": "Lv1",
       "weight": 0.71,
       "description": "体温の逸脱は健康感の変化につながる"
-    },
-    {
-      "source": "satiation",
-      "target": "action_threshold",
-      "relation": "modulates",
-      "causalLevel": "Lv3",
-      "weight": 0.58,
-      "description": "空腹や空白感があると行動のしきい値が下がる"
-    },
-    {
-      "source": "mood",
-      "target": "action_threshold",
-      "relation": "modulates",
-      "causalLevel": "Lv1",
-      "weight": 0.71,
-      "description": "mood が低いと行動のしきい値が上がる"
-    },
-    {
-      "source": "energy",
-      "target": "action_threshold",
-      "relation": "modulates",
-      "causalLevel": "Lv1",
-      "weight": 0.87,
-      "description": "energy が低いと行動のしきい値が上がる"
-    },
-    {
-      "source": "health",
-      "target": "action_threshold",
-      "relation": "modulates",
-      "causalLevel": "Lv1",
-      "weight": 0.67,
-      "description": "健康感が低いと大きな行動を避けやすい"
-    },
-    {
-      "source": "trust_mizuho",
-      "target": "social_openness",
-      "relation": "supports",
-      "causalLevel": "Lv2",
-      "weight": 0.76,
-      "description": "信頼できる相手には開きやすくなる"
-    },
-    {
-      "source": "successful_interaction",
-      "target": "mood",
-      "relation": "raises",
-      "causalLevel": "Lv2",
-      "weight": 0.72,
-      "description": "うまくいった会話は mood を上げやすい"
-    },
-    {
-      "source": "successful_interaction",
-      "target": "trust_mizuho",
-      "relation": "builds",
-      "causalLevel": "Lv2",
-      "weight": 0.83,
-      "description": "配慮や約束の積み重ねは trust_mizuho を高めやすい"
-    },
-    {
-      "source": "successful_interaction",
-      "target": "social_openness",
-      "relation": "raises",
-      "causalLevel": "Lv2",
-      "weight": 0.78,
-      "description": "成功体験は次の交流に開きやすくする"
     }
   ]
 }

@@ -133,9 +133,7 @@ VOICEVOX_URL=http://localhost:50021
 VOICEVOX_SPEAKER=3
 
 TAPO_CAMERA_HOST=192.168.11.xxx
-TAPO_USERNAME=your-camera-local-username
-TAPO_PASSWORD=your-camera-local-password
-# TAPO_CLOUD_PASSWORD=your-tplink-cloud-password
+TAPO_CLOUD_PASSWORD=your-tplink-cloud-password
 ```
 
 この構成では `mcpBehavior.toml` の `[tts]` を以下にしておく:
@@ -144,11 +142,10 @@ TAPO_PASSWORD=your-camera-local-password
 [tts]
 default_engine = "voicevox"
 speaker = "camera"
-go2rtc_url = "http://localhost:1984"
-go2rtc_auto_start = true
+camera_ffmpeg = "ffmpeg"
 ```
 
-`VOICEVOX_URL` で指定した URL に VOICEVOX エンジンが起動している必要がある。
+`VOICEVOX_URL` で指定した URL に VOICEVOX エンジンが起動している必要がある。`Tapo direct` を使うので、追加の中継プロセスのセットアップは不要。
 
 **`.mcp.json` を書き換えたら Claude Code を再起動する。**
 

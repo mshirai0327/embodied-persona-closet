@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from .go2rtc import Go2RTCProcess
+from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -40,7 +36,6 @@ class TTSMCP:
         self._config = TTSConfig.from_env()
         self._engines: dict[str, TTSEngine] = {}
         self._server = Server(self._server_config.name)
-        self._go2rtc: Go2RTCProcess | None = None
         self._init_engines()
         self._setup_handlers()
 
@@ -146,7 +141,7 @@ class TTSMCP:
                                 "type": "string",
                                 "description": (
                                     "Where to play: 'camera' (camera speaker only), "
-                                    "'local' (PC only), 'both' (default if go2rtc configured)"
+                                    "'local' (PC only), 'both' (default if camera is configured)"
                                 ),
                                 "enum": ["camera", "local", "both"],
                             },
@@ -274,58 +269,13 @@ class TTSMCP:
             except Exception as exc:  # noqa: BLE001
                 return [TextContent(type="text", text=f"Error: {exc}")]
 
-    async def _ensure_go2rtc(self) -> None:
-        """Auto-download and start go2rtc if configured."""
-        pb = self._config.playback
-        if pb.resolve_camera_backend() != "go2rtc":
-            return
-        if not pb.go2rtc_url or not pb.go2rtc_auto_start:
-            return
-
-        from .go2rtc import Go2RTCProcess, default_config_path, ensure_binary, generate_config
-
-        try:
-            bin_path = Path(pb.go2rtc_bin) if pb.go2rtc_bin else None
-            bin_path = ensure_binary(bin_path)
-        except Exception as exc:
-            logger.warning("go2rtc binary not available: %s", exc)
-            return
-
-        if pb.go2rtc_config:
-            config_path = Path(pb.go2rtc_config)
-        elif pb.go2rtc_camera_host and pb.go2rtc_camera_password:
-            config_path = generate_config(
-                config_path=default_config_path(),
-                stream_name=pb.go2rtc_stream,
-                camera_host=pb.go2rtc_camera_host,
-                username=pb.go2rtc_camera_username or "",
-                password=pb.go2rtc_camera_password,
-                cloud_password=pb.go2rtc_camera_cloud_password,
-                ffmpeg_bin=pb.go2rtc_ffmpeg,
-            )
-        else:
-            logger.warning("go2rtc: no config and no camera credentials, skipping auto-start")
-            return
-
-        try:
-            self._go2rtc = Go2RTCProcess(bin_path, config_path, pb.go2rtc_url)
-            await self._go2rtc.start()
-        except Exception as exc:
-            logger.warning("go2rtc failed to start: %s", exc)
-            self._go2rtc = None
-
     async def run(self) -> None:
-        try:
-            await self._ensure_go2rtc()
-            async with stdio_server() as (read_stream, write_stream):
-                await self._server.run(
-                    read_stream,
-                    write_stream,
-                    self._server.create_initialization_options(),
-                )
-        finally:
-            if self._go2rtc:
-                self._go2rtc.stop()
+        async with stdio_server() as (read_stream, write_stream):
+            await self._server.run(
+                read_stream,
+                write_stream,
+                self._server.create_initialization_options(),
+            )
 
 
 def main() -> None:

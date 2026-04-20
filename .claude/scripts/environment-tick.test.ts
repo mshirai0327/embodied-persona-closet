@@ -4,7 +4,10 @@ import {
   computeTemperatureBaseline,
   describeBrightnessObservation,
   evaluateEnergyFromTemperature,
+  evaluateHealthFromThermalLoad,
+  evaluateMoodFromBrightness,
   evaluateThermalLoadProxy,
+  loadJmaWeatherObservationBundle,
 } from "./environment-tick.ts";
 
 describe("computeTemperatureBaseline", () => {
@@ -74,5 +77,86 @@ describe("describeBrightnessObservation", () => {
     expect(observation.normalizedValue).toBe(75);
     expect(observation.band).toBe("bright");
     expect(observation.reason).toContain("環境光");
+  });
+});
+
+describe("evaluateMoodFromBrightness", () => {
+  test("keeps the legacy bright-room uplift", () => {
+    const result = evaluateMoodFromBrightness(180);
+
+    expect(result.moodDelta).toBe(2);
+  });
+
+  test("keeps the legacy dark-room penalty", () => {
+    const result = evaluateMoodFromBrightness(30);
+
+    expect(result.moodDelta).toBe(-3);
+  });
+});
+
+describe("evaluateHealthFromThermalLoad", () => {
+  test("penalizes health when thermal load is high", () => {
+    const result = evaluateHealthFromThermalLoad(85, "環境熱負荷 proxy 85/100");
+
+    expect(result.healthDelta).toBeLessThan(0);
+    expect(result.reason).toContain("健康感");
+  });
+
+  test("supports health when thermal load is light", () => {
+    const result = evaluateHealthFromThermalLoad(20, "環境熱負荷 proxy 20/100");
+
+    expect(result.healthDelta).toBeGreaterThan(0);
+    expect(result.reason).toContain("健康感");
+  });
+});
+
+describe("loadJmaWeatherObservationBundle", () => {
+  test("builds causal inputs from JMA temperature and humidity", async () => {
+    const result = await loadJmaWeatherObservationBundle(async () => ({
+      observedAt: "2026-04-18T21:00:00+09:00",
+      stationCode: "44132",
+      stationName: "東京",
+      temperature: {
+        rawValue: 28.4,
+        normalizedValue: 76,
+        reason: "気象庁アメダス 東京 28.4°C——少し暑い。",
+        source: "JMA/AMeDAS",
+        stationName: "東京",
+        observedAt: "2026-04-18T21:00:00+09:00",
+      },
+      humidity: {
+        rawValue: 78,
+        normalizedValue: 78,
+        reason: "気象庁アメダス 東京 湿度78%——少し蒸す。",
+        source: "JMA/AMeDAS",
+        stationName: "東京",
+        observedAt: "2026-04-18T21:00:00+09:00",
+      },
+    }));
+
+    expect(result.errorMessage).toBeNull();
+    expect(result.weather?.stationName).toBe("東京");
+    expect(result.causalInputs).toEqual([
+      {
+        sourceId: "ambient_temperature",
+        normalizedValue: 76,
+        reason: "気象庁アメダス 東京 28.4°C——少し暑い。",
+      },
+      {
+        sourceId: "ambient_humidity",
+        normalizedValue: 78,
+        reason: "気象庁アメダス 東京 湿度78%——少し蒸す。",
+      },
+    ]);
+  });
+
+  test("returns no JMA causal inputs when weather fetch fails so fallback can continue", async () => {
+    const result = await loadJmaWeatherObservationBundle(async () => {
+      throw new Error("network down");
+    });
+
+    expect(result.weather).toBeNull();
+    expect(result.causalInputs).toEqual([]);
+    expect(result.errorMessage).toContain("network down");
   });
 });

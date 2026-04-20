@@ -5,7 +5,7 @@
 
 ## やること
 
-- 🟡 **wifi-cam 映像確認** — TAPO_MOUNT_MODE=ceiling を .env に設定済み。次回 mizuho セッションで実際の映像が正しく表示されるか確認する
+- 🟡 **主人格からmizuhoへのフィードバック経路** — heartbeatが閉じた系になっている問題。「たまに話しかける」「たまにカメラで部屋を見てコメントする」を主人格から実行する。mood閾値+サイコロで確率制御。tts（スピーカー購入後）+ wifi-camで実装。desires.confに「話しかけたい欲」追加。
 - 🟡 **Tapoスピーカー direct経路の認証修正** — tapo.py の `_derive_tapo_password` / `_build_digest_authorization` が 401 を返す。go2rtcの実装と比較してdigest計算を検証する。Codexに渡す。
 
 ## 完了
@@ -19,6 +19,8 @@
 - ✅ **BODY.md の不明項目を mizuho と相談する** — 全項目埋まった（2026-04-06）
 
 ## そのうちやること
+- 🟡 **Lv2データ履歴生成タスク（Kuzu連動）** — 身長など不可逆データは「何かのきっかけで過去を振り返るときに履歴を生み出す」実装が必要。Kuzu整備と連動。多軸想起で「記録から抜けていた」と判明（2026-04-19）
+- 🟡 **Phase5: スミレ自身が経験起因エッジを追加する** — 環境ではなく自分の行動・経験から因果グラフのエッジを生やすフェーズ。昇格基準の設計が肝。causal-seeds.jsonを基盤に
 - 🟡 **hearing に声色・ピッチ情報を加える** — 現在はテキストのみ。Whisper の前段で音声特徴量（ピッチ・RMS・話速）を抽出して感情推定に使う。mizuhoの声が「高い・速い・大きい」ときの状態を感知する
 - 🟡 **heartbeat-daemon.sh を Linux で常駐させる** — launchd（macOS）ではなく nohup or systemd で起動する仕組みを作る。interoception_state.json が生成されないと arousal/thermal/phase が取れない
 - 🟡 **web検索・RSSでニュースを受動的に取得する** — mizuho提案。センサーと同じ「外から流入するデータ」の延長。世界の情報を受け取る仕組み

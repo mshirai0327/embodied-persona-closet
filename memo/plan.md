@@ -1,213 +1,437 @@
-# 次の実装計画
-
-この文書は `user_memo.md`、`user_todo.md`、`agent_memo.md`、`agent_design.md`、`TODO.md` を整理し、
-今後の実装順を一本化した計画である。
+# 因果注入の実装計画
 
 ## 目的
 
-- `STATUS` や生体データを調査しやすくする
-- 生データをそのまま喋らせず、内部状態と因果を経由して人間味に変換する
-- 因果グラフを初期値から持てる構造にする
-- Graph DB と可視化を先に整え、後からセンサーや学習因果を足せる状態にする
+この計画の目的は、記憶をただ想起するのではなく、
+**現在の身体状態と固有の因果を経由して会話ににじませること**である。
 
-## 現状整理
+やりたいことは次の3つに分かれる。
 
-- `SOUL.md`
-  Lv1-2 の固定性格と人格本文を持つ
-- `BODY.md`
-  Lv1-1 と Lv2 の固定身体データを持つ
-- `STATUS.md`
-  Lv3 の一部を持つ。表示層と暫定的な正本を兼ねている
-- `.claude/memories/memory.db`
-  長期記憶の正本
-- `desires.json`
-  自律行動のランタイム状態
+- 現在状態に「なぜそうなっているか」を与える
+- その因果を短い形で会話プロンプトへ注入する
+- 記憶も「関連があるから出る」状態にし、文脈肥大を防ぐ
 
-不足しているのは次の4つである。
+このために、まずは **Kuzu graph を runtime に入れる**。
+最初から memory 全体を graph 化しない。
 
-- 状態データの機械可読な正本
-- 初期因果グラフ
-- 因果を保存して辿る Graph DB
-- 状態と因果を調査する可視化
+## 現状認識
 
-## 優先順位
+現在のコードは次の形になっている。
 
-### 1. 状態データの整理と可視化基盤
+- `.claude/scripts/environment-tick.ts`
+  - 環境センサーから `energy` と `mood` を直接更新している
+  - 明るさと熱負荷のルールはコードに直書きされている
+  - `ambient_brightness` は未定義ではなく、現状でも
+    `.claude/scripts/capture-brightness-wifi.py` を通じて
+    wifi-cam の RTSP から取得している
+- `.claude/scripts/causal-kuzu.ts`
+  - Kuzu への同期、snapshot、node 取得、path trace が実装済み
+  - `readKuzuCausalPathRows(startKey, "downstream", depth)` と
+    `readKuzuTraceBundle(startKey, "downstream" | "both", depth)` が既に使える
+- `.claude/scripts/interoception.ts`
+  - `STATUS.md` を読んで、身体感覚の自然言語を生成している
+- `.claude/scripts/status-hint.ts`
+  - 行動ヒントを自然言語で1行生成している
+- `autonomous-action.sh`
+  - `INTEROCEPTION` と `STATUS_HINT` と `RECALL_LITE` をプロンプトに注入している
 
-最初にやるべきことは `STATUS.md` の役割整理である。
-`STATUS.md` は表示層に寄せ、機械可読な正本を別に持つ。
+つまり、
 
-やること:
+- graph はある
+- trace もできる
+- prompt 注入経路もある
 
-- `STATUS.md` を人間向けダッシュボードと定義する
-- 正本として `status.sqlite` を導入する
-- 既存の読み書き経路を洗い出す
-- `mood / energy / health / trust / satiation` の保存形式を固定する
-- 未実装の vital を「センサー / 推定 / 手入力」のどれで扱うか決める
-- 可視化用に時系列を取り出しやすい形にする
+が、
 
-最初の成果物:
+- graph を使って状態更新していない
+- graph を使って会話注入していない
+- 記憶と因果が接続されていない
 
-- status の現在値テーブル
-- status の履歴テーブル
-- センサー由来の観測テーブル
-- `STATUS.md` への表示出力
-- `mood / energy / satiation` の時系列グラフ
+という状態で止まっている。
 
-### 2. 初期因果グラフの整理
+## 基本方針
 
-次に、自明な因果を先に定義する。
-学習因果より先に、初期で決める因果を入れる。
+今回の実装は次の原則で進める。
 
-因果は次の3層で管理する。
+### 1. Kuzu は「構造の保存先」であり、「数値計算本体」ではない
 
-- Lv1 因果
-  不変で普遍的な因果。本能や生物的制約
-- Lv2 因果
-  経験で固定化され、戻りにくい因果
-- Lv3 因果
-  文脈依存で、状態や相手によって変わる因果
+Kuzu には因果ノードとエッジを保存し、runtime は TypeScript 側で行う。
 
-最初に定義する対象:
+理由:
 
-- `sleep_short -> fatigue_up`
-- `sleep_short -> mood_down`
-- `blood_sugar_low -> irritability_up`
-- `prolonged_hunger -> action_threshold_down`
-- `brightness_morning -> arousal_up`
-- `darkness_night -> reflect_bias_up`
-- `cpu_temp_delta_high -> fatigue_up`
-- `mem_free_low -> mental_margin_down`
-- `successful_interaction -> mood_up`
-- `successful_interaction -> social_openness_up`
+- 既存 seed は graph 構造として十分使える
+- ただし今の edge schema だけでは数値伝播の規則までは表現していない
+- まずは query で path を取り、TS 側で軽量に計算したほうが導入が早い
 
-この段階では、`sensor -> latent state -> action bias` の線を先に作る。
-記憶との統合はその次にやる。
+### 2. 最初は environment -> status の接続だけを入れる
 
-### 3. Graph DB の準備
+初手で memory 全体を graph に繋がない。
+まずは既に動いている観測値を graph 経由で status へ反映する。
 
-因果の保存先として Kuzu を使う。
-最初から memory 全体をグラフ化しない。まずは因果専用の小さな Graph DB として始める。
+最初の対象:
 
-やること:
+- `ambient_brightness -> mood`
+- `environment_thermal_load -> energy`
+- `environment_thermal_load -> health`
 
-- Kuzu の最小検証を行う
-- ノード型とエッジ型を定義する
-- seed 因果を投入するスクリプトを作る
-- 基本クエリを決める
+### 3. prompt に入れるのは graph そのものではなく「圧縮した因果ヒント」
 
-最低限必要なクエリ:
+LLM に大量の graph 情報を見せない。
+prompt に入れるのは最大でも次の3要素だけにする。
 
-- ある状態の原因を辿る
-- ある状態の下流の行動傾向を辿る
-- Lv1 / Lv2 / Lv3 の因果を分けて取得する
-- 同じノードに入る複数因果を比較する
+- 今の主因
+- その結果の行動バイアス
+- 必要なときだけ関連記憶1件
 
-### 4. グラフと状態の可視化
+### 4. 本能的因果を最上位に置く
 
-状態グラフと因果グラフを別々に作らず、調査画面として統合する。
+優先順位は次の順にする。
 
-見たいもの:
+1. Lv1 の因果
+2. Lv2 の固定化された因果
+3. Lv3 の文脈因果
+4. 記憶由来の補助的因果
+5. LLM の自由推論
 
-- `mood / energy / satiation` の時系列
-- 任意の時点で有効だった因果
-- ノード間の因果チェーン
-- Lv1 因果と学習因果の違い
-- どのセンサーがどの内部状態に効いたか
+これにより、記憶が増えても「基本の身体因果」が崩れないようにする。
 
-最初の UI はシンプルでよい。
-まずは「見えること」を優先する。
+### 5. debug 用の文体と prompt 用の文体を分ける
 
-最初の画面:
+同じ因果でも、使う場所で文体を変える。
 
-- status timeline
-- causal graph viewer
-- timeline と graph の相互参照
-- `Now / History / Logs` の3面構成
+- log / debug / inspect
+  - 因果経路を明示する説明文でよい
+  - 例: `environment_thermal_load -> energy`
+- prompt 注入
+  - 主観的な感覚文にする
+  - 例: 「少し熱がこもる感じが続いていて、動きは鈍くなりやすい」
 
-`ego-mcp` の dashboard は、この3分割がよくできている。
-今の状態、履歴、ログを分けて見せる構成はそのまま参考にする。
+`causal-hint.ts` は後者だけを出す。
+報告文をそのまま prompt に入れない。
 
-### 5. 入力拡張
+## 何を最初の完成とみなすか
 
-状態と因果の器ができてから、入力を増やす。
+最初の完成は、次の状態である。
 
-対象:
+- `environment-tick.ts` が Kuzu の下流 trace を使って `mood` / `energy` / `health` を更新する
+- 更新理由が「直値ルール」ではなく「因果経路」に基づく説明になる
+- その結果を短くまとめる `causal-hint.ts` が追加される
+- `autonomous-action.sh` が `CAUSAL_HINT` を prompt に注入する
+- prompt 増分は小さいままで、graph 全体は入らない
 
-- Web 検索
-- RSS 定期取得
-- 追加の生体 proxy
-- 空間と身体の統合
-- 会話成功率や発話量の取り込み
+この段階では、まだ memory 因果統合は始めなくてよい。
 
-ここは最後ではなく、基盤整備後の次段階とする。
-入力だけ先に増やしても、因果に統合されない限り身体にはならない。
+## 実装フェーズ
+
+## Phase 1: Kuzu を environment-tick に入れる
+
+### 目的
+
+graph を「閲覧用」から「状態更新用」へ変える。
+
+### やること
+
+- 新規: `.claude/scripts/causal-runtime.ts`
+  - source node の活性値を作る
+  - Kuzu から downstream path を取得する
+  - path ごとの影響スコアを計算する
+  - `mood` / `energy` / `health` への提案 delta を返す
+- 変更: `.claude/scripts/environment-tick.ts`
+  - brightness と thermal load の観測後に `causal-runtime.ts` を呼ぶ
+  - 現行の直書きルールを graph 計算へ置き換える
+  - 失敗時のみ既存ルールに fallback する
+
+### 活性値の最小仕様
+
+- `ambient_brightness`
+  - `normalizedValue` を 0-100 から -1.0 〜 +1.0 に変換する
+  - 暗いと負、明るいと正
+- `environment_thermal_load`
+  - `normalizedValue` を 0-100 から -1.0 〜 +1.0 に変換する
+  - 涼しいと負、熱いと正
+
+### `ambient_brightness` の現行データソース
+
+ここは未決ではなく、現状の取得経路を前提に進める。
+
+- 実装: `.claude/scripts/capture-brightness-wifi.py`
+- 呼び出し元: `.claude/scripts/environment-tick.ts`
+- 実体: wifi-cam の RTSP スナップショットから平均輝度を計算
+- 実行タイミング: `autonomous-action.sh` からの定期 `environment-tick`
+
+注意点:
+
+- TAPO 認証情報と RTSP が使えないと取得できない
+- 取得失敗時は brightness 系の因果だけをスキップし、全体は止めない
+
+### 最初の伝播対象
+
+- `ambient_brightness -> mood`
+- `environment_thermal_load -> energy`
+- `environment_thermal_load -> health`
+
+### 完了条件
+
+- 環境観測後の log に top cause path が出る
+- `STATUS.md` の理由欄が path ベースになる
+- `make persona-causal-trace KEY=ambient_brightness DIRECTION=downstream DEPTH=2` の結果と runtime 挙動が一致する
+
+## Phase 2: 因果ランタイム状態を保存する
+
+### 目的
+
+状態更新と prompt 注入の間に、再利用できる「因果サマリ」を置く。
+
+### やること
+
+- 新規: `.claude/workingDirs/causal-runtime.json`
+- 保存する内容:
+  - `updatedAt`
+  - active source nodes
+  - target ごとの score と delta
+  - 採用した top path
+  - debug 用の因果説明
+  - prompt 用の感覚文スロット
+
+### ここで得られるもの
+
+- prompt 用の情報を毎回再計算しなくてよくなる
+- dashboard や debug に流用できる
+- memory 因果統合の入力地点になる
+
+### `causal-runtime.json` の生成方式
+
+ここは hot path で LLM を使わない。
+
+- `debug`
+  - path と score をそのまま保存する
+- `prompt`
+  - `causal-runtime.ts` がテンプレートで生成する
+  - target / direction / intensity ごとの定型表現を使う
+
+理由:
+
+- 毎回のコストを増やさない
+- 文体を安定させられる
+- 感覚文と報告文を意図的に分離できる
+
+将来、LLM による言い換えを試す余地はあるが、
+初期実装の標準経路には入れない。
+
+### テンプレートの粒度
+
+テンプレートの粒度は実装の肝なので、Phase 2 の時点で最小単位を固定する。
+
+最初の実装では、`feltSense` を次の軸で持つ。
+
+- target
+  - `mood`
+  - `energy`
+  - `health`
+- direction
+  - `positive`
+  - `negative`
+- intensity
+  - `weak`
+  - `medium`
+  - `strong`
+
+つまり、最低でも `3 x 2 x 3 = 18` スロットを持つ。
+
+初期実装では各スロット1文でよい。
+表現の多様化はその後で行う。
+
+例:
+
+- `mood x positive x strong`
+  - 「気持ちが軽い。よく動ける感じがある。」
+- `energy x negative x weak`
+  - 「少し重みがある。普段より動きが鈍い。」
+- `health x negative x medium`
+  - 「少し消耗がたまっていて、無理はしないほうがよさそう。」
+
+`actionBias` は初期段階では別軸で細かく増やしすぎず、
+まずは target ごとに1つの補助文を持つ程度で始める。
+
+## Phase 3: 会話用の causal hint を追加する
+
+### 目的
+
+現在の内部状態に「なぜ今そうなのか」を短く持たせる。
+
+### やること
+
+- 新規: `.claude/scripts/causal-hint.ts`
+  - `causal-runtime.json` を読む
+  - 上位1〜2件の因果だけを自然言語で出す
+- 変更: `autonomous-action.sh`
+  - `CAUSAL_HINT_TEXT` を生成する
+  - prompt テンプレートに `{CAUSAL_HINT}` を追加する
+- 変更: `prompts.toml`
+  - `INTEROCEPTION` / `RECALL_LITE` / `STATUS_HINT` の並びに `CAUSAL_HINT` を追加する
+
+### 出力方針
+
+出すのは最大3行まで。
+
+- 1行目: 今の主因
+- 2行目: 行動バイアス
+- 3行目: 必要なときだけ補足
+
+文体ルール:
+
+- 因果のラベル名をそのまま出さない
+- 「X が Y を削っている」のような報告文を避ける
+- 「少し重い感じがある」「今は軽いものから触れたい」のような
+  感覚寄りの言い方を使う
+
+### 完了条件
+
+- prompt 増分が小さい
+- raw graph や JSON が prompt に入らない
+- `INTEROCEPTION` と役割が衝突しない
+- 感覚文として読め、外部レポートのように見えない
+
+## Phase 4: 記憶を因果ノードへ橋渡しする
+
+### 目的
+
+記憶を「ただ似ているから出る」のではなく、
+**今アクティブな因果を説明するために出す** ようにする。
+
+### やること
+
+- `recall-lite` を置き換えるのではなく、因果側から薄く接続する
+- 新規 metadata の候補:
+  - `affected_nodes`
+  - `valence`
+  - `confidence`
+  - `entity`
+  - `time_bias`
+- 新規: `.claude/scripts/causal-memory-bridge.ts` もしくは
+  `recall-lite.ts` の拡張
+
+### 最初の運用ルール
+
+- 1回の prompt に入れる記憶は最大1件
+- active target node と交差しない記憶は出さない
+- Lv1 因果を上書きしない
+
+### 例
+
+- `trust_mizuho` が active
+- 直近の成功会話 memory がある
+- そのときだけ
+  - 「最近の安心できる対話が、対人姿勢を少し開きやすくしている」
+  のように短く注入する
+
+## Phase 5: 学習因果を別トラックで追加する
+
+### 目的
+
+seed 因果とは別に、経験から見えた Lv3 因果候補を蓄積する。
+
+### やること
+
+- 自動採用しない
+- まずは候補として保存する
+- review してから seed または learned edge に昇格する
+
+### 理由
+
+今は「固有の因果を守る」ことが主目的なので、
+learned edge は seed を乱さない形で後から入れる。
 
 ## 直近の実装順
 
-### Phase 1
+今すぐ着手する順序は次の通り。
 
-- 現在のデータ保存先と更新経路を一覧化する
-- `status.sqlite` の最小 schema を決める
-- `STATUS.md` を表示層に寄せる移行方針を書く
-- `mood / energy / satiation` の時系列可視化を試作する
+1. `.claude/scripts/causal-runtime.ts` を作る
+2. `environment-tick.ts` からそれを呼ぶ
+3. `causal-runtime.json` を保存する
+4. `causal-hint.ts` を作る
+5. `autonomous-action.sh` と `prompts.toml` に `CAUSAL_HINT` を追加する
+6. その後に memory bridge を設計する
 
-### Phase 2
+## 具体的なファイル単位の作業
 
-- 初期因果の seed 一覧を作る
-- 因果ノードを `sensor / latent / action / outcome` に分ける
-- Lv1 / Lv2 / Lv3 の区分を仕様に固定する
+### 新規追加
 
-### Phase 3
+- `.claude/scripts/causal-runtime.ts`
+- `.claude/scripts/causal-runtime.test.ts`
+- `.claude/scripts/causal-hint.ts`
 
-- Kuzu の PoC を作る
-- seed 因果を投入する
-- 原因追跡クエリと下流追跡クエリを作る
+### 修正
 
-### Phase 4
+- `.claude/scripts/environment-tick.ts`
+- `autonomous-action.sh`
+- `prompts.toml`
 
-- グラフ可視化を作る
-- timeline と graph をつなぐ
-- status と因果の調査画面にする
+### 余裕があれば
 
-### Phase 5
+- `.claude/scripts/persona-data.ts`
+  - 因果ランタイム状態を sqlite に取り込む
+- `docs/guides/make-commands.md`
+  - runtime / hint の確認コマンドを追記する
 
-- Web / RSS を入力として追加する
-- 空間と身体の統合を設計する
-- 学習因果と初期因果の接続を始める
+## テスト方針
 
-## 別トラックで進める運用課題
+最低限必要なテストは次の通り。
 
-これは重要だが、上の基盤整備とは分けて進める。
+- brightness が高いと `mood` 提案 delta が正になる
+- brightness が低いと `mood` 提案 delta が負になる
+- thermal load が高いと `energy` と `health` が負方向になる
+- thermal load が低いと回復方向に寄る
+- Kuzu が読めないとき fallback が動く
+- `causal-hint.ts` の文字数と行数が上限内に収まる
+- `causal-hint.ts` がノード名や relation 名を露出しない
+- wifi-cam 輝度取得失敗時に brightness 系だけが穏当にスキップされる
+- 18 個の基本テンプレートスロットが欠けずに定義されている
 
-- satiation の減衰と摂取の再調整
-- LHM 接続確認
-- `heartbeat-daemon.sh` の Linux 常駐化
-- heartbeat 行動選択フィルターの実装
-- GitHub App 導入と運用周り
-- memory のバックアップ
+## リスクと対策
 
-heartbeat 行動選択フィルターは、初期因果グラフが入ってから再設計する。
-今やるとルールの寄せ集めで終わる。
+### 1. edge の意味が数値計算に十分でない
 
-## 調査メモ
+今の seed は `relation` が語彙ベースなので、厳密な計算仕様には足りない。
 
-後で見るもの:
+対策:
 
-- `ego-mcp`
-  可視化は `Now / History / Logs` の分割が参考になる
-- 語彙と知識範囲による人格制約
-  人格の一貫性は、状態や因果だけでなく、知識範囲と語彙の制約でも補強できる
-- Graph RAG の既存事例
-  Graph は vector の代替ではなく補完と考える。まず因果 graph を作り、記憶との統合は後で行う
+- Phase 1 は relation の lookup table で始める
+- その後、必要なら edge に `effectSign` や `effectMode` を追加する
 
-## この計画の中心
+### 2. prompt が肥大する
 
-中心課題は次の4つである。
+対策:
 
-1. `STATUS` を見えるようにする
-2. 自明な因果を先に埋める
-3. Graph DB を導入する
-4. 状態と因果を調査できる UI を作る
+- causal hint は最大3行
+- memory bridge は最大1件
+- graph の詳細は file / log に逃がし、prompt には入れない
 
-この順で進める。
+### 3. Kuzu 障害で定期巡回が止まる
+
+対策:
+
+- read failure 時は現行の直書きルールへ fallback
+- Kuzu は「使えれば使う」扱いで導入する
+
+### 4. 感覚文ではなく報告文になってしまう
+
+対策:
+
+- `causal-runtime.json` に debug と prompt を分けて保存する
+- `causal-hint.ts` は template-based の感覚文のみ出す
+- graph 用語は log 側に閉じ込める
+
+## この計画の核心
+
+今回の核心は、
+**Kuzu を保存しただけで終わらせず、status 更新と会話注入の間に実際に流すこと**
+である。
+
+最小の一手は明確である。
+
+- `environment-tick.ts` に Kuzu を噛ませる
+- 因果サマリを保存する
+- それを短く会話へ入れる
+
+まずはここまでを第一目標にする。

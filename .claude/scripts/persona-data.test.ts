@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildDashboardSnapshotFromMarkdownDocuments,
   parseBodyDocument,
   parseSoulDocument,
   parseStatusDocument,
@@ -70,6 +71,30 @@ const STATUS_SAMPLE = `# STATUS.md
 | 2026-04-13 11:00 | 体重 | 47 kg | 48 kg | 再計測 |
 `;
 
+const ENVIRONMENT_SAMPLE = `# ENVIRONMENT.md
+
+## 現在の環境
+
+| 項目 | 生値 | 正規化値 | 最終更新 | 取得方法 | 根拠 |
+|---|---|---|---|---|---|
+| 環境熱負荷 proxy | 46.0 °C | 47 | 2026-04-18 11:00 | LHM/Core Max | 環境熱負荷 proxy 47/100（CPU 46.0°C） |
+| 気温 | 16.3 °C | 27 | 2026-04-18 21:10 | 気象庁アメダス（東京） | 気象庁アメダス 東京 16.3°C |
+| 湿度 | 72 % | 72 | 2026-04-18 21:10 | 気象庁アメダス（東京） | 気象庁アメダス 東京 湿度72% |
+
+## 補助状態
+
+| 項目 | 値 | 最終更新 | 備考 |
+|---|---|---|---|
+| 熱負荷 baseline | 46.7 °C | 2026-04-18 11:00 | Core Max の EMA 基準値 |
+
+## 変化履歴
+
+| 日時 | 項目 | 変化前 | 変化後 | 正規化値 | 理由 |
+|---|---|---|---|---|---|
+| 2026-04-18 21:10 | 気温 | — | 16.3 °C | 27 | 気象庁アメダス 東京 16.3°C |
+| 2026-04-18 21:10 | 湿度 | — | 72 % | 72 | 気象庁アメダス 東京 湿度72% |
+`;
+
 describe("parseSoulDocument", () => {
   test("extracts identity and temperament metrics", () => {
     const parsed = parseSoulDocument(SOUL_SAMPLE);
@@ -105,5 +130,22 @@ describe("parseStatusDocument", () => {
     expect(parsed.metrics.find((metric) => metric.key === "satiation")?.valueNumber).toBe(100);
     expect(parsed.history.find((entry) => entry.key === "mood")?.nextValueNumber).toBe(81);
     expect(parsed.history.find((entry) => entry.key === "weight")?.level).toBe("Lv3-1");
+  });
+});
+
+describe("buildDashboardSnapshotFromMarkdownDocuments", () => {
+  test("includes ambient temperature and humidity from ENVIRONMENT.md", () => {
+    const snapshot = buildDashboardSnapshotFromMarkdownDocuments({
+      soulText: SOUL_SAMPLE,
+      bodyText: BODY_SAMPLE,
+      statusText: STATUS_SAMPLE,
+      environmentText: ENVIRONMENT_SAMPLE,
+    });
+
+    expect(snapshot.meta.name).toBe("スミレ");
+    expect(snapshot.current.find((metric) => metric.key === "ambient_temperature")?.valueText).toBe("16.3 °C");
+    expect(snapshot.current.find((metric) => metric.key === "ambient_humidity")?.valueNumber).toBe(72);
+    expect(snapshot.history.find((entry) => entry.key === "ambient_humidity")?.nextValueText).toBe("72 %");
+    expect(snapshot.observations.find((entry) => entry.key === "ambient_temperature")?.normalizedValue).toBe(27);
   });
 });

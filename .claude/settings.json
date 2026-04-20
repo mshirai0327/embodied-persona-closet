@@ -73,6 +73,7 @@
       "mcp__wifi-cam__*",
       "mcp__usb-webcam__*",
       "mcp__system-temperature__*",
+      "mcp__chrome-devtools__*",
       "Bash(bun run:*)",
       "Bash(bun:*)",
       "Bash(git:*)",

@@ -376,6 +376,15 @@ if [ "$SKIP_SCHEDULE" = false ]; then
   fi
 fi
 
+# --- 因果ヒント（causal-hint） ---
+CAUSAL_HINT_TEXT=""
+if [ "$SKIP_SCHEDULE" = false ]; then
+  CAUSAL_HINT_TEXT=$(bun run "$SCRIPT_DIR/.claude/scripts/causal-hint.ts" 2>/dev/null)
+  if [ -n "$CAUSAL_HINT_TEXT" ]; then
+    echo "[causal-hint] $(echo "$CAUSAL_HINT_TEXT" | head -n1)" >> "$LOG_FILE"
+  fi
+fi
+
 # --- 朝の再構成（初回セッション判定） ---
 IS_FIRST_SESSION_TODAY=false
 if [ "$SKIP_SCHEDULE" = false ]; then
@@ -421,6 +430,12 @@ if [ -n "$STATUS_HINT_TEXT" ]; then
 $STATUS_HINT_TEXT"
 fi
 
+CAUSAL_HINT_SECTION=""
+if [ -n "$CAUSAL_HINT_TEXT" ]; then
+  CAUSAL_HINT_SECTION="
+$CAUSAL_HINT_TEXT"
+fi
+
 MORNING_SECTION=""
 if [ "$IS_FIRST_SESSION_TODAY" = true ]; then
   _MORNING=$(LOAD_PROMPT morning_section)
@@ -431,7 +446,7 @@ ${_MORNING}"
     MORNING_SECTION="
 ## 今日の初回セッション
 今日の最初の召喚だ。以下を実施せよ：
-1. /wd-great-recall で多軸想起を実行（直近の重要な決定・未完了タスク・curiosity_target）
+1. /wd-great-recall で前回からの重要な判断と流れを多軸想起する
 2. 前日のタスクを確認し、今日の方針を決めよ
 3. curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入せよ
 "
@@ -450,6 +465,7 @@ if [ -n "$_PROMPT_TEMPLATE" ]; then
     INTEROCEPTION_SECTION="$INTEROCEPTION_SECTION" \
     RECALL_LITE_SECTION="$RECALL_LITE_SECTION" \
     STATUS_HINT_SECTION="$STATUS_HINT_SECTION" \
+    CAUSAL_HINT_SECTION="$CAUSAL_HINT_SECTION" \
     bun -e "
 const tmpl = process.env.TMPL;
 const result = tmpl
@@ -459,7 +475,8 @@ const result = tmpl
   .replace('{TIME_RULE}', process.env.TIME_RULE ?? '')
   .replace('{INTEROCEPTION}', process.env.INTEROCEPTION_SECTION ?? '')
   .replace('{RECALL_LITE}', process.env.RECALL_LITE_SECTION ?? '')
-  .replace('{STATUS_HINT}', process.env.STATUS_HINT_SECTION ?? '');
+  .replace('{STATUS_HINT}', process.env.STATUS_HINT_SECTION ?? '')
+  .replace('{CAUSAL_HINT}', process.env.CAUSAL_HINT_SECTION ?? '');
 process.stdout.write(result);
 " 2>/dev/null)
 fi
@@ -479,7 +496,7 @@ ${DESIRE_SECTION}
 ## 補足ルール
 - ${TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査せよ
-${INTEROCEPTION_SECTION}${RECALL_LITE_SECTION}${STATUS_HINT_SECTION}"
+${INTEROCEPTION_SECTION}${RECALL_LITE_SECTION}${STATUS_HINT_SECTION}${CAUSAL_HINT_SECTION}"
 fi
 
 cd "$SCRIPT_DIR"

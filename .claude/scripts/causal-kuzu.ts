@@ -15,13 +15,17 @@ const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
 const NODE_HELPER_PATH = resolve(SCRIPT_DIR, "causal-kuzu-node.mjs");
 const NODE_BIN = process.env.WARDROBE_NODE_BIN?.trim() || "node";
 
-const DEFAULT_CAUSAL_SEED_PATH =
-  process.env.WARDROBE_CAUSAL_SEED_PATH?.trim()
-  ?? resolve(PROJECT_ROOT, ".claude/persona/causal-seeds.json");
+export function resolveCausalSeedPath(): string {
+  return process.env.WARDROBE_CAUSAL_SEED_PATH?.trim()
+    ?? resolve(PROJECT_ROOT, ".claude/persona/causal-seeds.json");
+}
 
-export const PERSONA_KUZU_DB_PATH =
-  process.env.WARDROBE_PERSONA_KUZU_DB_PATH?.trim()
-  ?? resolve(PROJECT_ROOT, ".claude/workingDirs/persona-causal.kuzu");
+export function resolvePersonaKuzuDbPath(): string {
+  return process.env.WARDROBE_PERSONA_KUZU_DB_PATH?.trim()
+    ?? resolve(PROJECT_ROOT, ".claude/workingDirs/persona-causal.kuzu");
+}
+
+export const PERSONA_KUZU_DB_PATH = resolvePersonaKuzuDbPath();
 
 export interface KuzuCausalNodeRow {
   id: string;
@@ -70,7 +74,7 @@ async function spawnKuzuCommand<T>(
     cwd: PROJECT_ROOT,
     env: {
       ...process.env,
-      WARDROBE_CAUSAL_SEED_PATH: DEFAULT_CAUSAL_SEED_PATH,
+      WARDROBE_CAUSAL_SEED_PATH: resolveCausalSeedPath(),
       WARDROBE_PERSONA_KUZU_DB_PATH: dbPath,
     },
     stdout: "pipe",
@@ -96,8 +100,10 @@ function isKuzuLockError(error: unknown): boolean {
 }
 
 async function runKuzuCommand<T>(command: string, payload: unknown = null): Promise<T> {
+  const dbPath = resolvePersonaKuzuDbPath();
+
   try {
-    return await spawnKuzuCommand<T>(command, payload, PERSONA_KUZU_DB_PATH);
+    return await spawnKuzuCommand<T>(command, payload, dbPath);
   } catch (error) {
     if (command === "sync" || !isKuzuLockError(error)) {
       throw error;
@@ -107,7 +113,7 @@ async function runKuzuCommand<T>(command: string, payload: unknown = null): Prom
     const tempDbPath = `${tempDir}/persona-causal.kuzu`;
 
     try {
-      await copyFile(PERSONA_KUZU_DB_PATH, tempDbPath);
+      await copyFile(dbPath, tempDbPath);
       return await spawnKuzuCommand<T>(command, payload, tempDbPath);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -150,7 +156,7 @@ if (import.meta.main) {
   await syncKuzuCausalGraph();
   const snapshot = await readKuzuCausalGraphSnapshot();
   console.log(JSON.stringify({
-    dbPath: PERSONA_KUZU_DB_PATH,
+    dbPath: resolvePersonaKuzuDbPath(),
     nodes: snapshot.nodes.length,
     edges: snapshot.edges.length,
   }, null, 2));

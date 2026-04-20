@@ -11,13 +11,29 @@ from faster_whisper import WhisperModel
 logger = logging.getLogger(__name__)
 
 
+def _describe_model_load_failure(model_name: str, exc: Exception) -> str:
+    """Convert Whisper load failures into actionable messages."""
+    message = str(exc)
+    if "Unable to open file 'model.bin'" in message:
+        return (
+            f"Whisper model '{model_name}' could not be loaded because its local cache "
+            "looks incomplete or corrupted. Try removing the broken Hugging Face cache "
+            "for that model and downloading it again, or switch [hearing].whisper_model "
+            "to a model that already has a valid local model.bin."
+        )
+    return f"Whisper model '{model_name}' could not be loaded: {message}"
+
+
 class Transcriber:
     """Wraps faster-whisper model loading, warmup, and inference."""
 
     def __init__(self, model_name: str = "small", language: str = "ja"):
         self._language = language
         logger.info("Whisper モデル '%s' を読み込み中...", model_name)
-        self._model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        try:
+            self._model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        except Exception as exc:
+            raise RuntimeError(_describe_model_load_failure(model_name, exc)) from exc
         logger.info("Whisper モデル '%s' の読み込み完了", model_name)
         self._warmup()
 

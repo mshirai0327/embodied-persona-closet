@@ -125,7 +125,7 @@ class VoicevoxConfig:
 
 @dataclass(frozen=True)
 class PlaybackConfig:
-    """Playback and go2rtc configuration (shared across engines)."""
+    """Playback and camera-speaker configuration (shared across engines)."""
 
     play_audio: bool
     save_dir: str
@@ -133,17 +133,10 @@ class PlaybackConfig:
     pulse_sink: str | None
     pulse_server: str | None
     camera_backend: str
-    go2rtc_url: str | None
     speaker_target: str | None
-    go2rtc_stream: str
-    go2rtc_ffmpeg: str
-    go2rtc_bin: str | None
-    go2rtc_config: str | None
-    go2rtc_auto_start: bool
-    go2rtc_camera_host: str | None
-    go2rtc_camera_username: str | None
-    go2rtc_camera_password: str | None
-    go2rtc_camera_cloud_password: str | None
+    camera_ffmpeg: str
+    tapo_camera_host: str | None
+    tapo_cloud_password: str | None
 
     @classmethod
     def from_env(cls) -> "PlaybackConfig":
@@ -183,11 +176,6 @@ class PlaybackConfig:
                     default="auto",
                 )
             ).strip().lower(),
-            go2rtc_url=_get_tts_setting(
-                "GO2RTC_URL",
-                behavior_key="go2rtc_url",
-                default=None,
-            ),
             speaker_target=_normalize_speaker_target(
                 _get_tts_setting(
                     "TTS_SPEAKER_TARGET",
@@ -196,50 +184,15 @@ class PlaybackConfig:
                     default=None,
                 )
             ),
-            go2rtc_stream=str(
+            camera_ffmpeg=str(
                 _get_tts_setting(
-                    "GO2RTC_STREAM",
-                    behavior_key="go2rtc_stream",
-                    default="tapo_cam",
-                )
-            ),
-            go2rtc_ffmpeg=str(
-                _get_tts_setting(
-                    "GO2RTC_FFMPEG",
-                    behavior_key="go2rtc_ffmpeg",
+                    "TTS_CAMERA_FFMPEG",
+                    behavior_key="camera_ffmpeg",
                     default="ffmpeg",
                 )
             ),
-            go2rtc_bin=os.getenv("GO2RTC_BIN") or None,
-            go2rtc_config=os.getenv("GO2RTC_CONFIG") or None,
-            go2rtc_auto_start=_parse_boolish(
-                _get_tts_setting(
-                    "GO2RTC_AUTO_START",
-                    behavior_key="go2rtc_auto_start",
-                    default=True,
-                ),
-                True,
-            ),
-            go2rtc_camera_host=(
-                os.getenv("GO2RTC_CAMERA_HOST")
-                or os.getenv("TAPO_CAMERA_HOST")
-                or None
-            ),
-            go2rtc_camera_username=(
-                os.getenv("GO2RTC_CAMERA_USERNAME")
-                or os.getenv("TAPO_USERNAME")
-                or None
-            ),
-            go2rtc_camera_password=(
-                os.getenv("GO2RTC_CAMERA_PASSWORD")
-                or os.getenv("TAPO_PASSWORD")
-                or None
-            ),
-            go2rtc_camera_cloud_password=(
-                os.getenv("GO2RTC_CAMERA_CLOUD_PASSWORD")
-                or os.getenv("TAPO_CLOUD_PASSWORD")
-                or None
-            ),
+            tapo_camera_host=os.getenv("TAPO_CAMERA_HOST") or None,
+            tapo_cloud_password=os.getenv("TAPO_CLOUD_PASSWORD") or None,
         )
 
     def has_camera_output(self) -> bool:
@@ -248,21 +201,16 @@ class PlaybackConfig:
 
     def resolve_camera_backend(self) -> str | None:
         """Resolve which camera playback backend should be used."""
-        if self.camera_backend in {"auto", "go2rtc", "tapo"}:
+        if self.camera_backend in {"auto", "tapo"}:
             backend = self.camera_backend
         else:
             backend = "auto"
-        has_tapo = bool(self.go2rtc_camera_host and self.go2rtc_camera_cloud_password)
-        has_go2rtc = bool(self.go2rtc_url)
+        has_tapo = bool(self.tapo_camera_host and self.tapo_cloud_password)
 
         if backend == "tapo":
             return "tapo" if has_tapo else None
-        if backend == "go2rtc":
-            return "go2rtc" if has_go2rtc else None
         if has_tapo:
             return "tapo"
-        if has_go2rtc:
-            return "go2rtc"
         return None
 
 

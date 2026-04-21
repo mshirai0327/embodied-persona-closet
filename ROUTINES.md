@@ -6,12 +6,12 @@
 ## 日次
 
 - **state.md の更新** — セッション終了時に現在状態を上書き保存する（最終: 2026-04-19）
-- **FLASH.md の確認** — 記憶インデックスが壊れていないか目視確認（最終: 2026-04-19）
-- **discussionMemo の追記** — `bun run .claude/scripts/update-discussion-memo.ts` で当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に要約追記する（最終: 2026-04-19）
+- **FLASH.md の確認** — 記憶インデックスが壊れていないか目視確認（最終: 2026-04-21）
+- **discussionMemo の追記** — `bun run .claude/scripts/update-discussion-memo.ts` で当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に要約追記する（最終: 2026-04-21）
 
 ## 週次
 
-- **SOUL.md の見直し** — 最近の経験を振り返り、人格に変化があるか確認。変更提案があればユーザーに相談する（最終: 2026-04-19）
+- **SOUL.md の見直し** — 最近の経験を振り返り、人格に変化があるか確認。変更提案があればユーザーに相談する（最終: 2026-04-21）
 - **記憶の consolidate** — `consolidate_memories(window_hours=168)` で一週間分を定着（最終: 2026-04-20）
 - **記憶の健康診断** — `get_memory_stats()` で記憶の偏りを確認（最終: 2026-04-20）
 - **未編のエピソード** — 散らばった記憶をエピソードにまとめる（最終: 2026-04-19）

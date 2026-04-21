@@ -119,6 +119,25 @@
     return text.replace("T", " ").replace(/:00\.\d+Z$/, "Z");
   }
 
+  function formatAxisDate(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return { date: "—", time: "" };
+    }
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hour = String(date.getHours()).padStart(2, "0");
+    const minute = String(date.getMinutes()).padStart(2, "0");
+    return { date: month + "/" + day, time: hour + ":" + minute };
+  }
+
+  function buildTimeTicks(minTs, maxTs, count) {
+    if (maxTs === minTs) return [minTs];
+    return Array.from({ length: count }, (_, index) =>
+      minTs + ((maxTs - minTs) * index) / (count - 1)
+    );
+  }
+
   function formatMetricValue(metric) {
     if (metric.valueText == null) return "—";
     if (metric.domain === "environment" && metric.unit === "score") {
@@ -443,7 +462,7 @@
     const padLeft = 48;
     const padRight = 18;
     const padTop = 24;
-    const padBottom = 34;
+    const padBottom = 50;
     const usableWidth = width - padLeft - padRight;
     const usableHeight = height - padTop - padBottom;
     const xFor = (timestamp) => {
@@ -460,6 +479,20 @@
       const y = yFor(tick);
       parts.push('<line x1="' + padLeft + '" y1="' + y + '" x2="' + (width - padRight) + '" y2="' + y + '" stroke="rgba(32,53,42,0.12)" stroke-dasharray="4 6"></line>');
       parts.push('<text x="10" y="' + (y + 4) + '" fill="#68756d" font-size="11">' + tick + "</text>");
+    }
+
+    const axisY = padTop + usableHeight;
+    parts.push('<line x1="' + padLeft + '" y1="' + axisY + '" x2="' + (width - padRight) + '" y2="' + axisY + '" stroke="rgba(32,53,42,0.18)"></line>');
+    for (const tickTs of buildTimeTicks(minTs, maxTs, 4)) {
+      const x = xFor(tickTs);
+      const label = formatAxisDate(tickTs);
+      parts.push('<line x1="' + x + '" y1="' + padTop + '" x2="' + x + '" y2="' + axisY + '" stroke="rgba(32,53,42,0.08)" stroke-dasharray="3 7"></line>');
+      parts.push(
+        '<text x="' + x + '" y="' + (axisY + 16) + '" text-anchor="middle" fill="#68756d" font-size="11">'
+        + '<tspan x="' + x + '">' + escapeHtml(label.date) + '</tspan>'
+        + '<tspan x="' + x + '" dy="13">' + escapeHtml(label.time) + '</tspan>'
+        + "</text>"
+      );
     }
 
     for (const serie of series) {

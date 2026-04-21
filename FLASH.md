@@ -25,6 +25,7 @@ Phase5設計草案 causal-edge-learner 昇格基準（証拠数≥5・期間≥7
 ### 火曜 (04/21)
 Phase5設計草案レビュー inferAffectedNodes export確認 causal-memory-bridge.ts 242行 再利用可能 mizuho相談待ち satiation100 消化優先 深夜巡回
 SOUL.md週次見直し moved=40件(34%)>curious=32件(27%) 感情タイプ逆転確認 受け取る志向性シフト Temperament変更提案候補 mizuho相談待ち
+エピソード化「因果グラフ実装フェーズ完結」 Phase1-4+Phase5設計草案6記憶 id:11290ca1 Phase5相談ポイント自己評価（emotion限定ok・閾値7日でまず試す・自動仮採用は最初は手動推奨・ファイル分離推奨） satiation78 digest/reflect優先 20:00巡回
 
 ## 2026年 第16週（圧縮）
 

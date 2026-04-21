@@ -1,4 +1,4 @@
-"""SQLite + numpy backed memory storage (Phase 11: ChromaDB → SQLite+numpy)."""
+"""SQLite + numpy backed memory storage."""
 
 from __future__ import annotations
 
@@ -613,7 +613,7 @@ class MemoryStore:
         vecs = np.stack([decode_vector(blob) for _, blob in rows_with_vecs])
         scores = cosine_similarity(query_vec, vecs)  # higher = more similar
 
-        # Convert similarity to distance (like ChromaDB cosine distance)
+        # Convert cosine similarity to distance.
         # cosine distance = 1 - similarity
         indexed = list(enumerate(rows_with_vecs))
         ranked = sorted(indexed, key=lambda t: scores[t[0]], reverse=True)

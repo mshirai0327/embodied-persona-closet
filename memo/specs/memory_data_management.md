@@ -253,12 +253,8 @@ Markdown メモは補助であり、正本ではない。
 
 ### インポート / 移行
 
-- `migrate_chroma_to_sqlite.py`
-  - 旧 ChromaDB から移行
 - `migrate_postgres_to_sqlite.py`
   - PostgreSQL から移行
-- `merge_memories.py`
-  - 旧 Chroma ベース記憶のマージ
 
 ### ベクトル保守
 
@@ -278,7 +274,7 @@ Markdown メモは補助であり、正本ではない。
 - Python 標準ライブラリ + numpy で完結しやすい
 - Graph DB を立てなくても最低限の関連・因果を持てる
 - バックアップや移植が比較的容易
-- Chroma / PostgreSQL からの移行経路がすでにある
+- PostgreSQL からの移行経路がある
 
 ---
 

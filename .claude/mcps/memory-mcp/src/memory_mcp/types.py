@@ -154,7 +154,7 @@ class Episode:
     importance: int  # 1-5
 
     def to_metadata(self) -> dict[str, Any]:
-        """Convert to dictionary for ChromaDB metadata."""
+        """Convert to a serializable dictionary."""
         return {
             "title": self.title,
             "start_time": self.start_time,
@@ -170,7 +170,7 @@ class Episode:
     def from_metadata(
         cls, id: str, summary: str, metadata: dict[str, Any]
     ) -> "Episode":
-        """Create from ChromaDB metadata."""
+        """Create from serialized metadata."""
         return cls(
             id=id,
             title=metadata["title"],
@@ -224,9 +224,8 @@ class Memory:
     coactivation_weights: tuple[tuple[str, float], ...] = field(default_factory=tuple)
 
     def to_metadata(self) -> dict[str, Any]:
-        """Convert to dictionary for ChromaDB metadata."""
+        """Convert to a serializable dictionary."""
         metadata: dict[str, Any] = {
-            # Phase 8: 元テキストをメタデータに保存（ChromaDB document は正規化済みテキスト）
             "content": self.content,
             "timestamp": self.timestamp,
             "emotion": self.emotion,
@@ -271,7 +270,7 @@ class ScoredMemory:
     """スコアリング済み検索結果."""
 
     memory: Memory
-    semantic_distance: float  # ChromaDBからの生距離
+    semantic_distance: float  # ベクトル検索の距離
     time_decay_factor: float  # 時間減衰係数 (0.0-1.0)
     emotion_boost: float  # 感情ブースト
     importance_boost: float  # 重要度ブースト

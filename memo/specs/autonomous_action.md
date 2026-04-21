@@ -19,7 +19,7 @@
 - 想定 cron:
 
 ```bash
-*/20 * * * * /path/to/embodied-claude-wardrobe/autonomous-action.sh
+*/20 * * * * /path/to/embodied-reflecta/autonomous-action.sh
 ```
 
 ### 主な引数

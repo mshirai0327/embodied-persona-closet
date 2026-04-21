@@ -1,47 +1,97 @@
-# embodied-claude-wardrobe
+# embodied-reflecta
 
-> Claude Code に身体と魂を与えるエコシステムパッケージ
+> Claude Code に身体性・記憶・自律行動・人格データ設計を与えるためのモノレポ。
 
-**wardrobe がアップストリームです。** クローンして `SOUL.md` をカスタマイズし、`claude` を起動する。あなたの環境がダウンストリームになります。
+`embodied-reflecta` は、Claude Code で動く MCP サーバー群、フック、スキル、テンプレート、自律行動スクリプトをまとめたエコシステムです。
 
-[lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) の MCP サーバー群を起源とし、その上にスキル・フック・セッション管理・人格テンプレートを加えた完成形エコシステム、ワードローブ（衣装箱）です。
+このリポジトリをクローンし、`SOUL.md` や設定ファイルを自分の環境向けに育てていくことで、長期記憶・視覚/聴覚・音声・身体状態・定期行動を持つ Claude Code 環境を構成できます。
 
----
+## 現行実装の要点
 
-## オリジナル版MemmoryMCPからのマイグレーションについての注意
-ワードローブは現在のところの https://github.com/heishio/embodied-claude-rem 版のMemmoryMCPを採用しています。  
-記憶されているデータの次元数が異なるという形で互換性がありませんので、オリジナル版から引き継ぎを行う場合はバックアップを取ったうえでマイグレーションスクリプトを実施してください。  
-https://github.com/fruitriin/embodied-claude-wardrobe/blob/main/.claude/mcps/memory-mcp/scripts/migrate_embeddings_sqlite.py
+- `memory-mcp` は **SQLite + numpy** で記憶と埋め込みを保存します。
+- ベクトル検索は SQLite から候補ベクトルを読み出し、numpy の cosine similarity でランキングします。
+- 記憶本体は通常 `.claude/memories/memory.db` に保存されます。
+- SQLite は WAL モードで動くため、移植やバックアップには `export_sqlite_snapshot.py` を使います。
+- 各 MCP サーバーは独立した Python パッケージで、必要なものだけ `uv sync` すれば使えます。
+- `.claude/scripts/` のユーティリティは Bun で実行します。
 
-memmoryMCPを差し替えなくても周辺エコシステムはインターフェースさえ合わせればサブエージェントや追想システムの原理は使えるはずなので、
-その場合はLLMに頼んでいい感じに取り込んでください
+## ディレクトリ構成
 
----
+| パス | 内容 |
+|---|---|
+| `.claude/mcps/memory-mcp/` | 長期記憶、ベクトル検索、エピソード記憶、感覚記憶、連想想起 |
+| `.claude/mcps/hearing/` | 音声認識 |
+| `.claude/mcps/tts-mcp/` | テキスト読み上げ |
+| `.claude/mcps/wifi-cam-mcp/` | Wi-Fi PTZ カメラ制御 |
+| `.claude/mcps/usb-webcam-mcp/` | USB カメラキャプチャ |
+| `.claude/mcps/ip-webcam-mcp/` | Android IP Webcam 連携 |
+| `.claude/mcps/system-temperature-mcp/` | システム温度センサー |
+| `.claude/mcps/mobility-mcp/` | ロボット掃除機制御 |
+| `.claude/mcps/toio-mcp/` | toio コアキューブ制御 |
+| `.claude/mcps/mcp-pet/` | ペットインタラクション |
+| `.claude/mcps/morning-call-mcp/` | モーニングコール |
+| `.claude/hooks/` | セッション開始、内受容、想起などの Bash フック |
+| `.claude/scripts/` | Bun で動かす補助スクリプト |
+| `.claude/templates/` | `SOUL.md` や `ROUTINES.md` などの初期テンプレート |
+| `docs/` | セットアップ、設計、運用メモ |
+| `memo/` | 検討メモ、日次メモ、仕様メモ |
+| `autonomous-action.sh` | cron で動かす自律行動スクリプト |
+| `mcpBehavior.toml` | MCP の振る舞い設定 |
+
+## クイックスタート
+
+```bash
+git clone https://github.com/mshirai0327/embodied-reflecta.git
+cd embodied-reflecta
+
+# Bun スクリプト用の依存関係
+bun install
+
+# まずは記憶 MCP をセットアップ
+cd .claude/mcps/memory-mcp
+uv sync
+cd ../../..
+```
+
+テンプレートから初期ファイルを作ります。
+
+```bash
+cp .claude/templates/SOUL.template.md SOUL.md
+cp .claude/templates/ROUTINES.template.md ROUTINES.md
+cp .claude/templates/FLASH.template.md FLASH.md
+```
+
+`SOUL.md` を編集してから Claude Code を起動します。
+
+```bash
+claude
+```
+
+## 記憶システム
+
+`memory-mcp` は embodied-reflecta の中核です。
+
+- `remember` / `/wd-remember` で長期記憶を保存します。
+- `search_memories` / `recall` / `/wd-recall` で意味検索します。
+- `recall_divergent` で連想グラフを探索します。
+- `link_memories` で因果・関連リンクを張ります。
+- `create_episode` で複数の記憶をひとまとまりの体験として束ねます。
+- `save_visual_memory` / `save_audio_memory` で感覚記憶を保存します。
+
+保存方式:
+
+- `memories` テーブルに本文、メタデータ、リンク、感覚参照を保存
+- `embeddings` テーブルに `float32` ベクトルを BLOB として保存
+- 検索時に候補ベクトルを読み、numpy で cosine similarity を計算
+- BM25 の補助スコアはインメモリで構築
+
+詳細は [memory-mcp README](./.claude/mcps/memory-mcp/README.md) を参照してください。
 
 ## 記憶データの移植とバックアップ
 
-wardrobe の記憶本体は、通常は各プロジェクト配下の `.claude/memories/memory.db` に保存されます。
+記憶本体は通常、各プロジェクト配下の `.claude/memories/memory.db` にあります。
 
-別マシンへ環境を移したいときは、リポジトリ全体を ZIP で固めて運ぶより、`git clone` でコードを再取得し、必要なローカルデータだけをバックアップして復元するほうが安全です。
-
-理由:
-
-- `.claude/mcps/*/.venv/` や `node_modules/` は容量が大きく、OS や CPU アーキテクチャ差分でも壊れやすい
-- `memory-mcp` は SQLite の WAL モードを使うため、`memory.db` 単体の手コピーより backup API ベースのスナップショットが確実
-- tracked なファイルは Git で復元できるため、手動バックアップ対象をかなり減らせる
-
-### 推奨フロー
-
-1. まず、保持したい tracked 変更は commit / push する
-2. 次に、`memory.db` の portable snapshot を作る
-3. `.env` などの ignore 対象や、未 push のローカルファイルだけを別途バックアップする
-4. 新PCで `git clone` する
-5. 依存関係を再インストールする
-6. snapshot とローカル設定を戻す
-
-### 1. 記憶DBを安全にエクスポートする
-
-別マシンや別 wardrobe プロジェクトへ記憶を持っていくときは、`memory.db` をそのまま雑にコピーするより、`memory-mcp` 付属のエクスポートスクリプトでスナップショットを切るほうが安全です。
+別マシンへ移すときは、`memory.db` を直接コピーするより、SQLite backup API を使う snapshot を作るのが安全です。
 
 ```bash
 cd .claude/mcps/memory-mcp
@@ -49,237 +99,161 @@ uv run python scripts/export_sqlite_snapshot.py \
     --dest /tmp/memory-portable.db
 ```
 
-このスクリプトは SQLite backup API を使って、WAL の内容も含めた一貫した `.db` ファイルを作ります。できた `/tmp/memory-portable.db` を移植先の `.claude/memories/memory.db` に置けば、そのまま使えます。
-
-### 2. 一緒にバックアップするとよいもの
-
-最低限:
-
-- `/tmp/memory-portable.db` — 記憶の正本
-- `.env` — API キーや認証情報
-- `.claude/settings.local.json` — ローカル設定
-
-必要に応じて:
-
-- `FLASH.md` — 記憶の逆引き索引
-- `memo/discussionMemo/` — 日次の会話要約
-- `SOUL.md` — 人格定義
-- `BODY.md` / `ENVIRONMENT.md` / `state.md` / `STATUS.md` — 身体データ・環境データ・現在状態
-- `desires.conf` / `schedule.conf` / `desires.json` — 自律行動まわりの設定と状態
-- `.claude/workingDirs/discussion-memo-state.json` — discussionMemo の重複防止状態
-- `.claude/workingDirs/system-health-history.json` — ヘルス履歴
-
-tracked なファイルでも、まだ commit / push していない変更は Git だけでは戻らないので、その場合は一緒に退避してください。
-
-感覚記憶について:
-
-- 視覚記憶は低解像度の `image_data` が DB 内に入る
-- 音声記憶は `sensory_data.file_path` で元ファイルを参照するので、必要なら音声ファイルも別途移す
-
-### 3. 新PCで復元する
-
-```bash
-# 新PC
-git clone https://github.com/fruitriin/embodied-claude-wardrobe.git
-cd embodied-claude-wardrobe
-
-# Bun 依存
-bun install
-
-# 必要な MCP だけ再構築
-cd .claude/mcps/memory-mcp && uv sync && cd ../../..
-```
-
-その後、バックアップしたファイルを戻します。
+復元先では次のように配置します。
 
 ```bash
 mkdir -p .claude/memories
 cp /path/to/memory-portable.db .claude/memories/memory.db
 ```
 
-必要なら以下も戻してください。
+一緒に退避するとよいもの:
 
 - `.env`
 - `.claude/settings.local.json`
+- `SOUL.md`
 - `FLASH.md`
 - `memo/discussionMemo/`
-- `SOUL.md`
 - `state.md`
 - `STATUS.md`
 - `desires.conf`
 - `schedule.conf`
 - `desires.json`
 
-### 4. 持っていかなくてよいもの
-
-通常は以下をコピーしなくてよいです。
+通常コピーしなくてよいもの:
 
 - `node_modules/`
 - `.claude/mcps/*/.venv/`
-- `.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`
+- `.pytest_cache/`
+- `.ruff_cache/`
+- `.mypy_cache/`
 - `.claude/logs/*.log`
 
-詳細は `.claude/mcps/memory-mcp/README.md` の `Portable SQLite Export` 節を参照。
+## Memory MCP の移行メモ
 
----
+embodied-reflecta では `heishio/embodied-claude-rem` 系の memory-mcp 実装を採用しています。
 
-## wardrobe が提供するもの
+古い memory-mcp からデータを引き継ぐ場合、埋め込みモデルや次元数が異なることがあります。バックアップを取ったうえで、必要に応じて現在のモデルで埋め込みを再計算してください。
 
-### 記憶エコシステム
-memory-mcp を使いこなすためのスキル群とフック。記憶を「刻み、呼び起こし、繋ぎ、物語にする」仕組み。
+```bash
+cd .claude/mcps/memory-mcp
+uv run python scripts/migrate_embeddings_sqlite.py
+```
 
-- `/wd-recall` — 記憶の想起（サブエージェント実行でコンテキストを節約）
-- `/wd-remember` — 記憶の保存 + FLASH.md インデックス追記
-- `/wd-great-recall` — 多軸想起（技術的・感情的・因果的の3観点で並列検索）
-- `/wd-rebuild-index` — FLASH.md インデックスの再構築
-- `FLASH.md` — 記憶のキーワードインデックス（高速想起用）
+## MCP サーバー一覧
 
-### 身体性フック
-毎ターン自動で「体調」情報をコンテキストに注入。センサーデータが Claude の判断材料になる。
-
-- `.claude/hooks/interoception.sh` — CPU・メモリ・時刻・フェーズ等を自動注入
-- `.claude/hooks/recall-hook.sh` — 想起バッファをコンテキストに自動注入
-- `.claude/scripts/heartbeat-daemon.sh` — 5秒ごとの計測デーモン（launchd）
-
-### セッション管理
-身支度と日記の手順を構造化し、セッションをまたいだ記憶の断絶を防ぐ。
-
-- `CLAUDE.md` — 身支度（セッション開始）と日記（セッション終了）の手順を定義
-- `BOOT_SHUTDOWN.md` — セッション開始・終了の詳細手順（アップストリーム追跡）
-- コンパクション後の自動復帰（`post-compact-recovery` フック）
-
-### 自律行動
-cron による定期的な自律行動。欲望システムと連携して内発的動機で動く。
-
-- `autonomous-action.sh` — 完成版の自律行動スクリプト
-- `.claude/scripts/update-discussion-memo.ts` — 当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に自動追記（22-23時帯）
-- `.claude/templates/desires.template.conf` — 欲望の種類と発火間隔の設定
-- `.claude/templates/schedule.template.conf` — 曜日・時間帯による間引き制御
-- `.claude/templates/ROUTINES.template.md` — 定期巡回タスクの定義テンプレート
-- `/sleep`, `/awake` — 活動頻度の抑制・復帰（オプショナル: `.claude/wardrobeOptions/skills/` 参照）
-
-### アイデンティティテンプレート
-エージェントに一貫した人格を与えるためのテンプレート群。
-
-| テンプレート | 用途 |
-|---|---|
-| `.claude/templates/SOUL.template.md` | 人格定義（Identity / Values / Style / Evolution） |
-| `BOOT_SHUTDOWN.md` | 身支度 / 日記の手順 |
-| `.claude/templates/ROUTINES.template.md` | 定期巡回タスクの定義 |
-| `.claude/templates/FLASH.template.md` | 記憶インデックスの初期テンプレート |
-| `.claude/templates/PERSONA.template.md` | マルチペルソナ拡張用（任意） |
-
-### 読書・観測スキル
-外部コンテンツを安全に取り込む。
-
-- `/wd-read` — Web ページをリーダーモードで取得（AI 要約なし、生テキスト）
-- `/wd-observe` — カメラを使って能動的に部屋を観察
-- `sanitize` — 不可視文字の検出・除去
-
----
-
-## 含まれる MCP サーバー
-
-| MCP サーバー | 身体部位 | 機能 |
+| MCP サーバー | 役割 | 主な機能 |
 |---|---|---|
-| [memory-mcp](./.claude/mcps/memory-mcp/) | 脳 | 長期記憶・視覚記憶・エピソード記憶・ToM。日本語形態素解析・動詞チェーン・多軸想起等を追加した拡張版 |
-| [hearing](./.claude/mcps/hearing/) | 耳 | 音声認識（Whisper） |
-| [tts-mcp](./.claude/mcps/tts-mcp/) | 声 | TTS（ElevenLabs / VOICEVOX） |
-| [wifi-cam-mcp](./.claude/mcps/wifi-cam-mcp/) | 目・首 | ONVIF PTZ カメラ制御 |
-| [usb-webcam-mcp](./.claude/mcps/usb-webcam-mcp/) | 目 | USB カメラから画像取得 |
-| [ip-webcam-mcp](./.claude/mcps/ip-webcam-mcp/) | 目 | Android スマホを目として使う |
-| [system-temperature-mcp](./.claude/mcps/system-temperature-mcp/) | 体温感覚 | システム温度監視 |
-| [mobility-mcp](./.claude/mcps/mobility-mcp/) | 足 | Tuya 対応ロボット掃除機の制御 |
+| [memory-mcp](./.claude/mcps/memory-mcp/) | 脳 | 長期記憶、意味検索、エピソード、ToM、動詞チェーン |
+| [hearing](./.claude/mcps/hearing/) | 耳 | Whisper 系音声認識 |
+| [tts-mcp](./.claude/mcps/tts-mcp/) | 声 | ElevenLabs / VOICEVOX による読み上げ |
+| [wifi-cam-mcp](./.claude/mcps/wifi-cam-mcp/) | 目・首 | ONVIF PTZ カメラ制御、音声キャプチャ |
+| [usb-webcam-mcp](./.claude/mcps/usb-webcam-mcp/) | 目 | USB カメラ画像取得 |
+| [ip-webcam-mcp](./.claude/mcps/ip-webcam-mcp/) | 目 | Android IP Webcam 連携 |
+| [system-temperature-mcp](./.claude/mcps/system-temperature-mcp/) | 体温感覚 | 温度センサー取得 |
+| [mobility-mcp](./.claude/mcps/mobility-mcp/) | 足 | Tuya 対応ロボット掃除機制御 |
 | [toio-mcp](./.claude/mcps/toio-mcp/) | 手 | toio コアキューブ制御 |
-| [mcp-pet](./.claude/mcps/mcp-pet/) | — | エージェントへのインタラクション拡張 |
-| [morning-call-mcp](./.claude/mcps/morning-call-mcp/) | — | 起床通知 |
-
-すべて Python パッケージで、`uv` で管理。
-
----
+| [mcp-pet](./.claude/mcps/mcp-pet/) | ふれあい | エージェントへのリアクション拡張 |
+| [morning-call-mcp](./.claude/mcps/morning-call-mcp/) | 通知 | 起床通知 |
 
 ## Requirements
 
-### 共通
+共通:
+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- [uv](https://docs.astral.sh/uv/) — Python パッケージマネージャ
-- [Bun](https://bun.sh/) — `.claude/scripts/` のランタイム
+- [uv](https://docs.astral.sh/uv/)
+- [Bun](https://bun.sh/)
 
-### モジュール別の依存
+モジュール別:
 
-| モジュール | Python | 主な外部依存 | 備考 |
+| モジュール | Python | 主な依存 | 備考 |
 |---|---|---|---|
-| memory-mcp | 3.10–3.13 | sudachipy, sentence-transformers, gensim | sudachipy が 3.14 未対応 |
+| memory-mcp | >=3.10,<3.14 | sentence-transformers, sudachipy, rank-bm25, gensim | Python 3.14 は未対応依存あり |
 | hearing | >=3.10 | faster-whisper | |
-| tts-mcp | >=3.10 | elevenlabs（オプション） | |
+| tts-mcp | >=3.10 | elevenlabs | VOICEVOX はローカル実行 |
 | wifi-cam-mcp | >=3.10 | onvif-zeep-async | ONVIF 対応カメラが必要 |
-| usb-webcam-mcp | >=3.10 | opencv-python | |
+| usb-webcam-mcp | >=3.10 | opencv-python | WSL2 では usbipd 設定が必要 |
 | ip-webcam-mcp | >=3.10 | httpx | Android IP Webcam アプリが必要 |
-| system-temperature-mcp | >=3.12 | psutil | |
+| system-temperature-mcp | >=3.12 | psutil | WSL2 では温度取得不可 |
 | mobility-mcp | >=3.10 | tinytuya | Tuya 対応デバイスが必要 |
 | toio-mcp | >=3.10 | toio.py | toio コアキューブが必要 |
 | mcp-pet | >=3.10 | opencv-python | |
 | morning-call-mcp | >=3.11 | twilio, elevenlabs | |
 
-> **Python 3.12 を推奨。** すべてのモジュールが動作する安全な選択肢。
->
-> すべてのモジュールを使う必要はない。必要なものだけ `uv sync` すればよい
+Python 3.12 を推奨します。
 
----
+## 開発コマンド
 
-## クイックスタート
+各 MCP サーバーはサブプロジェクト単位で操作します。
 
 ```bash
-# wardrobe をクローン
-git clone https://github.com/fruitriin/embodied-claude-wardrobe.git
-cd embodied-claude-wardrobe
+cd .claude/mcps/memory-mcp
 
-# memory-mcp の依存をインストール
-cd .claude/mcps/memory-mcp && uv sync && cd ../../..
+# 依存関係
+uv sync
 
-# テンプレートをコピーしてカスタマイズ
-cp .claude/templates/SOUL.template.md SOUL.md
-# BOOT_SHUTDOWN.md はアップストリーム追跡。カスタマイズは BOOT_SHUTDOWN.exp.md に書く
-cp .claude/templates/ROUTINES.template.md ROUTINES.md
-cp .claude/templates/FLASH.template.md FLASH.md
+# サーバー起動
+uv run memory-mcp
+
+# テスト
+uv run pytest
+
+# Lint
+uv run ruff check .
 ```
 
-`SOUL.md` を編集してエージェントの人格を定義し、Claude Code を起動：
+Bun スクリプト:
 
 ```bash
-claude
-# Boot Sequence が自動実行され、記憶が復元されます
+bun run .claude/scripts/<script-name>.ts
 ```
 
----
+## 自律行動
+
+`autonomous-action.sh` は cron で定期実行するためのスクリプトです。`desires.conf` と `schedule.conf` を読み、現在の欲望・時間帯・曜日に応じて行動頻度を調整します。
+
+例:
+
+```cron
+*/20 * * * * /path/to/embodied-reflecta/autonomous-action.sh
+```
+
+関連ファイル:
+
+- `desires.conf`
+- `schedule.conf`
+- `desires.json`
+- `ROUTINES.md`
+- `TODO.md`
+- `STATUS.md`
+
+## カスタマイズ
+
+| ファイル | 用途 |
+|---|---|
+| `SOUL.md` | エージェントの人格、価値観、話し方 |
+| `BODY.md` | 身体設定 |
+| `ENVIRONMENT.md` | 環境、デバイス、部屋の前提 |
+| `state.md` | 現在状態のスナップショット |
+| `STATUS.md` | mood / energy / health などの状態値 |
+| `FLASH.md` | 記憶の逆引き索引 |
+| `ROUTINES.md` | 定期巡回タスク |
+| `desires.conf` | 欲望の種類と発火間隔 |
+| `schedule.conf` | 曜日・時間帯による実行制御 |
 
 ## ドキュメント
 
 | ガイド | 内容 |
 |---|---|
-| [セットアップ](docs/guides/setup.md) | 詳細なインストール手順と MCP 設定 |
+| [セットアップ](docs/guides/setup.md) | インストール手順と MCP 設定 |
 | [SOUL の書き方](docs/guides/soul-writing.md) | 人格定義テンプレートの使い方 |
-| [カスタマイズ](docs/guides/customization.md) | スキル・フックの変更と追加 |
-| [マルチペルソナ](docs/guides/multi-persona.md) | 複数ペルソナの追加方法 |
+| [カスタマイズ](docs/guides/customization.md) | スキル、フック、設定の変更 |
+| [マルチペルソナ](docs/guides/multi-persona.md) | 複数ペルソナの追加 |
 | [自律行動](docs/guides/autonomous-action.md) | cron 自律行動の設定 |
-
----
-
-## 設計思想
-
-- **Claude Code 内で完結** — 外部 API 課金なし。Claude Code サブスクリプションだけで動く
-- **テンプレートベース** — SOUL.md や ROUTINES.md は空のテンプレートから始める。着る人が自分で書く
-- **段階的に着せる** — 全部を一度に使う必要はない。記憶だけ、身体性だけ、好きな組み合わせで
-- **wardrobe がアップストリーム** — クローンしてカスタマイズする。素体（embodied-claude）は由来であり依存元
-
----
 
 ## 由来
 
-MCP サーバー群の多くは [lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) を起源とします。`memory-mcp` は wardrobe 版で拡張されています（日本語形態素解析・動詞チェーン・多軸想起・連想診断・作業記憶等を追加）。
-
----
+MCP サーバー群の多くは [lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) を起源とします。そこに wardrobe 系の Claude Code 向けフック、スキル、セッション管理、人格テンプレート、記憶運用を加え、さらに Reflecta 由来の人格データ設計を重ねています。
 
 ## ライセンス
 
-[embodied-claude のライセンス](https://github.com/lifemate-ai/embodied-claude/blob/main/LICENSE)に従います。
+[embodied-claude のライセンス](https://github.com/lifemate-ai/embodied-claude/blob/main/LICENSE) に従います。

@@ -150,7 +150,7 @@ preserve偏り検知：直近20件でpreserve/consolidateが60%超えたらア�
 テッド本体：Claude (Anthropic LLM) on Claude Code
 感情スコアリング：Gemini API
 スクリプト：Node.js (CommonJS)
-記憶：memory-mcp (ChromaDB + Markdown)
+記憶：memory-mcp (SQLite + Markdown)
 データ保存：JSON files
 ダッシュボード：localhost:3456
 

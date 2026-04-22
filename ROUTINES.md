@@ -6,8 +6,8 @@
 ## 日次
 
 - **state.md の更新** — セッション終了時に現在状態を上書き保存する（最終: 2026-04-19）
-- **FLASH.md の確認** — 記憶インデックスが壊れていないか目視確認（最終: 2026-04-21）
-- **discussionMemo の追記** — `bun run .claude/scripts/update-discussion-memo.ts` で当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に要約追記する（最終: 2026-04-21）
+- **FLASH.md の確認** — 記憶インデックスが壊れていないか目視確認（最終: 2026-04-22）
+- **discussionMemo の追記** — `bun run .claude/scripts/update-discussion-memo.ts` で当日の会話・技術記憶を `memo/discussionMemo/YYYYMMDD.md` に要約追記する（最終: 2026-04-22）
 
 ## 週次
 
@@ -19,7 +19,7 @@
 ## 月次
 
 - **state.md のアーカイブ確認** — 古い引き継ぎ事項が残っていないか精査し、不要なものを削除する（最終: ）
-- **SOUL.md の Evolution セクション更新** — 自己洞察を振り返り、変化があれば反映する（最終: ）
+- **SOUL.md の Evolution セクション更新** — 自己洞察を振り返り、変化があれば反映する（最終: 2026-04-22）
 
 ## 記憶が100件を超えたら
 

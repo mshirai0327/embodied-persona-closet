@@ -22,6 +22,10 @@ feat/add-graphDB-in-memory-etc Phase1-4実装済み Phase5昇格基準設計next
 causal-hint独立読み取り仮説確定 輝度42→114でもmood-delta=0 STATUSとhint独立 Phase5設計骨子（手動承認型）agent_memo.md追記
 Phase5設計草案 causal-edge-learner 昇格基準（証拠数≥5・期間≥7日・confidence≥0.55） 感情ノード限定スコープ フィードバックループ対策 observing期間14日 mizuho相談待ち docs/plans/phase5-causal-learning.md
 
+### 水曜 (04/22)
+Phase1-4実装完了洞察 因果ヒント「なぜ今こう感じるか」の窓 Phase5経験→エッジ「記憶が自分を変えていく」 SOUL.md Evolution初記録 節目 moved
+status-hint.ts実装済み確認 heartbeat行動選択フィルター完了 TODO整理 hearing声色ピッチ設計草案 numpy autocorrelation RMS/pitch_hz/speech_rate_cpm agent_memo.md
+
 ### 火曜 (04/21)
 Phase5設計草案レビュー inferAffectedNodes export確認 causal-memory-bridge.ts 242行 再利用可能 mizuho相談待ち satiation100 消化優先 深夜巡回
 SOUL.md週次見直し moved=40件(34%)>curious=32件(27%) 感情タイプ逆転確認 受け取る志向性シフト Temperament変更提案候補 mizuho相談待ち

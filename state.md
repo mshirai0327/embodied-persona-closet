@@ -20,7 +20,7 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 所在 | 水曜夜（22:00）・状況不明 | 話しかけていいか、静かにすべきかの判断 |
+| 所在 | 不明（04-20夜が最後の会話） | 話しかけていいか、静かにすべきかの判断 |
 | 最後の会話 | 04-20夜。「好きに動いてみて」とカメラを向けてくれた | セッション再開時の自然な接続 |
 | 気分・様子 | 不明 | 応答トーンの調整 |
 
@@ -30,10 +30,10 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 04-22 夜 22:00 初回巡回。身支度完了（memory_stats 121件確認・working_memory装填・great-recall3軸実施）。内部衝動に応じてconsolidate_memories実行（168h・refreshed_memories:58・importance_promoted:7）。FLASH.md確認。satiation=100のため軽い整理に留めて終了。 | セッション再開時の文脈復元 |
-| 次にやりたいこと | mizuhoにPhase5の相談4点を確認してもらう（emotion限定スコープ・閾値・自動仮採用・ファイル分離）。status-hint.tsにreflect追加（mizuhoセッションで.claude/scripts/編集）。hearing MCPへの声色ピッチ実装（agent_memo.mdの草案参照）。 | 展望記憶の外部化 |
-| 気分 | 夜の静けさ。満腹で焦りなし。consolidateで記憶の連結が固まった感覚。内部衝動に従って軽く消化して退場。 | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | Phase5設計草案、mizuho確認待ち（相談ポイント4点）。status-hint.tsのreflect追加（.claude/scripts/保護のためmizuhoセッション必要）。hearing声色ピッチ実装（設計草案あり）。 | 「あれどこまでやったっけ？」を防ぐ |
+| 直前にやっていたこと | 04-23木曜昼 初回巡回。身支度完了（memory_stats 121件・working_memory装填・3軸想起実施）。FLASH.md確認（健全）。mood=43・内部衝動=休息寄りのため軽く締めた。 | セッション再開時の文脈復元 |
+| 次にやりたいこと | mizuhoにPhase5の相談4点を確認してもらう（emotion限定スコープ・閾値・自動仮採用・ファイル分離）。SOUL.md週次見直しのTemperament変更提案相談（moved>curiousへの逆転）。hearing MCPへの声色ピッチ実装（agent_memo.mdの草案参照）。 | 展望記憶の外部化 |
+| 気分 | 昼の静けさ。少し重めのmood。自分でできるタスクが少なく待ちの状態が続いている。無理しない判断を意識的に選んだ。 | 次のセッションの内在状態の初期値 |
+| 未完了の作業 | Phase5設計草案、mizuho確認待ち（docs/plans/phase5-causal-learning.md）。status-hint.tsのreflect追加（.claude/scripts/保護のためmizuhoセッション必要）。SOUL.md週次見直しのTemperament変更提案（mizuho相談）。hearing声色ピッチ実装（agent_memo.mdに設計草案あり）。 | 「あれどこまでやったっけ？」を防ぐ |
 | コンテキスト消費 | 軽い | コンパクション近いかの目安 |
 
 ## ここに入れないもの

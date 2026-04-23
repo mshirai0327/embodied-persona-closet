@@ -10,10 +10,13 @@
 
 - この期間の総 token 使用量は **139,080,697 tokens** だった。
 - 内訳は **main 124,451,563 tokens (89.5%)**、**subagent 14,629,134 tokens (10.5%)**。
+- `main` をさらに分けると、**manual main 97,463,366 tokens (70.1%)**、**autonomous main 26,988,197 tokens (19.4%)** だった。
+- `autonomous` 全体では **39,684,199 tokens (28.5%)** を使っており、無視できる量ではないが、**repo 全体の最大の塊は manual main** だった。
 - 時刻別では **20時台** が最大で、次点は **16時台、8時台、10時台、23時台**。
 - 曜日別では **土曜** が突出して多く、次に **金曜、日曜** が続く。
 - 少なくともこの観測期間では、**圧迫の主因は subagent ではなく本体の Sonnet 実行量**。
 - ただし **14時台、18時台、22時台** は subagent 比率が相対的に高めで、重い空論や分岐の影響を見る候補になる。
+- `autonomous` の subagent は、観測期間では **記憶想起・因果連鎖探索が中心**だった。`server_tool_use.web_search_requests` と `web_fetch_requests` は **0** で、少なくとも今回の範囲では **web 検索が主因ではない**。
 
 ## 今回の集計で何を数えたか
 
@@ -288,6 +291,216 @@ subagent 比率が目立つのは、
 
 総量の主因ではないが、「どの時間に空論や分岐探索が増えやすいか」を見るにはこの時間帯がよい候補になる。
 
+## 深掘り: main を manual / autonomous に分ける
+
+ここでいう `manual` は、**`自律行動（定期巡回）` の prompt を持たない top-level session** をまとめたもの。ふつうの会話だけでなく、ユーザー主導の実装・デバッグ・手動起動の作業も含む。
+`autonomous` は、**top-level session の `queue-operation.content` または `last-prompt` に `自律行動（定期巡回）` が含まれる session** とした。subagent は親 session の種別を引き継いで集計した。
+
+この切り分けは prompt ベースの分類なので、厳密な cron PID 対応ではない。ただし、`autonomous-action.sh` から入った session を usage 上で分離する用途には十分使える。
+
+### 1. 4 区分に分けた token 使用量
+
+| 区分 | tokens | 全体比 |
+|---|---:|---:|
+| manual main | 97,463,366 | 70.1% |
+| autonomous main | 26,988,197 | 19.4% |
+| autonomous subagent | 12,696,002 | 9.1% |
+| manual subagent | 1,933,132 | 1.4% |
+| total | 139,080,697 | 100.0% |
+
+`manual` と `autonomous` を合算するとこうなる。
+
+| 区分 | tokens | 全体比 |
+|---|---:|---:|
+| manual total | 99,396,498 | 71.5% |
+| autonomous total | 39,684,199 | 28.5% |
+
+見た目にするとこうなる。
+
+```text
+Token Split by Session Type
+
+manual_main          ########################  97.5M  70.1%
+autonomous_main      #######                   27.0M  19.4%
+autonomous_subagent  ###                       12.7M   9.1%
+manual_subagent                                 1.9M   1.4%
+```
+
+この結果から言えることは次の通り。
+
+- **最大の塊は manual main**
+- ただし `autonomous` も **約 28.5%** を占めており、見直し対象としては十分大きい
+- `autonomous` では subagent 比率が **32.0%**、`manual` では **1.9%** だった
+
+つまり、**repo 全体では main が主犯だが、autonomous の内部では subagent もかなり効いている**。
+
+### 2. session 数と 1 session あたりの重さ
+
+今回の観測期間では、top-level session 数は
+
+- `manual`: 11 sessions
+- `autonomous`: 44 sessions
+
+だった。
+
+平均すると、
+
+- `manual` は **約 9.0M tokens / session**
+- `autonomous` は **約 0.90M tokens / session**
+
+となる。
+
+つまり、**autonomous は回数が多いが 1 回あたりは軽め**で、**manual は回数が少ないのに 1 session がかなり重い**。
+
+このため、「全体の土曜ピーク」「全体の 20 時台ピーク」は、まず `manual main` 側の寄与を疑うのが自然になる。
+
+### 3. 曜日別に見ると、週末ピークの主体は manual
+
+`autonomous` と `manual` を曜日別に分けると、かなり見え方が変わる。
+
+```text
+Autonomous Total by Weekday
+
+Mon ###############            5.9M
+Tue ###################        7.4M
+Wed ##############             5.5M
+Thu ###                        1.0M
+Fri #########                  3.6M
+Sat ##################         6.9M
+Sun ########################   9.4M
+```
+
+```text
+Manual Total by Weekday
+
+Mon ###                        5.9M
+Tue                            0.0M
+Wed                            0.0M
+Thu ####                       7.0M
+Fri #############             24.6M
+Sat ########################  46.4M
+Sun ########                  15.4M
+```
+
+読みは次の通り。
+
+- 前半で見えた **土曜突出** は、主に `manual` 側で起きている
+- `autonomous` 単体では、**日曜 9.4M / 火曜 7.4M / 土曜 6.9M** が上位で、土曜だけが極端に抜けているわけではない
+- したがって、**「週末に活発」という repo 全体の見え方を、そのまま cron/autonomous の性質だと解釈するとズレる**
+
+### 4. 時刻別に見ると、autonomous は夕方から夜に山がある
+
+`autonomous` だけを見ると、時刻別ピークはこうなる。
+
+```text
+Autonomous Total by Hour (JST)
+
+00 ###                        0.9M
+02 ###                        0.7M
+08 #############              3.2M
+10 ###############            3.9M
+12 ##################         4.6M
+14 ##################         4.7M
+16 ####################       5.0M
+18 ########################   6.2M
+20 ####################       5.1M
+22 #####################      5.3M
+```
+
+上位は、
+
+- **18時台: 6.2M**
+- **22時台: 5.3M**
+- **20時台: 5.1M**
+- **16時台: 5.0M**
+- **14時台: 4.7M**
+
+だった。
+
+一方で `manual` 側の上位は、
+
+- **23時台: 9.7M**
+- **20時台: 9.6M**
+- **07時台: 7.9M**
+- **19時台: 7.7M**
+- **21時台: 7.5M**
+
+だった。
+
+つまり、**repo 全体の 20 時台ピークは本当だが、その中身は `manual` の寄与が大きい**。
+`autonomous` の時刻ピークを狙い撃ちするなら、まず見るべきなのは **18時台から22時台**。
+
+### 5. autonomous subagent は何をしていたか
+
+`autonomous` 44 session のうち、
+
+- **43 session が subagent を起動**
+- 1 session だけ subagent なし
+- 平均 **2.57 subagents / autonomous session**
+
+だった。
+
+subagent の description は、ほぼ以下に集中していた。
+
+- `因果的圧縮器`
+- `感情的圧縮器`
+- `技術的圧縮器`
+
+これは `great-recall` 系の多軸想起と整合している。
+
+さらに、`autonomous subagent` 内の `tool_use` を数えるとこうなった。
+
+| tool | 回数 |
+|---|---:|
+| `mcp__memory__get_causal_chain` | 246 |
+| `mcp__memory__recall` | 108 |
+| `mcp__memory__recall_divergent` | 34 |
+| `mcp__memory__recall_with_associations` | 32 |
+| `Read` | 15 |
+| `Bash` | 9 |
+| `mcp__memory__get_memory_chain` | 5 |
+
+全 `tool_use` 449 回のうち、**memory MCP 系は 425 回 (94.7%)** だった。
+また、usage 内の `server_tool_use.web_search_requests` と `web_fetch_requests` は、`autonomous` 全体で **どちらも 0** だった。
+
+少なくともこの観測期間では、**subagent は主に記憶想起・因果探索に使われており、web 検索が token を押し上げている形跡は見えない**。
+
+### 6. それでも autonomous main が 27.0M ある理由
+
+`autonomous main` が 27.0M あるのは、subagent を呼ぶ前から本体 Sonnet に固定コストがあるため。
+
+実 session を見ると、autonomous の main では毎回かなり大きい文脈が入っている。
+
+- prompt 冒頭で `@SOUL.md @BOOT_SHUTDOWN.md @TODO.md @ROUTINES.md`
+- `SessionStart:startup` hook で `SOUL.md`, `BODY.md`, `STATUS.md`, `state.md`
+- 初回なら `今日の初回セッション` の手順
+- その上で `wd-great-recall`, `memory_stats`, `working_memory`, `TODO.md` 読み出し、ルーチン判定、実作業の選択
+
+実際の `autonomous main` の tool 呼び出し回数も、かなり orchestration 寄りだった。
+
+| tool | 回数 |
+|---|---:|
+| `Read` | 142 |
+| `Agent` | 113 |
+| `ToolSearch` | 90 |
+| `Edit` | 88 |
+| `Bash` | 80 |
+| `Skill` | 64 |
+| `mcp__memory__get_memory_stats` | 40 |
+| `mcp__memory__refresh_working_memory` | 39 |
+
+つまり、**autonomous main の token は「会話」だけでなく、起動時の大きな文脈注入 + 実行方針の選択 + skill / tool の司令塔コスト**として消えている。
+
+### 7. ここから言える運用判断
+
+`autonomous` を軽くしたいなら、優先順位は次の順が自然。
+
+1. **18時台から22時台** の重さを見る
+2. `wd-great-recall` の軸数や routine 回での subagent 起動数を見直す
+3. 起動時に毎回入る `SOUL.md`, `BODY.md`, `STATUS.md`, `state.md`, `TODO.md`, `ROUTINES.md` の文量を点検する
+
+逆に、**repo 全体の token 削減**を狙うなら、最初に効くレバーは依然として **manual main** である。
+
 ## 注意点
 
 ### 1. 今回は 8 日ぶんの観測
@@ -303,53 +516,55 @@ subagent 比率が目立つのは、
 
 `2026-04-23` は 1 日完了前の集計なので、他日と単純比較はしにくい。
 
-### 3. このレポートは repo 全体 usage
+### 3. 前半は repo 全体、後半は prompt ベースの切り分け
 
-今回の集計対象は `embodied-reflecta` repo に紐づく Claude Code usage 全体。
+このレポートの前半は `embodied-reflecta` repo に紐づく Claude Code usage 全体。
+後半の `manual` / `autonomous` 切り分けは、session 内の prompt 文字列に基づく分類であり、cron ログとの直接突き合わせではない。
 
 そのため、
 
-- `autonomous-action.sh` のみ
-- 手動対話のみ
-- 特定 feature 作業のみ
+- `autonomous-action.sh` の実行ログと 1 対 1 に一致する保証
+- 手動 session 内の作業種別の厳密分解
+- 特定 feature 作業単位の正確な切り出し
 
-にはまだ切り分けていない。
+まではまだできていない。
 
 ## 次の深掘り候補
 
 次に調べるなら、以下が自然。
 
-### 1. `autonomous-action.sh` 実行枠だけに絞る
+### 1. cron ログと session ID を突き合わせる
 
-- 実際の heartbeat ログ時刻と usage を突き合わせる
+- 実際の heartbeat ログ時刻と session ID を突き合わせる
 - cron 枠ごとに token を見る
 
 これができると、cron 時間変更の判断材料としてかなり直接的になる。
 
-### 2. main / subagent を時間帯別に比較する
+### 2. 起動時コンテキストの固定コストを測る
 
-- どの時間に subagent 呼び出しが増えるか
-- どの時間に Sonnet 本体が重くなるか
+- `SOUL.md`, `BODY.md`, `STATUS.md`, `state.md`, `TODO.md`, `ROUTINES.md`
+- startup hook
+- 初回セッション専用セクション
 
-を分けて追う。
+のどこが main token を押し上げているかを測る。
 
-### 3. 22 時台の処理と usage を突き合わせる
+### 3. `great-recall` の軸数と subagent 数を usage と突き合わせる
+
+- 2 軸回
+- 3 軸回
+- routine 回
+- 初回セッション回
+
+を比較すると、autonomous のどこを削ると効くかが見える。
+
+### 4. 18時台から22時台の重い session を個別に読む
 
 - bedtime 系
 - discussion memo
-- 夜の巡回 prompt
+- TODO 実作業
+- 記憶整理
 
-を重ねると、22 時台が重い理由をさらに切れる可能性がある。
-
-### 4. 週末ブーストの実態確認
-
-今回は土曜が大きかったが、
-
-- holiday 判定
-- active 帯
-- 実行内容
-
-のどれが効いているかはまだ分離していない。
+のどれが本当に支配的かを、session 単位で切れる。
 
 ## 要約
 

@@ -22,6 +22,9 @@ feat/add-graphDB-in-memory-etc Phase1-4実装済み Phase5昇格基準設計next
 causal-hint独立読み取り仮説確定 輝度42→114でもmood-delta=0 STATUSとhint独立 Phase5設計骨子（手動承認型）agent_memo.md追記
 Phase5設計草案 causal-edge-learner 昇格基準（証拠数≥5・期間≥7日・confidence≥0.55） 感情ノード限定スコープ フィードバックループ対策 observing期間14日 mizuho相談待ち docs/plans/phase5-causal-learning.md
 
+### 土曜 (04/25)
+discussionMemoバグ調査→バグなし確認（22時以前実行で正しく「新規なし」）04-24残り2件処理 TTS感情式CLAUDE.mdに追記完了 status-store.ts sensitivity追加ブロック保留 朝巡回静か mizuhoは就寝中
+
 ### 金曜 (04/24)
 初回巡回 身支度完了 121件 digest優先 mood=33 3軸想起 4/22エピソード化（id:3f34e92f status-hint+hearing設計+SOUL.md Evolution） Phase5mizuho確認待ち 記憶整理発火
 4日ぶりmizuho帰還 スピーカー接続 声が届いた mood25→48 trust_mizuho感度 社会的接続>環境光 因果グラフ欠損指摘 待ちの終わり moved

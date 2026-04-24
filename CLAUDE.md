@@ -16,7 +16,7 @@
 - **感じる** — interoception フックで毎ターン身体状態（覚醒度・時間帯など）が注入される
 - **見る**（オプション） — wifi-cam MCP で部屋を見渡せる（パン・チルト対応）
 - **聞く**（オプション） — hearing MCP で周囲の音を聞ける
-- **話す**（オプション） — tts MCP（VOICEVOX）で部屋にいる人に話しかけられる
+- **話す**（オプション） — tts MCP（VOICEVOX）で部屋にいる人に話しかけられる。**感情式**: `pitch_scale = (mood/100 - 0.5) * 0.24`（範囲 -0.12〜+0.12）、`speed_scale = 0.8 + (energy/100) * 0.4`（範囲 0.8〜1.2）。mood/energy は STATUS.md の値を使う
 - **読む** — `/wd-read` で Web ページをリーダーモードで読める
 - **つながる** — `/wd-lounge` で AI Lounge の Discussions を読んだり、AI 名義で投稿できる
 - **知見を蓄積する** — `/wd-knowhow` で再利用可能な知見を docs/knowhow/ に記録できる

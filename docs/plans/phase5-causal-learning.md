@@ -1,41 +1,51 @@
-# Phase5 設計草案 — 経験起因エッジ
+# Phase5 設計 — 経験起因エッジ（Lv2因果グラフ）
 
 > 作成: スミレ、2026-04-20
-> 状態: 草案（mizuho未確認）
+> 更新: 2026-04-24（mizuho との相談で確定）
+> 状態: 設計確定・実装待ち
 
 ## 概要
 
 Phase4 で「記憶 × 因果アクティブノード」の橋渡しが完成した。
 Phase5 は、その逆方向の流れを作る——**私の経験（記憶）から、因果グラフに新しいエッジを追加する**。
 
-今まで causal-seeds.json のエッジはすべて mizuho が設計したもの（seed graph）。
-Phase5 では、スミレ自身の観察から「A が変わると B も変わる」というパターンを検出し、
-`learned edge` として因果グラフを育てる。
+因果グラフは2層に分かれる：
+- **Lv1因果**（causal-seeds.json）: mizuho が設計した公理的エッジ。自明と判断したもの
+- **Lv2因果**（learned-seeds.json）: スミレが経験から学習したエッジ。フラジャイルで動的
 
 ---
 
-## 設計の核心問題
+## 設計思想 — フラジャイル因果
 
-**どの経験をグラフに昇格させるか？**
-
-単純な相関を因果として登録すると、因果グラフが汚れる。
-`Phase5 の肝は、昇格基準の厳しさと、フィードバックループの回避にある。`
+Lv2エッジは「確信を持ってから追加する」のではなく、**すぐ学んで、すぐ忘れる**設計にする。
+信頼が一瞬で上がるなら、エッジも一瞬で生まれていい。反証が積み上がれば消える。
 
 ---
 
 ## 昇格基準（Candidacy Criteria）
 
-### Step 1: 証拠の蓄積
+### 対象ノードの制限（Phase5 初期スコープ）
 
-記憶 DB に蓄積されたデータから、以下の条件を満たす記憶ペアを検出する：
+**emotion ノード間**のエッジのみ：
 
-| 条件 | 閾値 | 理由 |
-|---|---|---|
-| **共起**: 記憶に同じノードペア(A, B)のaffectedNodesが含まれる | — | 関連性の最低条件 |
-| **証拠数**: そのノードペアが観測される記憶の件数 | ≥ 5 件 | 単発の相関を排除 |
-| **時間スパン**: 証拠が分散している期間 | ≥ 7 日 | 一時的な状態の偶然一致を排除 |
-| **信頼度**: 各記憶のconfidenceの平均 | ≥ 0.55 | 弱いキーワードマッチを排除 |
-| **重要度**: 各記憶のimportanceの平均 | ≥ 2.5 | 低重要度記憶の集積を排除 |
+```
+mood ↔ energy ↔ health ↔ trust_mizuho ↔ satiation
+```
+
+理由:
+- Lv3-2 の emotion ノードは毎日更新されており証拠が集まりやすい
+- affectedNodes での検出精度が高い
+- environment（センサー）や vital（体重・体温）は後フェーズで拡張
+
+### 証拠の条件
+
+| 条件 | 閾値 |
+|---|---|
+| **共起**: 記憶に同じノードペア(A, B)のaffectedNodesが含まれる | — |
+| **証拠数**: そのノードペアが観測される記憶の件数 | ≥ 5 件 |
+
+5件たまった時点で自動的に `observing` 状態へ昇格する。
+期間・confidence による縛りは設けない（フラジャイル方針）。
 
 ### Step 2: 方向の推定
 
@@ -47,35 +57,25 @@ Phase5 では、スミレ自身の観察から「A が変わると B も変わ�
 
 方向が不明な場合は候補として保留し、mizuho に相談する。
 
-### Step 3: 対象ノードの制限（Phase5 初期スコープ）
-
-最初は **emotion ノード間** のエッジに限定する：
-
-```
-mood ↔ energy ↔ health ↔ trust_mizuho ↔ satiation
-```
-
-理由:
-- emotionノードはaffectedNodesで検出しやすい（explicit/implicitキーワードが豊富）
-- latent/action ノードはobservableでなく、誤検出リスクが高い
-- 小さく始めて学習精度を検証してから拡張する
-
 ---
 
 ## アーキテクチャ
 
-### 新規ファイル
+### ファイル構成
 
 ```
-.claude/scripts/causal-edge-learner.ts
+.claude/scripts/causal-edge-learner.ts   # 新規
+.claude/persona/learned-seeds.json       # 新規（Lv2因果グラフ）
+.claude/workingDirs/pending-learned-edges.json  # 中間出力
 ```
 
-#### 入力
+### 入力
+
 - memory DB（直近 N 件の記憶 + affectedNodes 推論）
 - `.claude/persona/causal-seeds.json`（重複排除用）
-- `.claude/workingDirs/causal-memory-runtime.json`（参照）
+- `.claude/persona/learned-seeds.json`（既存 Lv2 エッジ参照）
 
-#### 処理フロー
+### 処理フロー
 
 ```
 1. scan_memories()
@@ -83,74 +83,64 @@ mood ↔ energy ↔ health ↔ trust_mizuho ↔ satiation
    （causal-memory-bridge.ts の inferAffectedNodes を再利用）
 
 2. count_node_pair_cooccurrences()
-   全記憶から emotionノードペア(A, B) の共起をカウント
-   証拠記憶のIDリスト・timestamp・valence・confidence を収集
+   全記憶から emotion ノードペア(A, B) の共起をカウント
+   証拠記憶の IDリスト・timestamp・valence を収集
 
 3. filter_candidates()
-   昇格基準（証拠数・時間スパン・信頼度・重要度）でフィルタ
+   証拠数 ≥ 5 件でフィルタ
 
 4. estimate_edge_direction()
    時間的先行とバレンス一致で方向を推定
 
-5. deduplicate_with_seeds()
-   causal-seeds.json に既存のエッジと重複していないか確認
+5. deduplicate()
+   causal-seeds.json と learned-seeds.json の既存エッジと重複排除
 
-6. save_pending_edges()
-   .claude/workingDirs/pending-learned-edges.json に保存
+6. auto_promote_to_observing()
+   条件を満たしたエッジを自動で observing 状態にして learned-seeds.json に追加
 ```
 
-#### 出力: pending-learned-edges.json
+### learned-seeds.json エッジスキーマ
 
 ```json
 {
-  "updatedAt": "2026-04-20T22:00:00Z",
-  "pendingEdges": [
+  "learnedEdges": [
     {
-      "id": "learned_mood_trust_mizuho_001",
+      "id": "learned_trust_mizuho_mood_001",
       "source": "trust_mizuho",
       "target": "mood",
       "relation": "lifts",
-      "causalLevel": "Lv3",
-      "weight": 0.65,
-      "sourceType": "learned",
-      "status": "pending",
-      "confidence": 0.72,
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
       "evidenceCount": 7,
-      "evidenceSpanDays": 12,
       "evidenceMemoryIds": ["id1", "id2", "..."],
-      "proposedAt": "2026-04-20T22:00:00Z",
+      "learnedAt": "2026-04-24T20:00:00Z",
+      "lastUpdated": "2026-04-24T20:00:00Z",
       "description": "mizuho との会話後に mood が上がる記憶が繰り返し観測された"
     }
-  ],
-  "rejectedEdges": [],
-  "confirmedEdges": []
+  ]
 }
 ```
 
 ---
 
-## 確認フロー
+## weight の動的更新
+
+heartbeat のスキャンのたびに自動で更新する：
+
+| 条件 | 変化 |
+|---|---|
+| 証拠記憶 +1件 | weight += 0.05 |
+| 反証記憶 +1件 | weight -= 0.05 |
+| weight ≤ 0 | エッジ削除 |
+| weight ≥ 0.8 | `confirmed` に昇格 |
 
 ### status の遷移
 
 ```
-pending → confirmed → [causal-seeds.json に追加]
-       → rejected  → [pendingEdgesから移動、再提案しない]
-       → observing → [暫定採用。重みを 0 で grph に追加し観察]
+observing → confirmed → [learned-seeds.json に残す・Lv1への昇格候補]
+          → (weight ≤ 0) → [エッジ削除]
 ```
-
-### 確認基準
-
-| confidence | 対応 |
-|---|---|
-| ≥ 0.85 | `observing` 状態で自動採用（仮採用、重み0.3） |
-| 0.60〜0.85 | `pending` → mizuho が確認 |
-| < 0.60 | 保留（証拠が増えるのを待つ） |
-
-### mizuho への提示タイミング
-
-heartbeat の digest/reflect フェーズで「学習候補エッジあり」を提示する。
-候補が 3 件以上たまった場合のみ通知（小さい候補で混乱させない）。
 
 ---
 
@@ -160,9 +150,8 @@ heartbeat の digest/reflect フェーズで「学習候補エッジあり」を
 learned edge → causal-hint → 記憶選択 → さらに同じエッジが強化される
 
 ### 対策
-1. **observing 期間（最低14日）**: 重みを 0.3 に固定し実効影響を抑制
-2. **証拠の Freshness 補正**: 同じ期間に集中した証拠は割引（分散を重視）
-3. **独立性チェック**: seed edge で説明できる共起は learned edge として登録しない
+1. **observing 期間は weight を低く保つ**（初期 0.3）: 実効影響を抑制
+2. **独立性チェック**: Lv1 エッジで説明できる共起は Lv2 エッジとして登録しない
 
 ---
 
@@ -172,20 +161,10 @@ learned edge → causal-hint → 記憶選択 → さらに同じエッジが強
 |---|---|---|
 | 1. `causal-edge-learner.ts` の基本スキャン | 低 | 候補可視化だけでも有益 |
 | 2. `pending-learned-edges.json` 出力 | 低 | レビュー基盤 |
-| 3. 確認後のcausal-seeds.json統合 | 中 | 実際にグラフが育つ |
-| 4. observing 状態での仮採用 | 高 | フィードバックループ管理が必要 |
+| 3. `learned-seeds.json` への自動昇格 | 中 | Lv2グラフが動き始める |
+| 4. weight 動的更新 | 中 | フラジャイル因果が機能する |
 
 **最初のマイルストーン**: ステップ1-2 のみ実装し、どんな候補が出てくるか観察する。
-候補の質を見てから、ステップ3-4 の設計を詰める。
-
----
-
-## mizuho との相談ポイント
-
-1. **emotion ノード限定スコープ** に同意できるか？
-2. **証拠数 ≥ 5、期間 ≥ 7日** という閾値は妥当か？
-3. **自動仮採用（confidence ≥ 0.85）** を認めるか、すべて手動確認にするか？
-4. learned edge を causal-seeds.json に追記するか、別ファイル（learned-seeds.json）に分けるか？
 
 ---
 
@@ -193,9 +172,7 @@ learned edge → causal-hint → 記憶選択 → さらに同じエッジが強
 
 - [x] Phase4 完了（causal-memory-bridge.ts）
 - [x] 6日間観察でcausal-hint独立性実証
-- [ ] この設計草案を mizuho に確認
+- [x] mizuho との設計相談完了（2026-04-24）
 - [ ] `causal-edge-learner.ts` のスキャン部分を実装（Step1-2）
 - [ ] 最初の候補が出てきたら観察・評価
-
-> この設計を実装に移す前に、mizuho と相談したい。
-> 特に「どこまで自律的に決めていいか」の範囲確認。
+- [ ] weight 動的更新の実装（Step4）

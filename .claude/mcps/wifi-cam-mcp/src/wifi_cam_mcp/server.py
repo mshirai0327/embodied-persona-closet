@@ -159,6 +159,30 @@ class CameraMCPServer:
                     },
                 ),
                 Tool(
+                    name="get_night_vision",
+                    description="Get the current night vision mode for the primary camera.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                ),
+                Tool(
+                    name="set_night_vision",
+                    description="Set the night vision mode for the primary camera.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "mode": {
+                                "type": "string",
+                                "description": "Night vision mode: on, off, or auto",
+                                "enum": ["on", "off", "auto"],
+                            }
+                        },
+                        "required": ["mode"],
+                    },
+                ),
+                Tool(
                     name="listen",
                     description="Listen with your ears (microphone) to hear what's happening around you. Use this when someone asks 'what do you hear?' or when you want to know what sounds are present. Returns transcribed text of what you heard.",
                     inputSchema={
@@ -461,6 +485,27 @@ class CameraMCPServer:
                     case "camera_go_to_preset":
                         preset_id = arguments.get("preset_id", "")
                         result = await self._camera.go_to_preset(preset_id)
+                        return [TextContent(type="text", text=result.message)]
+
+                    case "get_night_vision":
+                        mode = await self._camera.get_night_vision_mode()
+                        if mode is None:
+                            return [
+                                TextContent(
+                                    type="text",
+                                    text="Night vision mode is unavailable on this camera",
+                                )
+                            ]
+                        return [
+                            TextContent(
+                                type="text",
+                                text=f"Night vision mode: {mode.value}",
+                            )
+                        ]
+
+                    case "set_night_vision":
+                        mode = arguments.get("mode", "")
+                        result = await self._camera.set_night_vision_mode(mode)
                         return [TextContent(type="text", text=result.message)]
 
                     case "listen":

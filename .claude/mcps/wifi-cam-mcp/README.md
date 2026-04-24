@@ -22,6 +22,8 @@ Tapo C200 などの WiFi カメラを MCP 経由で制御して、AI に部屋�
 | `camera_info` | カメラ情報取得 |
 | `camera_presets` | プリセット位置一覧 |
 | `camera_go_to_preset` | プリセット位置に移動 |
+| `get_night_vision` | ナイトビジョン状態を確認 |
+| `set_night_vision` | ナイトビジョンを `on` / `off` / `auto` に切り替え |
 | `listen` | 数秒だけ音を録音し、必要なら文字起こし |
 
 ## セットアップ

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  computeBrightnessBaseline,
+  formatBrightnessRoiSpec,
   computeTemperatureBaseline,
   describeBrightnessObservation,
   evaluateEnergyFromTemperature,
@@ -8,6 +10,7 @@ import {
   evaluateMoodFromBrightness,
   evaluateThermalLoadProxy,
   loadJmaWeatherObservationBundle,
+  parseBrightnessRoiSpec,
 } from "./environment-tick.ts";
 
 describe("computeTemperatureBaseline", () => {
@@ -19,6 +22,18 @@ describe("computeTemperatureBaseline", () => {
   test("applies EMA to existing baseline", () => {
     expect(computeTemperatureBaseline(100, 90)).toBeCloseTo(98, 5);
     expect(computeTemperatureBaseline(80, 100)).toBeCloseTo(84, 5);
+  });
+});
+
+describe("computeBrightnessBaseline", () => {
+  test("uses current brightness for first sample", () => {
+    expect(computeBrightnessBaseline(undefined, 96)).toBe(96);
+    expect(computeBrightnessBaseline(null, 84)).toBe(84);
+  });
+
+  test("applies a slow EMA to the saved baseline", () => {
+    expect(computeBrightnessBaseline(100, 40)).toBeCloseTo(94, 5);
+    expect(computeBrightnessBaseline(60, 120)).toBeCloseTo(66, 5);
   });
 });
 
@@ -71,26 +86,66 @@ describe("evaluateThermalLoadProxy", () => {
 });
 
 describe("describeBrightnessObservation", () => {
-  test("normalizes camera brightness into an environment score", () => {
-    const observation = describeBrightnessObservation(191);
+  test("normalizes camera brightness around the saved placement baseline", () => {
+    const observation = describeBrightnessObservation(191, {
+      baseline: 191,
+      roiSpec: "0.20,0.20,0.60,0.60",
+    });
 
-    expect(observation.normalizedValue).toBe(75);
-    expect(observation.band).toBe("bright");
+    expect(observation.normalizedValue).toBe(50);
+    expect(observation.band).toBe("neutral");
     expect(observation.reason).toContain("環境光");
+    expect(observation.reason).toContain("ROI 0.20,0.20,0.60,0.60");
+  });
+
+  test("treats a scene as dark when it falls well below the saved baseline", () => {
+    const observation = describeBrightnessObservation(44, {
+      baseline: 96,
+      roiSpec: "0.20,0.20,0.60,0.60",
+    });
+
+    expect(observation.normalizedValue).toBeLessThan(20);
+    expect(observation.band).toBe("dark");
   });
 });
 
 describe("evaluateMoodFromBrightness", () => {
-  test("keeps the legacy bright-room uplift", () => {
-    const result = evaluateMoodFromBrightness(180);
+  test("lifts mood when brightness is well above the calibrated baseline", () => {
+    const result = evaluateMoodFromBrightness(
+      180,
+      describeBrightnessObservation(180, { baseline: 110 }),
+    );
 
     expect(result.moodDelta).toBe(2);
   });
 
-  test("keeps the legacy dark-room penalty", () => {
-    const result = evaluateMoodFromBrightness(30);
+  test("penalizes mood when brightness is well below the calibrated baseline", () => {
+    const result = evaluateMoodFromBrightness(
+      30,
+      describeBrightnessObservation(30, { baseline: 100 }),
+    );
 
     expect(result.moodDelta).toBe(-3);
+  });
+});
+
+describe("brightness ROI helpers", () => {
+  test("parses normalized ROI specs", () => {
+    expect(parseBrightnessRoiSpec("0.20,0.20,0.60,0.60")).toEqual({
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+    });
+  });
+
+  test("formats ROI specs in a stable way", () => {
+    expect(formatBrightnessRoiSpec({
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+    })).toBe("0.20,0.20,0.60,0.60");
   });
 });
 

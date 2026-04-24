@@ -10,6 +10,8 @@ const CURRENT_SECTION_HEADING = "## 現在の環境";
 const AUX_SECTION_HEADING = "## 補助状態";
 const HISTORY_SECTION_HEADING = "## 変化履歴";
 const HISTORY_ENTRY_RE = /^\| \d{4}-\d{2}-\d{2} \d{2}:\d{2} \|/;
+const AUX_HEADERS = ["項目", "値", "最終更新", "備考"];
+const AUX_SEPARATOR = "|---|---|---|---|";
 const HISTORY_HEADERS = ["日時", "項目", "変化前", "変化後", "正規化値", "理由"];
 const HISTORY_SEPARATOR = "|---|---|---|---|---|---|";
 
@@ -21,7 +23,7 @@ export const ENVIRONMENT_FIELDS = {
   },
   ambient_brightness: {
     label: "環境光",
-    sourceHint: "usb-webcam brightness",
+    sourceHint: "wifi-cam RTSP brightness",
     statusTarget: "mood",
   },
   ambient_temperature: {
@@ -39,9 +41,23 @@ export const ENVIRONMENT_FIELDS = {
 export const ENVIRONMENT_AUX_FIELDS = {
   environment_thermal_baseline: {
     label: "熱負荷 baseline",
+    noteHint: "Core Max の EMA 基準値",
   },
   environment_sample_count: {
     label: "観測サンプル数",
+    noteHint: "baseline 算出に使ったサンプル数",
+  },
+  environment_brightness_baseline: {
+    label: "環境光 baseline",
+    noteHint: "ROI 輝度の slow EMA 基準値",
+  },
+  environment_brightness_sample_count: {
+    label: "環境光観測サンプル数",
+    noteHint: "baseline 算出に使ったサンプル数",
+  },
+  environment_brightness_roi: {
+    label: "環境光 ROI",
+    noteHint: "normalized x,y,w,h",
   },
 } as const;
 
@@ -261,6 +277,39 @@ function findHistoryInsertionIndex(lines: string[]): number {
   return insertIndex + 2;
 }
 
+function findAuxInsertionIndex(lines: string[]): number {
+  const auxHeaderIndex = lines.findIndex((line) => line.trim() === AUX_SECTION_HEADING);
+  if (auxHeaderIndex === -1) return lines.length;
+
+  for (let index = auxHeaderIndex + 1; index < lines.length; index++) {
+    const line = lines[index].trim();
+    const nextHeading = line.match(/^(#+)\s/);
+    if (nextHeading) {
+      lines.splice(index, 0, `| ${AUX_HEADERS.join(" | ")} |`, AUX_SEPARATOR);
+      return index + 2;
+    }
+
+    if (line.startsWith("|")) {
+      const cells = parsePipeRow(line);
+      if (cells.length === AUX_HEADERS.length && cells.every((cell, cellIndex) => cell === AUX_HEADERS[cellIndex])) {
+        if (index + 1 >= lines.length || lines[index + 1].trim() !== AUX_SEPARATOR) {
+          lines.splice(index + 1, 0, AUX_SEPARATOR);
+        }
+
+        let insertIndex = index + 2;
+        while (insertIndex < lines.length && lines[insertIndex].trim().startsWith("|")) {
+          insertIndex += 1;
+        }
+        return insertIndex;
+      }
+    }
+  }
+
+  const insertIndex = auxHeaderIndex + 1;
+  lines.splice(insertIndex, 0, `| ${AUX_HEADERS.join(" | ")} |`, AUX_SEPARATOR);
+  return insertIndex + 2;
+}
+
 function parseHistoryEntries(sectionText: string): EnvironmentHistoryEntry[] {
   const history: EnvironmentHistoryEntry[] = [];
 
@@ -384,11 +433,15 @@ export async function setEnvironmentAuxValue(
   const text = await file.text();
   const lines = text.split("\n");
   const label = ENVIRONMENT_AUX_FIELDS[field].label;
-  const rowIndex = findFieldLineIndex(lines, label);
-  if (rowIndex === -1) return;
+  let rowIndex = findFieldLineIndex(lines, label);
+  if (rowIndex === -1) {
+    const insertIndex = findAuxInsertionIndex(lines);
+    lines.splice(insertIndex, 0, `| ${label} | — | — | ${ENVIRONMENT_AUX_FIELDS[field].noteHint} |`);
+    rowIndex = insertIndex;
+  }
 
   const updatedAt = formatEnvironmentTimestamp(options.updatedAt ?? new Date());
-  lines[rowIndex] = `| ${label} | ${valueText ?? "—"} | ${updatedAt} | ${options.note ?? "—"} |`;
+  lines[rowIndex] = `| ${label} | ${valueText ?? "—"} | ${updatedAt} | ${options.note ?? ENVIRONMENT_AUX_FIELDS[field].noteHint} |`;
 
   const output = lines.join("\n");
   await Bun.write(environmentPath, text.endsWith("\n") && !output.endsWith("\n") ? `${output}\n` : output);

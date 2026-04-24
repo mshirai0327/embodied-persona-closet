@@ -20,9 +20,9 @@
  *   - baseline 100°C / current 110°C → 消耗方向
  *
  * カメラ平均輝度 (0-255) → mood:
- *   > 150 : +2  (明るい空間)
- *   50-150: 0   (変化なし)
- *   < 50  : -3  (暗い部屋)
+ *   固定閾値ではなく、ROI の slow EMA baseline からのズレで判断する。
+ *   カメラ位置や画角の違いを baseline 側に吸収しつつ、
+ *   「いつもより暗い / 明るい」を mood に伝える。
  */
 
 import { dirname } from "node:path";
@@ -47,9 +47,17 @@ const ENVIRONMENT_STATE_PATH =
   process.env.WARDROBE_ENVIRONMENT_STATE_PATH?.trim()
   ?? `${SCRIPT_DIR}/../workingDirs/environment-state.json`;
 const TEMPERATURE_EMA_ALPHA = 0.2;
+const BRIGHTNESS_EMA_ALPHA = 0.1;
 const ENERGY_DELTA_SCALE = 0.8;
 const ENERGY_DELTA_MIN = -8;
 const ENERGY_DELTA_MAX = 5;
+const BRIGHTNESS_NORMALIZATION_SPAN = 60;
+const DEFAULT_BRIGHTNESS_ROI = Object.freeze({
+  x: 0.2,
+  y: 0.2,
+  width: 0.6,
+  height: 0.6,
+});
 
 interface EnvironmentState {
   energyTemperatureBaseline?: number;
@@ -61,6 +69,9 @@ interface EnvironmentState {
   lastBrightnessNormalized?: number;
   lastBrightnessBand?: string;
   lastBrightnessAt?: string;
+  brightnessBaseline?: number;
+  brightnessSampleCount?: number;
+  brightnessRoi?: string;
   sampleCount?: number;
   updatedAt?: string;
 }
@@ -82,7 +93,17 @@ export interface ThermalLoadProxy {
 export interface BrightnessObservation {
   normalizedValue: number;
   band: "dark" | "dim" | "neutral" | "bright";
+  baseline: number;
+  relativeDelta: number;
+  roiSpec: string;
   reason: string;
+}
+
+export interface BrightnessRoi {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 interface StatusFallbackUpdate {
@@ -130,6 +151,52 @@ export function computeTemperatureBaseline(
     return currentTemp;
   }
   return previousBaseline * (1 - alpha) + currentTemp * alpha;
+}
+
+export function computeBrightnessBaseline(
+  previousBaseline: number | null | undefined,
+  currentBrightness: number,
+  alpha = BRIGHTNESS_EMA_ALPHA,
+): number {
+  if (previousBaseline === null || previousBaseline === undefined || !Number.isFinite(previousBaseline)) {
+    return currentBrightness;
+  }
+  return previousBaseline * (1 - alpha) + currentBrightness * alpha;
+}
+
+export function parseBrightnessRoiSpec(raw: string | null | undefined): BrightnessRoi | null {
+  if (!raw) return null;
+
+  const parts = raw.split(",").map((part) => Number.parseFloat(part.trim()));
+  if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) {
+    return null;
+  }
+
+  let [x, y, width, height] = parts;
+  if ([x, y, width, height].some((part) => part > 1)) {
+    x /= 100;
+    y /= 100;
+    width /= 100;
+    height /= 100;
+  }
+
+  if (width <= 0 || height <= 0) return null;
+  if (x < 0 || y < 0 || x + width > 1 || y + height > 1) return null;
+
+  return { x, y, width, height };
+}
+
+export function formatBrightnessRoiSpec(roi: BrightnessRoi): string {
+  return [roi.x, roi.y, roi.width, roi.height].map((value) => value.toFixed(2)).join(",");
+}
+
+function resolveBrightnessRoi(raw: string | null | undefined): BrightnessRoi {
+  return parseBrightnessRoiSpec(raw) ?? DEFAULT_BRIGHTNESS_ROI;
+}
+
+function normalizeBrightnessAgainstBaseline(currentBrightness: number, baseline: number): number {
+  const centered = 50 + ((currentBrightness - baseline) / BRIGHTNESS_NORMALIZATION_SPAN) * 50;
+  return clamp(Math.round(centered), 0, 100);
 }
 
 function computeThermalLoadScore(relativeDelta: number): number {
@@ -202,26 +269,43 @@ export function evaluateEnergyFromTemperature(
   };
 }
 
-export function describeBrightnessObservation(brightness: number): BrightnessObservation {
-  const normalizedValue = clamp(Math.round((brightness / 255) * 100), 0, 100);
+export function describeBrightnessObservation(
+  brightness: number,
+  options: {
+    baseline?: number | null;
+    roiSpec?: string | null;
+  } = {},
+): BrightnessObservation {
+  const baseline = Number.isFinite(options.baseline ?? Number.NaN)
+    ? Number(options.baseline)
+    : brightness;
+  const normalizedValue = normalizeBrightnessAgainstBaseline(brightness, baseline);
+  const relativeDelta = brightness - baseline;
+  const deltaLabel = `${relativeDelta >= 0 ? "+" : ""}${relativeDelta.toFixed(1)}`;
+  const roiSpec = options.roiSpec?.trim() || formatBrightnessRoiSpec(DEFAULT_BRIGHTNESS_ROI);
 
   let band: BrightnessObservation["band"] = "neutral";
-  let stateText = "落ち着いた明るさ。";
+  let stateText = "baseline に近い明るさ。";
   if (normalizedValue >= 75) {
     band = "bright";
-    stateText = "かなり明るい空間。";
+    stateText = "いつもよりかなり明るい。";
   } else if (normalizedValue <= 20) {
     band = "dark";
-    stateText = "かなり暗い。";
+    stateText = "いつもよりかなり暗い。";
   } else if (normalizedValue <= 40) {
     band = "dim";
-    stateText = "少し暗め。";
+    stateText = "いつもより少し暗め。";
   }
 
   return {
     normalizedValue,
     band,
-    reason: `環境光 ${normalizedValue}/100（輝度${brightness.toFixed(0)}/255）——${stateText}`,
+    baseline,
+    relativeDelta,
+    roiSpec,
+    reason:
+      `環境光 ${normalizedValue}/100（ROI輝度${brightness.toFixed(0)}/255 / ` +
+      `baseline ${baseline.toFixed(1)} / Δ${deltaLabel} / ROI ${roiSpec}）——${stateText}`,
   };
 }
 
@@ -229,11 +313,11 @@ export function evaluateMoodFromBrightness(
   brightness: number,
   observation: BrightnessObservation = describeBrightnessObservation(brightness),
 ): { moodDelta: number; reason: string } {
-  if (brightness > 150) {
+  if (observation.band === "bright") {
     return { moodDelta: 2, reason: observation.reason };
   }
 
-  if (brightness < 50) {
+  if (observation.band === "dark") {
     return { moodDelta: -3, reason: observation.reason };
   }
 
@@ -333,9 +417,9 @@ async function getCpuCoreMax(): Promise<number | null> {
 
 // ── カメラ明るさ取得 ──
 
-async function getRoomBrightness(): Promise<number | null> {
+async function getRoomBrightness(roiSpec: string): Promise<number | null> {
   try {
-    const result = await $`uv run python ${BRIGHTNESS_SCRIPT}`
+    const result = await $`uv run python ${BRIGHTNESS_SCRIPT} --roi ${roiSpec}`
       .cwd(WEBCAM_MCP_DIR)
       .quiet();
     const val = parseFloat(result.stdout.toString().trim());
@@ -364,6 +448,9 @@ async function main() {
   const legacyState = await readEnvironmentState();
   const baselineFromMarkdown = markdownState?.aux.environment_thermal_baseline?.valueText;
   const sampleCountFromMarkdown = markdownState?.aux.environment_sample_count?.valueText;
+  const brightnessBaselineFromMarkdown = markdownState?.aux.environment_brightness_baseline?.valueText;
+  const brightnessSampleCountFromMarkdown = markdownState?.aux.environment_brightness_sample_count?.valueText;
+  const brightnessRoiFromMarkdown = markdownState?.aux.environment_brightness_roi?.valueText;
   const previousBaseline = parseFloat(baselineFromMarkdown ?? "");
   const baseline = Number.isFinite(previousBaseline)
     ? previousBaseline
@@ -372,6 +459,21 @@ async function main() {
   const sampleCount = Number.isFinite(previousSampleCount)
     ? previousSampleCount
     : (legacyState.sampleCount ?? 0);
+  const previousBrightnessBaseline = parseFloat(brightnessBaselineFromMarkdown ?? "");
+  const brightnessBaseline = Number.isFinite(previousBrightnessBaseline)
+    ? previousBrightnessBaseline
+    : legacyState.brightnessBaseline;
+  const previousBrightnessSampleCount = parseInt(brightnessSampleCountFromMarkdown ?? "", 10);
+  const brightnessSampleCount = Number.isFinite(previousBrightnessSampleCount)
+    ? previousBrightnessSampleCount
+    : (legacyState.brightnessSampleCount ?? 0);
+  const brightnessRoi = resolveBrightnessRoi(
+    process.env.WARDROBE_BRIGHTNESS_ROI?.trim()
+    || brightnessRoiFromMarkdown
+    || legacyState.brightnessRoi
+    || null
+  );
+  const brightnessRoiSpec = formatBrightnessRoiSpec(brightnessRoi);
 
   let nextState: EnvironmentState = { ...legacyState };
   let stateDirty = false;
@@ -447,10 +549,17 @@ async function main() {
   }
 
   // カメラ明るさ → mood
-  const brightness = await getRoomBrightness();
+  const brightness = await getRoomBrightness(brightnessRoiSpec);
   if (brightness !== null) {
-    const brightnessObservation = describeBrightnessObservation(brightness);
-    console.log(`[environment-tick] Brightness: ${brightness.toFixed(1)}/255`);
+    const nextBrightnessBaseline = computeBrightnessBaseline(brightnessBaseline, brightness);
+    const brightnessObservation = describeBrightnessObservation(brightness, {
+      baseline: nextBrightnessBaseline,
+      roiSpec: brightnessRoiSpec,
+    });
+    console.log(
+      `[environment-tick] Brightness: ${brightness.toFixed(1)}/255 ` +
+      `(baseline ${nextBrightnessBaseline.toFixed(1)} / normalized ${brightnessObservation.normalizedValue}/100 / ROI ${brightnessRoiSpec})`
+    );
 
     nextState = {
       ...nextState,
@@ -458,6 +567,9 @@ async function main() {
       lastBrightnessNormalized: brightnessObservation.normalizedValue,
       lastBrightnessBand: brightnessObservation.band,
       lastBrightnessAt: new Date().toISOString(),
+      brightnessBaseline: nextBrightnessBaseline,
+      brightnessSampleCount: brightnessSampleCount + 1,
+      brightnessRoi: brightnessRoiSpec,
       updatedAt: new Date().toISOString(),
     };
     stateDirty = true;
@@ -467,9 +579,30 @@ async function main() {
       `${Math.round(brightness)} / 255`,
       brightnessObservation.normalizedValue,
       {
-        source: "wifi-cam RTSP brightness",
+        source: "wifi-cam RTSP brightness (ROI)",
         reason: brightnessObservation.reason,
         recordHistoryOnUnchanged: true,
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_brightness_baseline",
+      `${formatDecimal(nextBrightnessBaseline)} / 255`,
+      {
+        note: "ROI 輝度の slow EMA 基準値",
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_brightness_sample_count",
+      String(brightnessSampleCount + 1),
+      {
+        note: "baseline 算出に使ったサンプル数",
+      }
+    );
+    await setEnvironmentAuxValue(
+      "environment_brightness_roi",
+      brightnessRoiSpec,
+      {
+        note: "normalized x,y,w,h",
       }
     );
 

@@ -29,6 +29,9 @@ const ENVIRONMENT_SAMPLE = `# ENVIRONMENT.md — 環境データ
 |---|---|---|---|
 | 熱負荷 baseline | 73.4 °C | 2026-04-13 12:00 | Core Max の EMA 基準値 |
 | 観測サンプル数 | 12 | 2026-04-13 12:00 | baseline 算出に使ったサンプル数 |
+| 環境光 baseline | 98.4 / 255 | 2026-04-13 12:00 | ROI 輝度の slow EMA 基準値 |
+| 環境光観測サンプル数 | 18 | 2026-04-13 12:00 | baseline 算出に使ったサンプル数 |
+| 環境光 ROI | 0.20,0.20,0.60,0.60 | 2026-04-13 12:00 | normalized x,y,w,h |
 
 ## 変化履歴
 
@@ -51,6 +54,9 @@ describe("parseEnvironmentDocument", () => {
     expect(parsed.current.ambient_humidity?.normalizedValue).toBe(61);
     expect(parsed.aux.environment_thermal_baseline?.valueText).toBe("73.4 °C");
     expect(parsed.aux.environment_sample_count?.valueText).toBe("12");
+    expect(parsed.aux.environment_brightness_baseline?.valueText).toBe("98.4 / 255");
+    expect(parsed.aux.environment_brightness_sample_count?.valueText).toBe("18");
+    expect(parsed.aux.environment_brightness_roi?.valueText).toBe("0.20,0.20,0.60,0.60");
     expect(parsed.history[0]?.key).toBe("environment_thermal_load");
     expect(parsed.history[0]?.normalizedValue).toBe(80);
   });
@@ -105,10 +111,39 @@ describe("environment markdown updates", () => {
         note: "baseline 算出に使ったサンプル数",
       }
     );
+    await setEnvironmentAuxValue(
+      "environment_brightness_baseline",
+      "87.0 / 255",
+      {
+        environmentPath: TMP_ENVIRONMENT_PATH,
+        note: "ROI 輝度の slow EMA 基準値",
+      }
+    );
 
     const parsed = await readEnvironmentDocument(TMP_ENVIRONMENT_PATH);
     expect(parsed?.current.ambient_brightness?.normalizedValue).toBe(17);
     expect(parsed?.aux.environment_sample_count?.valueText).toBe("13");
+    expect(parsed?.aux.environment_brightness_baseline?.valueText).toBe("87.0 / 255");
     expect(parsed?.history[0]?.key).toBe("ambient_brightness");
+  });
+
+  test("inserts missing auxiliary rows for newly added fields", async () => {
+    const withoutBrightnessAux = ENVIRONMENT_SAMPLE
+      .replace("| 環境光 baseline | 98.4 / 255 | 2026-04-13 12:00 | ROI 輝度の slow EMA 基準値 |\n", "")
+      .replace("| 環境光観測サンプル数 | 18 | 2026-04-13 12:00 | baseline 算出に使ったサンプル数 |\n", "")
+      .replace("| 環境光 ROI | 0.20,0.20,0.60,0.60 | 2026-04-13 12:00 | normalized x,y,w,h |\n", "");
+    await Bun.write(TMP_ENVIRONMENT_PATH, withoutBrightnessAux);
+
+    await setEnvironmentAuxValue(
+      "environment_brightness_roi",
+      "0.25,0.20,0.50,0.50",
+      {
+        environmentPath: TMP_ENVIRONMENT_PATH,
+        note: "normalized x,y,w,h",
+      }
+    );
+
+    const parsed = await readEnvironmentDocument(TMP_ENVIRONMENT_PATH);
+    expect(parsed?.aux.environment_brightness_roi?.valueText).toBe("0.25,0.20,0.50,0.50");
   });
 });

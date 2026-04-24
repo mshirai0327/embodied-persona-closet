@@ -20,7 +20,7 @@ capture-brightness-wifi.py -- wifi-cam (RTSP) から部屋の明るさを測定�
 
 from __future__ import annotations
 
-import io
+import argparse
 import os
 import subprocess
 import sys
@@ -42,10 +42,52 @@ def load_env() -> None:
             os.environ[key] = value.strip()
 
 
+def parse_roi_spec(raw: str | None) -> tuple[float, float, float, float] | None:
+    if raw is None:
+        return None
+    text = raw.strip()
+    if not text:
+        return None
+
+    parts = [part.strip() for part in text.split(",")]
+    if len(parts) != 4:
+        raise ValueError("ROI must be x,y,w,h")
+
+    values = [float(part) for part in parts]
+    if any(not (0.0 <= value <= 1.0) for value in values):
+        raise ValueError("ROI values must be normalized between 0.0 and 1.0")
+
+    left, top, width, height = values
+    if width <= 0 or height <= 0:
+        raise ValueError("ROI width and height must be positive")
+    if left + width > 1.0 or top + height > 1.0:
+        raise ValueError("ROI must stay within the frame")
+
+    return left, top, width, height
+
+
+def crop_to_roi(img, roi: tuple[float, float, float, float] | None):
+    if roi is None:
+        return img
+
+    left_ratio, top_ratio, width_ratio, height_ratio = roi
+    width, height = img.size
+    left = max(0, min(width - 1, int(round(width * left_ratio))))
+    top = max(0, min(height - 1, int(round(height * top_ratio))))
+    right = max(left + 1, min(width, int(round(width * (left_ratio + width_ratio)))))
+    bottom = max(top + 1, min(height, int(round(height * (top_ratio + height_ratio)))))
+    return img.crop((left, top, right, bottom))
+
+
 def capture_brightness() -> float:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--roi")
+    args, _ = parser.parse_known_args()
+
     host = os.environ.get("TAPO_CAMERA_HOST", "")
     username = os.environ.get("TAPO_USERNAME", "admin")
     password = os.environ.get("TAPO_PASSWORD", "")
+    roi = parse_roi_spec(args.roi or os.environ.get("WARDROBE_BRIGHTNESS_ROI"))
 
     if not host or not password:
         raise RuntimeError("TAPO_CAMERA_HOST and TAPO_PASSWORD must be set")
@@ -75,7 +117,7 @@ def capture_brightness() -> float:
         from PIL import Image, ImageStat
 
         with Image.open(tmp_path) as img:
-            gray = img.convert("L")
+            gray = crop_to_roi(img, roi).convert("L")
             return ImageStat.Stat(gray).mean[0]
     finally:
         Path(tmp_path).unlink(missing_ok=True)

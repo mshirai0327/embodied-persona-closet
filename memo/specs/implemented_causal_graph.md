@@ -3,7 +3,9 @@
 ## 概要
 
 この文書は、2026-04-14 時点で **すでに実装済み** の初期因果グラフ仕様をまとめる。
-対象は「自明な因果」として seed 定義されているグラフであり、学習因果や memory 全体の graph 化は含まない。
+対象は主に「自明な因果」として seed 定義されているグラフであり、学習因果や memory 全体の graph 化は含まない。
+ただし、現行コードで実装済みの `confidence` については、seed edge そのものではなく
+`causal-memory-bridge.ts` が使う補助メタデータとして補足する。
 
 現時点の因果グラフは、次の用途に使われている。
 
@@ -20,6 +22,7 @@
 - `.claude/persona/causal-seeds.json` に定義された seed 因果
 - Kuzu に同期されるノード・エッジ構造
 - ダッシュボードと CLI から見える query 形
+- `causal-memory-bridge.ts` に実装された `confidence` の付与と利用
 
 この仕様に含まないもの:
 
@@ -27,6 +30,7 @@
 - memory graph
 - vector store との統合
 - 因果重みの自動更新
+- learned edge の承認フローそのもの
 
 ---
 
@@ -182,6 +186,127 @@
 | `successful_interaction` | `mood` | raises | Lv2 | 0.72 | うまくいった会話は mood を上げやすい |
 | `successful_interaction` | `trust_mizuho` | builds | Lv2 | 0.83 | 配慮や約束の積み重ねは trust_mizuho を高めやすい |
 | `successful_interaction` | `social_openness` | raises | Lv2 | 0.78 | 成功体験は次の交流に開きやすくする |
+
+---
+
+## confidence の現状実装
+
+### 位置づけ
+
+現時点で `confidence` は、seed 因果エッジの属性ではない。
+`.claude/persona/causal-seeds.json` や Kuzu の edge に保存される値ではなく、
+`causal-memory-bridge.ts` が「ある記憶を、どの因果ノードに結びつけてよいか」を評価するときの
+**補助的な信頼度メタデータ** として計算される。
+
+したがって、意味は次のように分かれる。
+
+| 値 | 対象 | 意味 |
+|---|---|---|
+| `weight` | seed edge | その因果エッジ自体の強さ |
+| `score` | runtime proposal | いまの観測条件でどれだけ作用しているか |
+| `confidence` | memory bridge metadata | その記憶を因果ノードに結びつける解釈がどれだけ確からしいか |
+
+### 実装場所
+
+主な実装地点は `.claude/scripts/causal-memory-bridge.ts` の
+`inferMemoryMetadata()` である。
+ここで各記憶に対して次のメタデータを推定する。
+
+- `affectedNodes`
+- `entity`
+- `valence`
+- `confidence`
+- `timeBias`
+- `narrativeRole`
+
+### 計算式
+
+`confidence` は 0.0 から 1.0 に clamp される。
+現在の計算式は次の加算モデルである。
+
+```ts
+confidence =
+  0.28
+  + min(affectedNodes.length, 3) * 0.14
+  + explicitHits * 0.08
+  + min(implicitHits, 4) * 0.04
+  + (entity ? 0.08 : 0)
+  + (row.episode_participants ? 0.05 : 0)
+```
+
+各項目の意味:
+
+| 項目 | 現在の加点 | 意味 |
+|---|---:|---|
+| ベース値 | `0.28` | まったくの 0 始まりにせず、最低限の仮説値を与える |
+| `affectedNodes.length` | 最大 `+0.42` | 推定された関連ノードが多いほど、因果的に読める手がかりが増える |
+| `explicitHits` | 1件ごとに `+0.08` | `mood` や `energy` など明示的な語が本文に出ている |
+| `implicitHits` | 最大 `+0.16` | 「動きやすい」「落ち着く」など暗示語が複数ある |
+| `entity` | `+0.08` | `mizuho` のような関係対象が特定できる |
+| `episode_participants` | `+0.05` | エピソード文脈が構造化されていて補助根拠になる |
+
+### 入力に使われる手がかり
+
+`confidence` 計算の前段では、本文そのものだけでなく次も参照する。
+
+- `content`
+- `episode_summary`
+- `episode_participants`
+
+このテキストから、ノードごとに定義された `explicit` / `implicit` ヒント語を数える。
+たとえば `mood` なら `気分` や `感情` が explicit、
+`明るい` `沈む` `落ち着く` などが implicit の手がかりになる。
+
+### runtime での使われ方
+
+`confidence` は単独で採否を決める閾値ではなく、
+候補記憶の総合 `score` に入る補助重みとして使われる。
+
+現在の選定スコアは主に次の和で構成される。
+
+- ノード重なり数
+- valence と active node direction の整合
+- 時間減衰 (`timeBias`)
+- 記憶の重要度 (`importance`)
+- アクセス回数
+- 活性化回数と freshness
+- category 補正
+- `confidence * 0.25`
+
+つまり `confidence` は重要だが、支配的ではない。
+今の実装では「ノード重なり」「方向整合」「新しさ」などのほうが強く効き、
+`confidence` は弱いキーワードマッチを少し不利にする補助項として働く。
+
+### 保存される場所
+
+候補から 1 件が選ばれた場合、その記憶の `confidence` は
+`.claude/workingDirs/causal-memory-runtime.json` に保存される。
+保存されるのは seed edge 側ではなく、選択済み memory hint 側の runtime snapshot である。
+
+記録される主な項目:
+
+- snapshot 直下の `confidence`
+- `selectedMemory.confidence`
+
+候補が選ばれなかった場合は `confidence: null` になる。
+
+### まだ実装されていないこと
+
+現時点で未実装なのは次の点である。
+
+- seed edge に `confidence` を持たせること
+- Kuzu graph の edge 属性として `confidence` を持たせること
+- `causal-runtime.ts` の環境因果スコアに `confidence` を掛けること
+- learned edge の承認フローにこの `confidence` を正式適用すること
+
+### 現時点での解釈
+
+したがって、現行実装における `confidence` は
+「この因果エッジが真かどうか」ではなく、
+「この記憶をこの因果文脈に接続する読みがどれだけ雑ではないか」を測る値である。
+
+因果グラフ本体の確信度ではなく、
+**記憶ブリッジの解釈信頼度** と理解するのが最も実装に近い。
 
 ---
 

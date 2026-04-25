@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 const ORIGINAL_SEED_PATH = process.env.WARDROBE_CAUSAL_SEED_PATH;
 const ORIGINAL_KUZU_DB_PATH = process.env.WARDROBE_PERSONA_KUZU_DB_PATH;
+const kuzuTest = process.env.WARDROBE_RUN_KUZU_TESTS === "1" ? test : test.skip;
 
 let tmpDirPath: string | null = null;
 
@@ -79,7 +80,7 @@ afterEach(async () => {
 });
 
 describe("causal-kuzu", () => {
-  test("syncs seed nodes and edges into a temp kuzu database and reads recursive paths", async () => {
+  kuzuTest("syncs seed nodes and edges into a temp kuzu database and reads recursive paths", async () => {
     const module = await setupSeedGraph();
 
     await module.syncKuzuCausalGraph();

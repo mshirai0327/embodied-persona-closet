@@ -1,7 +1,7 @@
 """Modern Hopfield Network for associative/pattern-completion memory retrieval.
 
-ChromaDB（意味検索・長期保存）と組み合わせて使う連想記憶レイヤー。
-ChromaDB = 図書館（意味検索）
+SQLite に保存した埋め込みベクトルと組み合わせて使う連想記憶レイヤー。
+SQLite + numpy 検索 = 図書館（意味検索）
 Hopfield = 神経回路（パターン補完・連想）
 
 参考: Ramsauer et al. 2020 "Hopfield Networks is All You Need"
@@ -9,7 +9,7 @@ Modern Hopfield Networks are mathematically equivalent to attention in Transform
 
 使い方:
     net = ModernHopfieldNetwork(beta=2.0)
-    net.store(patterns, ids)  # ChromaDB埋め込みをロード
+    net.store(patterns, ids, contents)  # SQLite から読んだ埋め込みをロード
     retrieved, similarities = net.retrieve(query_embedding)
     closest_id = ids[net.find_closest(similarities)]
 """
@@ -74,7 +74,7 @@ class ModernHopfieldNetwork:
         self._state: HopfieldState | None = None
 
     def store(self, embeddings: list[list[float]], ids: list[str], contents: list[str]) -> None:
-        """ChromaDBから取得した埋め込みをHopfieldに格納.
+        """埋め込みを Hopfield に格納する.
 
         Args:
             embeddings: 各記憶の埋め込みベクトル (n_memories, dim)

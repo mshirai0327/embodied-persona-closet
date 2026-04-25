@@ -1,6 +1,6 @@
 # セットアップガイド
 
-> wardrobe をクローンしてから、最初のセッションを始めるまで。
+> embodied-reflecta をクローンしてから、最初のセッションを始めるまで。
 
 ---
 
@@ -16,8 +16,8 @@
 ## Phase 1: クローンと依存インストール
 
 ```bash
-git clone https://github.com/fruitriin/embodied-claude-wardrobe.git
-cd embodied-claude-wardrobe
+git clone https://github.com/mshirai0327/embodied-reflecta.git
+cd embodied-reflecta
 
 # memory-mcp は必須。まずこれだけ入れる
 cd .claude/mcps/memory-mcp && uv sync && cd ../../..

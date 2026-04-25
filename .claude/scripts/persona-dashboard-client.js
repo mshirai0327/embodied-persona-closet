@@ -119,6 +119,71 @@
     return text.replace("T", " ").replace(/:00\.\d+Z$/, "Z");
   }
 
+  function formatAxisDate(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return { date: "—", time: "" };
+    }
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hour = String(date.getHours()).padStart(2, "0");
+    const minute = String(date.getMinutes()).padStart(2, "0");
+    return { date: month + "/" + day, time: hour + ":" + minute };
+  }
+
+  function parseTimestampMs(value) {
+    const text = String(value || "").trim();
+    if (!text) return NaN;
+    const normalized = text.replace(
+      /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})(?::(\d{2}))?$/,
+      (_, date, time, seconds) => date + "T" + time + ":" + (seconds || "00")
+    );
+    return new Date(normalized).getTime();
+  }
+
+  function startOfLocalDay(timestamp) {
+    const date = new Date(timestamp);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  }
+
+  function addLocalDays(timestamp, days) {
+    const date = new Date(timestamp);
+    date.setDate(date.getDate() + days);
+    return date.getTime();
+  }
+
+  function chooseDayTickStep(dayCount) {
+    if (dayCount <= 4) return 1;
+    if (dayCount <= 45) return 3;
+    if (dayCount <= 90) return 7;
+    return 14;
+  }
+
+  function buildTimeTicks(minTs, maxTs, count) {
+    if (maxTs === minTs) return [{ timestamp: minTs, showTime: true }];
+
+    const minDay = startOfLocalDay(minTs);
+    const maxDay = startOfLocalDay(maxTs);
+    const dayCount = Math.max(1, Math.round((maxDay - minDay) / 86400000) + 1);
+    if (dayCount >= 3) {
+      const step = chooseDayTickStep(dayCount);
+      const ticks = [];
+      let tick = minDay < minTs ? addLocalDays(minDay, 1) : minDay;
+      while (tick <= maxTs) {
+        ticks.push({ timestamp: tick, showTime: false });
+        tick = addLocalDays(tick, step);
+      }
+      if (ticks.length > 0) {
+        return ticks;
+      }
+    }
+
+    return Array.from({ length: count }, (_, index) => ({
+      timestamp: minTs + ((maxTs - minTs) * index) / (count - 1),
+      showTime: true,
+    }));
+  }
+
   function formatMetricValue(metric) {
     if (metric.valueText == null) return "—";
     if (metric.domain === "environment" && metric.unit === "score") {
@@ -255,9 +320,11 @@
     const grouped = new Map();
     for (const entry of entries) {
       if (selectedOnly && !selectedSet.has(entry.key)) continue;
+      const timestamp = parseTimestampMs(entry.changedAt);
+      if (Number.isNaN(timestamp)) continue;
       if (!grouped.has(entry.key)) grouped.set(entry.key, []);
       grouped.get(entry.key).push({
-        timestamp: new Date(entry.changedAt).getTime(),
+        timestamp,
         label: entry.label,
         value: entry.nextValueNumber,
         reason: entry.reason,
@@ -443,7 +510,7 @@
     const padLeft = 48;
     const padRight = 18;
     const padTop = 24;
-    const padBottom = 34;
+    const padBottom = 50;
     const usableWidth = width - padLeft - padRight;
     const usableHeight = height - padTop - padBottom;
     const xFor = (timestamp) => {
@@ -462,6 +529,21 @@
       parts.push('<text x="10" y="' + (y + 4) + '" fill="#68756d" font-size="11">' + tick + "</text>");
     }
 
+    const axisY = padTop + usableHeight;
+    parts.push('<line x1="' + padLeft + '" y1="' + axisY + '" x2="' + (width - padRight) + '" y2="' + axisY + '" stroke="rgba(32,53,42,0.18)"></line>');
+    for (const tick of buildTimeTicks(minTs, maxTs, 4)) {
+      const tickTs = tick.timestamp;
+      const x = xFor(tickTs);
+      const label = formatAxisDate(tickTs);
+      parts.push('<line x1="' + x + '" y1="' + padTop + '" x2="' + x + '" y2="' + axisY + '" stroke="rgba(32,53,42,0.08)" stroke-dasharray="3 7"></line>');
+      parts.push(
+        '<text x="' + x + '" y="' + (axisY + 16) + '" text-anchor="middle" fill="#68756d" font-size="11">'
+        + '<tspan x="' + x + '">' + escapeHtml(label.date) + '</tspan>'
+        + (tick.showTime ? '<tspan x="' + x + '" dy="13">' + escapeHtml(label.time) + '</tspan>' : "")
+        + "</text>"
+      );
+    }
+
     for (const serie of series) {
       const path = serie.points
         .map((point, index) => (index === 0 ? "M" : "L") + xFor(point.timestamp) + " " + yFor(point.value))
@@ -471,7 +553,9 @@
       );
       for (const point of serie.points) {
         parts.push(
-          '<circle cx="' + xFor(point.timestamp) + '" cy="' + yFor(point.value) + '" r="4.5" fill="' + (SERIES_COLORS[serie.key] || "#333") + '" data-point-key="' + escapeHtml(serie.key) + '"></circle>'
+          '<circle cx="' + xFor(point.timestamp) + '" cy="' + yFor(point.value) + '" r="4.8" fill="' + (SERIES_COLORS[serie.key] || "#333") + '" data-point-key="' + escapeHtml(serie.key) + '">'
+          + '<title>' + escapeHtml(point.label + " " + point.changedAt + " " + point.value) + "</title>"
+          + "</circle>"
         );
       }
     }

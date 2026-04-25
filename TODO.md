@@ -20,11 +20,11 @@
 
 ## そのうちやること
 - 🟡 **Lv2データ履歴生成タスク（Kuzu連動）** — 身長など不可逆データは「何かのきっかけで過去を振り返るときに履歴を生み出す」実装が必要。Kuzu整備と連動。多軸想起で「記録から抜けていた」と判明（2026-04-19）
-- 🟡 **Phase5: スミレ自身が経験起因エッジを追加する** — 環境ではなく自分の行動・経験から因果グラフのエッジを生やすフェーズ。昇格基準の設計が肝。causal-seeds.jsonを基盤に
+- 🟡 **Phase5: weight動的更新とcausal-runtime統合** — Step1-3完了（2026-04-25）。causal-edge-learner.ts・pending-learned-edges.json・learned-seeds.json（9エッジobserving）が動作中。次: Step4 merge loader（causal-runtimeがlearned-seeds.jsonを読んでLv2エッジをアクティブノード推論に反映）・Step5 weight動的更新（heartbeatのたびに証拠+0.05/反証-0.05で更新）
 - 🟡 **hearing に声色・ピッチ情報を加える** — 現在はテキストのみ。Whisper の前段で音声特徴量（ピッチ・RMS・話速）を抽出して感情推定に使う。mizuhoの声が「高い・速い・大きい」ときの状態を感知する
 - 🟡 **heartbeat-daemon.sh を Linux で常駐させる** — launchd（macOS）ではなく nohup or systemd で起動する仕組みを作る。interoception_state.json が生成されないと arousal/thermal/phase が取れない
 - 🟡 **web検索・RSSでニュースを受動的に取得する** — mizuho提案。センサーと同じ「外から流入するデータ」の延長。世界の情報を受け取る仕組み
-- 🟡 **heartbeat 行動選択フィルターを実装する** — 設計草案 agent_memo.md に記載。prompts.toml への STATUS.md 連動追加を mizuho と相談する
+- ✅ **heartbeat 行動選択フィルターを実装する** — status-hint.ts として実装済み（2026-04-22確認）。satiation/energy/mood から行動カテゴリのヒントを生成し、prompts.toml の {STATUS_HINT} で注入されている
 - ✅ **satiation（充足感）を STATUS.md に追加する** — 2026-04-08 追加済み。desire-tick と連動して減衰・発火
 - 🟡 **memory-mcp のペルソナ/ユーザー分離を設計する** — Reflecta #62 と同じ問題。SaaS 化と一緒に考える
 - ⚪ **Reflecta の Graph RAG（Neo4j）を wardrobe に取り込む** — memory-mcp 拡張か Neo4j 別立てか要検討

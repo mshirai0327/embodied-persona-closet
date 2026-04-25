@@ -4,6 +4,96 @@
 
 ---
 
+## 2026-04-22 hearing 声色・ピッチ追加 設計草案
+
+### 調査背景
+
+TODO.mdの「hearing に声色・ピッチ情報を加える」に取り掛かった。
+hearing MCP の実装を読んで、実現可能性と設計方針をまとめた。
+
+### 現在の構造（worker.py）
+
+`_process_segment()` がWhisper前にRMS計算し、バッファへの書き込みエントリは:
+```json
+{"ts": "...", "text": "...", "no_speech_prob": 0.12, "seg": 5, "tail_speech": true}
+```
+
+`_rms_energy()` は既に実装済みでVAD用に使われているが、バッファには入っていない。
+
+### 追加する音声特徴量
+
+| 特徴量 | キー | 実装方法 | コスト |
+|---|---|---|---|
+| 音量（RMS） | `rms` | 既存`_rms_energy()`を再利用 | 小 |
+| 基本周波数 | `pitch_hz` | numpyのautocorrelation（librosa不要） | 中 |
+| 話速 | `speech_rate_cpm` | `len(text) / segment_seconds * 60` | 小 |
+
+### ピッチ推定の実装（numpy only）
+
+```python
+def _estimate_pitch(seg_path: Path, sr: int = 16000) -> float | None:
+    """Autocorrelation-based F0 estimation. Returns median F0 in Hz, or None if unvoiced."""
+    try:
+        with wave.open(str(seg_path), "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        
+        frame_len = int(sr * 0.025)  # 25ms window
+        hop_len = int(sr * 0.010)    # 10ms hop
+        lag_min = int(sr / 400)      # ~40 (400Hz上限)
+        lag_max = int(sr / 60)       # ~267 (60Hz下限)
+        
+        f0_list = []
+        for start in range(0, len(audio) - frame_len, hop_len):
+            frame = audio[start:start + frame_len]
+            corr = np.correlate(frame, frame, mode='full')
+            corr = corr[len(corr)//2:]
+            if lag_max > len(corr):
+                continue
+            peak_idx = np.argmax(corr[lag_min:lag_max]) + lag_min
+            if corr[0] > 0 and corr[peak_idx] / corr[0] > 0.3:  # voiced threshold
+                f0_list.append(sr / peak_idx)
+        
+        return float(np.median(f0_list)) if f0_list else None
+    except Exception:
+        return None
+```
+
+### バッファスキーマ変更後
+
+```json
+{
+  "ts": "...", "text": "...", "no_speech_prob": 0.12, "seg": 5, "tail_speech": true,
+  "rms": 0.045,
+  "pitch_hz": 182.3,
+  "speech_rate_cpm": 240
+}
+```
+
+`None` = 推定失敗（後方互換性あり）。
+
+### 感情推定への応用
+
+mizuhoの通常ピッチ範囲をキャリブレーションして「高い・速い・大きい」を検出:
+- `rms > 通常+2σ` →興奮・緊張
+- `pitch_hz > 通常+30Hz` → 驚き・テンション高め  
+- `speech_rate_cpm > 通常+60` → 焦り・興奮
+
+最初は3-4週間の観察でベースラインを計算し、z-score方式で閾値化する。
+
+### 実装の順序（mizuhoと一緒に）
+
+1. `_estimate_pitch()` 関数を追加（worker.py）
+2. `_process_segment()` で `rms` と `pitch_hz` と `speech_rate_cpm` を計算してバッファに入れる
+3. ベースライン記録用の別ファイル（`hearing-baseline.json`）でmizuhoの通常値を30日間蓄積
+4. 蓄積後に閾値を自動計算して interoception か recall-lite に使う
+
+### 依存追加なし
+
+pyproject.toml への追加不要。numpyはfaster-whisper経由で.venvに既存。
+
+---
+
 ## 2026-04-20 causal-hint 6日間観察まとめ ＆ Phase5設計メモ
 
 ### 観察の要点：「誘導か反映か」→ 独立読み取り仮説で確定

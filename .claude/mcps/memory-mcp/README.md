@@ -4,7 +4,7 @@ MCP server for AI long-term memory — Let AI remember across sessions!
 
 ## Overview
 
-This MCP server provides long-term memory capabilities for AI assistants using **SQLite + numpy** for vector storage. Memories are stored with semantic embeddings (intfloat/multilingual-e5-small), enabling intelligent recall based on context, emotion, and time.
+This MCP server provides long-term memory capabilities for AI assistants using **SQLite + numpy** for vector storage. Memories are stored with semantic embeddings (`intfloat/multilingual-e5-base` by default), enabling intelligent recall based on context, emotion, and time.
 
 **Backend: SQLite + numpy** (no external vector database required — standard library + existing deps only)
 
@@ -37,35 +37,16 @@ uv run memory-mcp
 |----------|---------|-------------|
 | `MEMORY_DB_PATH` | `CLAUDE_PROJECT_DIR/.claude/memories/memory.db` if available, otherwise `~/.claude/memories/memory.db` | SQLite database path |
 
-## Migrating from ChromaDB
+## Storage Model
 
-If you have existing memories in ChromaDB (older versions used `~/.claude/memories/chroma`), run the migration script:
-
-```bash
-cd memory-mcp
-
-# Install chromadb temporarily (only needed for migration)
-uv add --dev chromadb
-
-# Run migration
-uv run python scripts/migrate_chroma_to_sqlite.py \
-    --source ~/.claude/memories/chroma \
-    --dest ~/.claude/memories/memory.db
-
-# Remove chromadb after migration
-uv remove --dev chromadb
-```
-
-The script migrates:
-- All memories (content, embeddings, metadata)
-- Coactivation weights
-- Episodes
-
-> **Note**: The migration script temporarily installs `chromadb` as a dev dependency. It is not needed for normal operation and should be removed after migration.
+- `memories` stores content, metadata, sensory references, links, and scores.
+- `embeddings` stores `float32` vectors as SQLite BLOBs.
+- Semantic search loads candidate vectors from SQLite and ranks them with numpy cosine similarity.
+- BM25 re-ranking is held in memory and rebuilt on demand after writes.
 
 ## Portable SQLite Export
 
-To move memory data to another machine or another wardrobe project, export a
+To move memory data to another machine or another Reflecta/Claude Code project, export a
 portable SQLite snapshot first:
 
 ```bash
@@ -352,16 +333,19 @@ memory-mcp/
 │   ├── server.py       # MCP server (tool handlers)
 │   ├── store.py        # SQLite MemoryStore (main backend)
 │   ├── vector.py       # numpy cosine similarity utilities
-│   ├── embedding.py    # intfloat/multilingual-e5-small embedding
+│   ├── embedding.py    # intfloat/multilingual-e5-base embedding
 │   ├── bm25.py         # Bigram BM25 index for hybrid re-ranking
 │   ├── hopfield.py     # Hopfield network for associative recall
 │   ├── episode.py      # EpisodeManager (delegates to MemoryStore)
-│   ├── tom.py          # Theory of Mind tool
-│   ├── desire.py       # Desire system
+│   ├── sensory.py      # Visual/audio memory integration
+│   ├── verb_chain.py   # Verb-flow structural memory
+│   ├── consolidation.py # Replay, association, digest generation
 │   ├── config.py       # Configuration
 │   └── types.py        # Emotion / Category enums
 ├── scripts/
-│   └── migrate_chroma_to_sqlite.py  # ChromaDB → SQLite migration
+│   ├── export_sqlite_snapshot.py    # Portable SQLite backup
+│   ├── migrate_embeddings_sqlite.py # Recompute stored embeddings
+│   └── migrate_postgres_to_sqlite.py # PostgreSQL import helper
 └── tests/
 ```
 

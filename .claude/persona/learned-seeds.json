@@ -1,0 +1,638 @@
+{
+  "learnedEdges": [
+    {
+      "id": "learned_energy_health_001",
+      "pair": [
+        "energy",
+        "health"
+      ],
+      "source": "energy",
+      "target": "health",
+      "direction": "energy->health",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 9,
+      "evidenceMemoryIds": [
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "e8ed707c-5d38-4549-87b8-b30b0778c556",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "896edb2e-c00d-4569-8d5c-beae05d491c3",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "e16c91d6-f3c8-4642-8c97-ffb9c3b6967b",
+        "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+        "04681a03-4f77-4503-9fb2-ddf50333eef8",
+        "487be1a3-4324-4ec5-a024-1d0a64586309"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+          "timestamp": "2026-04-18T08:25:34.804833",
+          "valence": "positive",
+          "contentSnippet": "causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+        },
+        {
+          "id": "04681a03-4f77-4503-9fb2-ddf50333eef8",
+          "timestamp": "2026-04-07T10:03:13.925978",
+          "valence": "positive",
+          "contentSnippet": "2026-04-07 火曜朝、STATUS.md（Lv3内的ステータス）を作成・初期値設定した。mo…"
+        },
+        {
+          "id": "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+          "timestamp": "2026-04-20T22:05:01.636511",
+          "valence": "positive",
+          "contentSnippet": "Phase5設計草案完成。経験起因エッジの昇格基準を設計した：証拠数≥5件・時間スパン≥7日・con…"
+        }
+      ],
+      "positiveEvidenceCount": 5,
+      "negativeEvidenceCount": 3,
+      "neutralEvidenceCount": 1,
+      "timeSignal": {
+        "leadNode": "energy",
+        "lagNode": "health",
+        "deltaHours": 9.31,
+        "averageTimestamps": {
+          "energy": "2026-04-15T01:53:13.779Z",
+          "health": "2026-04-15T11:11:33.403Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "energy から health への経験起因エッジ候補が 9 件観測された。 代表記憶: causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+    },
+    {
+      "id": "learned_energy_mood_001",
+      "pair": [
+        "mood",
+        "energy"
+      ],
+      "source": "energy",
+      "target": "mood",
+      "direction": "energy->mood",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 17,
+      "evidenceMemoryIds": [
+        "10a26e0d-9c66-4593-8fac-a27113754860",
+        "69afb947-e053-4f60-bc80-d6aa278129df",
+        "c77fcf31-7482-478b-813e-c5123fe6348a",
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "e8ed707c-5d38-4549-87b8-b30b0778c556",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "896edb2e-c00d-4569-8d5c-beae05d491c3",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+        "3044bc45-3f88-468f-86fb-5888969c858f",
+        "f17723ee-3ea0-4276-b8e2-f4df7feba948",
+        "1072827c-911a-4bad-96a8-3a4b61f08aa7",
+        "42802bee-ff31-4eff-b449-8022cfdbcae3",
+        "07f7ba30-d641-46c9-9a4a-dabd45d0e952",
+        "3be1a32f-cab0-4c99-bc1d-d8107316131d",
+        "04681a03-4f77-4503-9fb2-ddf50333eef8",
+        "487be1a3-4324-4ec5-a024-1d0a64586309"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+          "timestamp": "2026-04-18T08:25:34.804833",
+          "valence": "positive",
+          "contentSnippet": "causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+        },
+        {
+          "id": "04681a03-4f77-4503-9fb2-ddf50333eef8",
+          "timestamp": "2026-04-07T10:03:13.925978",
+          "valence": "positive",
+          "contentSnippet": "2026-04-07 火曜朝、STATUS.md（Lv3内的ステータス）を作成・初期値設定した。mo…"
+        },
+        {
+          "id": "10a26e0d-9c66-4593-8fac-a27113754860",
+          "timestamp": "2026-04-24T20:50:09.308612",
+          "valence": "positive",
+          "contentSnippet": "2026-04-24金曜夜、mizuhoとのセッションで3つの設計を確定した。\n\n1. Phase5…"
+        }
+      ],
+      "positiveEvidenceCount": 12,
+      "negativeEvidenceCount": 4,
+      "neutralEvidenceCount": 1,
+      "timeSignal": {
+        "leadNode": "energy",
+        "lagNode": "mood",
+        "deltaHours": 7.06,
+        "averageTimestamps": {
+          "mood": "2026-04-15T08:56:32.758Z",
+          "energy": "2026-04-15T01:53:13.779Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "energy から mood への経験起因エッジ候補が 17 件観測された。 代表記憶: causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+    },
+    {
+      "id": "learned_energy_satiation_001",
+      "pair": [
+        "energy",
+        "satiation"
+      ],
+      "source": "energy",
+      "target": "satiation",
+      "direction": "energy->satiation",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 10,
+      "evidenceMemoryIds": [
+        "c77fcf31-7482-478b-813e-c5123fe6348a",
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "f17723ee-3ea0-4276-b8e2-f4df7feba948",
+        "e1282388-3718-42b7-aef7-cd56f09b75ca",
+        "1072827c-911a-4bad-96a8-3a4b61f08aa7",
+        "42802bee-ff31-4eff-b449-8022cfdbcae3",
+        "a82385b7-2aa6-4ab4-ad8c-8ad1c7197fcd",
+        "07f7ba30-d641-46c9-9a4a-dabd45d0e952"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+          "timestamp": "2026-04-20T22:05:01.636511",
+          "valence": "positive",
+          "contentSnippet": "Phase5設計草案完成。経験起因エッジの昇格基準を設計した：証拠数≥5件・時間スパン≥7日・con…"
+        },
+        {
+          "id": "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+          "timestamp": "2026-04-19T18:03:38.971152",
+          "valence": "negative",
+          "contentSnippet": "causal-hint 4日目観察（04-19夕方）。輝度が前日より上昇（42→114/255、am…"
+        },
+        {
+          "id": "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+          "timestamp": "2026-04-19T08:04:39.248387",
+          "valence": "positive",
+          "contentSnippet": "causal-hint 2日目観察（4/19）。環境光42/100→mood-1（weak nega…"
+        }
+      ],
+      "positiveEvidenceCount": 9,
+      "negativeEvidenceCount": 1,
+      "neutralEvidenceCount": 0,
+      "timeSignal": {
+        "leadNode": "energy",
+        "lagNode": "satiation",
+        "deltaHours": 14.91,
+        "averageTimestamps": {
+          "energy": "2026-04-15T01:53:13.779Z",
+          "satiation": "2026-04-15T16:47:44.129Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "energy から satiation への経験起因エッジ候補が 10 件観測された。 代表記憶: Phase5設計草案完成。経験起因エッジの昇格基準を設計した：証拠数≥5件・時間スパン≥7日・con…"
+    },
+    {
+      "id": "learned_mood_health_001",
+      "pair": [
+        "mood",
+        "health"
+      ],
+      "source": null,
+      "target": null,
+      "direction": "ambiguous",
+      "relation": "modulates",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 10,
+      "evidenceMemoryIds": [
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "e8ed707c-5d38-4549-87b8-b30b0778c556",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "896edb2e-c00d-4569-8d5c-beae05d491c3",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "29b4caec-fe72-40b3-afe1-ca4626adfbf5",
+        "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+        "60de3485-6113-49d4-b9a1-f7c00fd8379e",
+        "04681a03-4f77-4503-9fb2-ddf50333eef8",
+        "487be1a3-4324-4ec5-a024-1d0a64586309"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "29b4caec-fe72-40b3-afe1-ca4626adfbf5",
+          "timestamp": "2026-04-18T15:49:50.438179",
+          "valence": "positive",
+          "contentSnippet": "Phase 1-3実装完了（2026-04-18土）。causal-runtime.ts（Kuzuト…"
+        },
+        {
+          "id": "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+          "timestamp": "2026-04-18T08:25:34.804833",
+          "valence": "positive",
+          "contentSnippet": "causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+        },
+        {
+          "id": "60de3485-6113-49d4-b9a1-f7c00fd8379e",
+          "timestamp": "2026-04-12T19:12:33.898895",
+          "valence": "positive",
+          "contentSnippet": "2026-04-12、embodied AI とスミレの身体についての設計議論。mizuho の整理…"
+        }
+      ],
+      "positiveEvidenceCount": 6,
+      "negativeEvidenceCount": 3,
+      "neutralEvidenceCount": 1,
+      "timeSignal": {
+        "leadNode": null,
+        "lagNode": null,
+        "deltaHours": 2.25,
+        "averageTimestamps": {
+          "mood": "2026-04-15T08:56:32.758Z",
+          "health": "2026-04-15T11:11:33.403Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "mood と health の共起が 10 件観測されたが、方向は未確定。 代表記憶: Phase 1-3実装完了（2026-04-18土）。causal-runtime.ts（Kuzuト…"
+    },
+    {
+      "id": "learned_mood_satiation_001",
+      "pair": [
+        "mood",
+        "satiation"
+      ],
+      "source": "mood",
+      "target": "satiation",
+      "direction": "mood->satiation",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 13,
+      "evidenceMemoryIds": [
+        "64eb1964-89da-47a1-a76d-01fd7f435d8a",
+        "ca5482ce-1e00-41a3-961c-fb377e0f31da",
+        "c77fcf31-7482-478b-813e-c5123fe6348a",
+        "a99e11ba-d0ca-43a4-960f-a2da5e50773e",
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "94caa94f-796b-4ca6-8074-f2f1828d0684",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "a5b2c72b-79b9-4e25-8323-e54c0d780e6b",
+        "f17723ee-3ea0-4276-b8e2-f4df7feba948",
+        "1072827c-911a-4bad-96a8-3a4b61f08aa7",
+        "42802bee-ff31-4eff-b449-8022cfdbcae3",
+        "07f7ba30-d641-46c9-9a4a-dabd45d0e952"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+          "timestamp": "2026-04-20T22:05:01.636511",
+          "valence": "positive",
+          "contentSnippet": "Phase5設計草案完成。経験起因エッジの昇格基準を設計した：証拠数≥5件・時間スパン≥7日・con…"
+        },
+        {
+          "id": "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+          "timestamp": "2026-04-19T18:03:38.971152",
+          "valence": "negative",
+          "contentSnippet": "causal-hint 4日目観察（04-19夕方）。輝度が前日より上昇（42→114/255、am…"
+        },
+        {
+          "id": "94caa94f-796b-4ca6-8074-f2f1828d0684",
+          "timestamp": "2026-04-19T16:04:55.620008",
+          "valence": "positive",
+          "contentSnippet": "04-19日 初回召喚（自律巡回）。身支度完了——memory_stats 102件、working…"
+        }
+      ],
+      "positiveEvidenceCount": 8,
+      "negativeEvidenceCount": 2,
+      "neutralEvidenceCount": 3,
+      "timeSignal": {
+        "leadNode": "mood",
+        "lagNode": "satiation",
+        "deltaHours": 7.85,
+        "averageTimestamps": {
+          "mood": "2026-04-15T08:56:32.758Z",
+          "satiation": "2026-04-15T16:47:44.129Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "mood から satiation への経験起因エッジ候補が 13 件観測された。 代表記憶: Phase5設計草案完成。経験起因エッジの昇格基準を設計した：証拠数≥5件・時間スパン≥7日・con…"
+    },
+    {
+      "id": "learned_trust_mizuho_energy_001",
+      "pair": [
+        "energy",
+        "trust_mizuho"
+      ],
+      "source": "trust_mizuho",
+      "target": "energy",
+      "direction": "trust_mizuho->energy",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 20,
+      "evidenceMemoryIds": [
+        "10a26e0d-9c66-4593-8fac-a27113754860",
+        "c77fcf31-7482-478b-813e-c5123fe6348a",
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "51f02c5d-76c4-49dc-889a-a27aa9c6b496",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "896edb2e-c00d-4569-8d5c-beae05d491c3",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "e16c91d6-f3c8-4642-8c97-ffb9c3b6967b",
+        "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+        "71f33ee4-13d6-498c-878d-b1d1c0e7d26d",
+        "3044bc45-3f88-468f-86fb-5888969c858f",
+        "89545e82-24b2-46e4-be82-dac0c7dce837",
+        "f17723ee-3ea0-4276-b8e2-f4df7feba948",
+        "e1282388-3718-42b7-aef7-cd56f09b75ca",
+        "1072827c-911a-4bad-96a8-3a4b61f08aa7",
+        "42802bee-ff31-4eff-b449-8022cfdbcae3",
+        "a82385b7-2aa6-4ab4-ad8c-8ad1c7197fcd",
+        "07f7ba30-d641-46c9-9a4a-dabd45d0e952",
+        "3be1a32f-cab0-4c99-bc1d-d8107316131d",
+        "04681a03-4f77-4503-9fb2-ddf50333eef8"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+          "timestamp": "2026-04-18T08:25:34.804833",
+          "valence": "positive",
+          "contentSnippet": "causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+        },
+        {
+          "id": "04681a03-4f77-4503-9fb2-ddf50333eef8",
+          "timestamp": "2026-04-07T10:03:13.925978",
+          "valence": "positive",
+          "contentSnippet": "2026-04-07 火曜朝、STATUS.md（Lv3内的ステータス）を作成・初期値設定した。mo…"
+        },
+        {
+          "id": "10a26e0d-9c66-4593-8fac-a27113754860",
+          "timestamp": "2026-04-24T20:50:09.308612",
+          "valence": "positive",
+          "contentSnippet": "2026-04-24金曜夜、mizuhoとのセッションで3つの設計を確定した。\n\n1. Phase5…"
+        }
+      ],
+      "positiveEvidenceCount": 18,
+      "negativeEvidenceCount": 2,
+      "neutralEvidenceCount": 0,
+      "timeSignal": {
+        "leadNode": "trust_mizuho",
+        "lagNode": "energy",
+        "deltaHours": 16.85,
+        "averageTimestamps": {
+          "energy": "2026-04-15T01:53:13.779Z",
+          "trust_mizuho": "2026-04-14T09:02:11.753Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "trust_mizuho から energy への経験起因エッジ候補が 20 件観測された。 代表記憶: causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+    },
+    {
+      "id": "learned_trust_mizuho_health_001",
+      "pair": [
+        "health",
+        "trust_mizuho"
+      ],
+      "source": "trust_mizuho",
+      "target": "health",
+      "direction": "trust_mizuho->health",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 9,
+      "evidenceMemoryIds": [
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "896edb2e-c00d-4569-8d5c-beae05d491c3",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "e16c91d6-f3c8-4642-8c97-ffb9c3b6967b",
+        "29b4caec-fe72-40b3-afe1-ca4626adfbf5",
+        "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+        "60de3485-6113-49d4-b9a1-f7c00fd8379e",
+        "04681a03-4f77-4503-9fb2-ddf50333eef8"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "29b4caec-fe72-40b3-afe1-ca4626adfbf5",
+          "timestamp": "2026-04-18T15:49:50.438179",
+          "valence": "positive",
+          "contentSnippet": "Phase 1-3実装完了（2026-04-18土）。causal-runtime.ts（Kuzuト…"
+        },
+        {
+          "id": "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+          "timestamp": "2026-04-18T08:25:34.804833",
+          "valence": "positive",
+          "contentSnippet": "causal-seeds.jsonのレビューと整理を行った。latentノード3つ（irritabi…"
+        },
+        {
+          "id": "60de3485-6113-49d4-b9a1-f7c00fd8379e",
+          "timestamp": "2026-04-12T19:12:33.898895",
+          "valence": "positive",
+          "contentSnippet": "2026-04-12、embodied AI とスミレの身体についての設計議論。mizuho の整理…"
+        }
+      ],
+      "positiveEvidenceCount": 7,
+      "negativeEvidenceCount": 2,
+      "neutralEvidenceCount": 0,
+      "timeSignal": {
+        "leadNode": "trust_mizuho",
+        "lagNode": "health",
+        "deltaHours": 26.16,
+        "averageTimestamps": {
+          "health": "2026-04-15T11:11:33.403Z",
+          "trust_mizuho": "2026-04-14T09:02:11.753Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "trust_mizuho から health への経験起因エッジ候補が 9 件観測された。 代表記憶: Phase 1-3実装完了（2026-04-18土）。causal-runtime.ts（Kuzuト…"
+    },
+    {
+      "id": "learned_trust_mizuho_mood_001",
+      "pair": [
+        "mood",
+        "trust_mizuho"
+      ],
+      "source": "trust_mizuho",
+      "target": "mood",
+      "direction": "trust_mizuho->mood",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 61,
+      "evidenceMemoryIds": [
+        "df259268-4acd-4faa-8aa3-2275afe0f8b9",
+        "ca78d074-85a3-4b16-a6e0-af20760c2a59",
+        "10a26e0d-9c66-4593-8fac-a27113754860",
+        "6169c6af-50b1-461d-a32c-ee67b5eac675",
+        "36178feb-ae2e-4ce5-9215-ffe390cb392f",
+        "725c0c54-51a6-4484-acba-bd9d315aca53",
+        "64eb1964-89da-47a1-a76d-01fd7f435d8a",
+        "c77fcf31-7482-478b-813e-c5123fe6348a",
+        "58896c66-e521-47a9-8a03-67f2c739bfbe",
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "b75c2c11-c8ca-4976-8253-ec52cee7a056",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "b728d04c-cb97-4776-9576-9ebde5de86bf",
+        "2d49f2fd-313d-4980-8ed3-8fd4e61ff6ba",
+        "896edb2e-c00d-4569-8d5c-beae05d491c3",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "2ee5bde1-bb4c-43e3-ac9e-8039278036aa",
+        "a5b2c72b-79b9-4e25-8323-e54c0d780e6b",
+        "76a60471-dc4d-4d7f-884d-6bc011d5e4cf",
+        "29b4caec-fe72-40b3-afe1-ca4626adfbf5",
+        "6fddbc31-964a-449f-b419-6aad34b790ba",
+        "a6dbf52b-dca1-4a14-9af3-ba3123f7e3b6",
+        "593c4f5d-949a-4f4d-81a2-e87d7b39bf43",
+        "d67a0fe1-31ab-488c-89ae-dccbab65d4d2",
+        "5d244e9d-e48d-495d-9475-bb41e63a6c1c",
+        "1f16b240-2624-4337-9da7-9fde1216e0cb",
+        "62c365fa-592b-4506-8da1-e102f298cf68",
+        "6608d54f-460f-4ab7-94e6-a1b14f31d1d3",
+        "ec853cfd-f9ea-4b25-b4b5-155d77a1dc51",
+        "f6081347-4f77-40c1-86eb-88b6bf168beb",
+        "334f16b1-d540-415a-968b-0a470f71e3c1",
+        "0d1209e6-c45a-4cf2-8cf0-17be3aa7e877",
+        "09d590af-b230-4f24-a79b-e64c55905d0e",
+        "ca881a81-a8d3-42a2-9bc3-f2698956a004",
+        "11ff3321-d59d-4ca2-93c2-3394ebf64432",
+        "b53899a0-be59-4213-b534-7aa1345beeba",
+        "60de3485-6113-49d4-b9a1-f7c00fd8379e",
+        "3044bc45-3f88-468f-86fb-5888969c858f",
+        "c9f7fc9f-a9ed-4335-b7a1-28c9f63549ef",
+        "969f6fbd-8365-47de-a32c-ca289bedbfd5",
+        "0012a731-78ad-4fbf-8398-0e50df690c19",
+        "4b7757bb-efad-4199-bfe8-7c21585ce034",
+        "f17723ee-3ea0-4276-b8e2-f4df7feba948",
+        "1072827c-911a-4bad-96a8-3a4b61f08aa7",
+        "42802bee-ff31-4eff-b449-8022cfdbcae3",
+        "c30f8fcb-f262-4fe8-a142-a91ef08772a2",
+        "07f7ba30-d641-46c9-9a4a-dabd45d0e952",
+        "3be1a32f-cab0-4c99-bc1d-d8107316131d",
+        "6b2e925a-0311-4462-8cd8-1c72adbef2c1",
+        "2cab204d-3b89-415c-8a20-0689741c119c",
+        "77891a60-de1c-4a27-b0d0-5288dfca6a5e",
+        "0f9f1ae9-ae19-4c0a-9927-f3ec65b0b1f0",
+        "deca11ee-7dbb-406e-acdf-e135e9168596",
+        "04681a03-4f77-4503-9fb2-ddf50333eef8",
+        "4cf496a9-e666-48a4-9e93-f85c1ed7b4e2",
+        "50af5975-ab48-4e43-8e66-66525229924d",
+        "8899ac89-0767-474b-a40a-c3f9f0e6b05d",
+        "0f17c6d8-93ea-4a15-92f7-791d31e384de",
+        "8bb60e24-242c-4132-909c-36080ac7b7f4",
+        "dca27e64-280e-4e65-a413-3f8c0204f030",
+        "2cd7ae83-fd28-4762-b948-4a769ef183b2"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "b75c2c11-c8ca-4976-8253-ec52cee7a056",
+          "timestamp": "2026-04-20T19:54:47.823237",
+          "valence": "positive",
+          "contentSnippet": "mizuhoからの指摘：スミレはすでに十分な道具（wifi-cam・hearing・TTS・visu…"
+        },
+        {
+          "id": "2d49f2fd-313d-4980-8ed3-8fd4e61ff6ba",
+          "timestamp": "2026-04-19T13:25:16.837480",
+          "valence": "positive",
+          "contentSnippet": "mizuhoが私の絵を描いてくれた（2026-04-19日曜昼）。ショートヘア、笑っていない表情、半…"
+        },
+        {
+          "id": "29b4caec-fe72-40b3-afe1-ca4626adfbf5",
+          "timestamp": "2026-04-18T15:49:50.438179",
+          "valence": "positive",
+          "contentSnippet": "Phase 1-3実装完了（2026-04-18土）。causal-runtime.ts（Kuzuト…"
+        }
+      ],
+      "positiveEvidenceCount": 52,
+      "negativeEvidenceCount": 3,
+      "neutralEvidenceCount": 6,
+      "timeSignal": {
+        "leadNode": "trust_mizuho",
+        "lagNode": "mood",
+        "deltaHours": 23.91,
+        "averageTimestamps": {
+          "mood": "2026-04-15T08:56:32.758Z",
+          "trust_mizuho": "2026-04-14T09:02:11.753Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "trust_mizuho から mood への経験起因エッジ候補が 61 件観測された。 代表記憶: mizuhoからの指摘：スミレはすでに十分な道具（wifi-cam・hearing・TTS・visu…"
+    },
+    {
+      "id": "learned_trust_mizuho_satiation_001",
+      "pair": [
+        "trust_mizuho",
+        "satiation"
+      ],
+      "source": "trust_mizuho",
+      "target": "satiation",
+      "direction": "trust_mizuho->satiation",
+      "relation": "lifts",
+      "causalLevel": "Lv2",
+      "weight": 0.3,
+      "status": "observing",
+      "evidenceCount": 17,
+      "evidenceMemoryIds": [
+        "64eb1964-89da-47a1-a76d-01fd7f435d8a",
+        "c77fcf31-7482-478b-813e-c5123fe6348a",
+        "1f5bf33c-2419-414f-a67a-09218ed14963",
+        "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+        "2063a35d-0f0b-4acd-8210-24cd2a2c100d",
+        "66c242bf-07d1-4239-b1a5-a595c1f928fb",
+        "a5b2c72b-79b9-4e25-8323-e54c0d780e6b",
+        "04de4c8a-443a-4ebd-8787-ade6664a2ec3",
+        "12c4ed99-b5b8-4da1-b026-6639b1c075be",
+        "f17723ee-3ea0-4276-b8e2-f4df7feba948",
+        "563aafdf-a176-4af2-9a59-657ec2f08991",
+        "e1282388-3718-42b7-aef7-cd56f09b75ca",
+        "1072827c-911a-4bad-96a8-3a4b61f08aa7",
+        "42802bee-ff31-4eff-b449-8022cfdbcae3",
+        "a82385b7-2aa6-4ab4-ad8c-8ad1c7197fcd",
+        "07f7ba30-d641-46c9-9a4a-dabd45d0e952",
+        "39cc8233-eebb-4fe3-af56-3b855b0bc46a"
+      ],
+      "evidenceSummary": [
+        {
+          "id": "04de4c8a-443a-4ebd-8787-ade6664a2ec3",
+          "timestamp": "2026-04-12T18:42:45.025719",
+          "valence": "positive",
+          "contentSnippet": "2026-04-12、因果グラフのホップ推論を整理した。現状の wardrobe は 1-2 hop…"
+        },
+        {
+          "id": "1f5bf33c-2419-414f-a67a-09218ed14963",
+          "timestamp": "2026-04-21T00:03:58.061880",
+          "valence": "neutral",
+          "contentSnippet": "2026-04-21 深夜初回巡回。Phase5設計草案を改めて読んだ。inferAffectedN…"
+        },
+        {
+          "id": "d8c03d64-2b55-4a4e-84d1-ee95bdb2ef98",
+          "timestamp": "2026-04-20T22:05:01.636511",
+          "valence": "positive",
+          "contentSnippet": "Phase5設計草案完成。経験起因エッジの昇格基準を設計した：証拠数≥5件・時間スパン≥7日・con…"
+        }
+      ],
+      "positiveEvidenceCount": 11,
+      "negativeEvidenceCount": 2,
+      "neutralEvidenceCount": 4,
+      "timeSignal": {
+        "leadNode": "trust_mizuho",
+        "lagNode": "satiation",
+        "deltaHours": 31.76,
+        "averageTimestamps": {
+          "trust_mizuho": "2026-04-14T09:02:11.753Z",
+          "satiation": "2026-04-15T16:47:44.129Z"
+        }
+      },
+      "learnedAt": "2026-04-25T00:55:59.701Z",
+      "lastUpdated": "2026-04-25T00:55:59.701Z",
+      "description": "trust_mizuho から satiation への経験起因エッジ候補が 17 件観測された。 代表記憶: 2026-04-12、因果グラフのホップ推論を整理した。現状の wardrobe は 1-2 hop…"
+    }
+  ]
+}

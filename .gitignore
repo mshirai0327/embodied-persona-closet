@@ -55,7 +55,7 @@ ENV/
 .coverage
 htmlcov/
 
-# ChromaDB test data
+# SQLite in-memory test data marker
 :memory:/
 
 # OS

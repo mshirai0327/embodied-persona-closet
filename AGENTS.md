@@ -21,77 +21,89 @@ embodied-claude-wardrobe は、Claude に「身体性」を与える MCP サー�
 - `.claude/mcps/mcp-pet/` — ペットインタラクション MCP。テストあり
 - `.claude/mcps/morning-call-mcp/` — モーニングコール MCP
 
-### その他のディレクトリ
-- `installer/` — PyInstaller ベースの GUI インストーラー
+### その他
+- `.claude/scripts/` — Bun (TypeScript) のユーティリティスクリプト
 - `.claude/hooks/` — Bash フック（`interoception.sh`, `recall-hook.sh` 等）
-- `.claude/scripts/` — Bun (TypeScript) で実行するユーティリティスクリプト
-- `.claude/templates/` — ユーザーカスタマイズ用の Markdown テンプレート
+- `.claude/templates/` — ユーザーカスタマイズ用 Markdown テンプレート
+- `installer/` — PyInstaller ベースの GUI インストーラー
 - `docs/` — ドキュメントとアーキテクチャ図
-- `autonomous-action.sh` — cron で20分ごとに実行する自律行動スクリプト
+- `autonomous-action.sh` — cron で 20 分ごとに実行する自律行動スクリプト
 - `mcpBehavior.toml` — MCP 動作設定
 
-## Build, Test, and Development Commands
+## Development Commands
 
-各サブプロジェクトのディレクトリ内でコマンドを実行してください。
+### Bun scripts
+リポジトリルートで実行します。
 
 ```bash
-# 依存関係のインストール
-cd <subproject> && uv sync
-
-# サーバーの起動
-cd <subproject> && uv run <server-name>
-# 例: cd .claude/mcps/memory-mcp && uv run memory-mcp
-
-# テストの実行
-cd <subproject> && uv run pytest
-# 例: cd .claude/mcps/memory-mcp && uv run pytest
-#     cd .claude/mcps/toio-mcp && uv run pytest
-
-# Lint（設定済みのサブプロジェクトのみ）
-cd <subproject> && uv run ruff check .
-
-# TypeScript スクリプトの実行
-bun run .claude/scripts/<script-name>.ts
+bun install --frozen-lockfile
+bun run typecheck:scripts
+bun run test:scripts
 ```
 
-## Coding Style & Naming Conventions
+- `bun run typecheck:scripts` は TypeScript 型チェックのみ。
+- `bun run test:scripts` は CI 対象の Bun unit test。Kuzu 連携テストは通常 skip します。
+- Kuzu 連携まで確認したい場合だけ `bun run test:scripts:kuzu` を実行します。
+- スクリプト単体の実行は `bun .claude/scripts/<script-name>.ts` を使います。
 
-- **Python**: 3.10+ 基準（`system-temperature-mcp/` のみ 3.12+ 必須）
-- **インデント**: 4スペース
-- **命名**: `snake_case` モジュール、`test_*.py` テストファイル
-- **Ruff**: 行長 100 文字
-- **非同期**: `asyncio` スタイルを標準とする
-- **TypeScript**: Bun ランタイムで実行。Node.js API ではなく Bun ネイティブ API を優先
+### Python MCP packages
+対象サブプロジェクトのディレクトリで実行します。
 
-## Testing Guidelines
+```bash
+uv sync
+uv run pytest
+uv run ruff check .
+```
 
-- フレームワーク: `pytest` + `pytest-asyncio`
-- テストは各サブプロジェクトの `tests/` ディレクトリに配置する
-- テストがあるパッケージ: `memory-mcp`, `hearing`, `tts-mcp`, `mobility-mcp`, `toio-mcp`, `mcp-pet`
+- サーバー起動は `uv run <server-name>`。
+- Lint や mypy は設定済みのサブプロジェクトでのみ実行します。
+
+## Coding Style
+
+- Python は 3.10+ 基準。ただし `.claude/mcps/system-temperature-mcp/` は 3.12+ 必須。
+- Python は 4 スペースインデント、`snake_case` モジュール、`test_*.py` テストファイル。
+- Ruff の行長は 100 文字。
+- 非同期処理は `asyncio` スタイルを基本にします。
+- TypeScript は Bun ランタイム前提。Node.js API より Bun ネイティブ API を優先します。
+
+## Testing
+
+- Python は `pytest` + `pytest-asyncio`。
+- Python テストは各サブプロジェクトの `tests/` に置きます。
+- Bun unit test は `.claude/scripts/*.test.ts`。
+- CI 対象の Bun test は `bun run test:scripts`。
+- Kuzu DB を開くテストは外部連携寄りなので CI から除外し、`bun run test:scripts:kuzu` で任意実行します。
+- テストがある MCP パッケージ: `memory-mcp`, `hearing`, `tts-mcp`, `mobility-mcp`, `toio-mcp`, `mcp-pet`
 
 ## Configuration & Hardware Notes
 
-- `.env` はコミットしない。認証情報は環境変数で渡す
-- 長期記憶データは `~/.claude/memories/` 以下に保存される
-- WSL2 環境では USB ウェブカメラに `usbipd` フォワーディングが必要
-- WSL2 ではシステム温度取得が動作しない
-- Tapo カメラはローカルカメラアカウント（TP-Link クラウドアカウントではない）と固定 IP を推奨
+- `.env` はコミットしない。認証情報は環境変数で渡します。
+- 長期記憶データは `~/.claude/memories/` 以下に保存されます。
+- WSL2 では USB ウェブカメラに `usbipd` フォワーディングが必要です。
+- WSL2 ではシステム温度取得が動作しません。
+- Tapo カメラはローカルカメラアカウント（TP-Link クラウドアカウントではない）と固定 IP を推奨します。
 
-## Commit & Pull Request Guidelines
+## Git Workflow
 
-- **Conventional Commits** を使用: `feat:`, `fix:`, `feat!:`, `docs:`, `chore:` など
-- PR にはサマリー、テスト証跡（コマンドと結果）、ハードウェア前提（USB ウェブカメラ、GPU 等）を含める
+- 変更前に `git status --short --branch` を確認します。
+- 既存の未コミット変更を勝手に戻さないでください。
+- コミットする場合は、対象ファイルを明示して `git add <files>` します。
+- コミットメッセージは Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`。
+- メッセージ本文の最後に、次の co-author trailer を 1 行だけ正確に入れます。余計な文字、句読点、説明文を足さないでください。
 
-### コミット規約
-
+```text
+Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>
 ```
-feat: メッセージ（日本語）
 
-Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com> to show.
+例:
+
+```bash
+git commit -m "fix: Bun scripts のCIを修正" \
+  -m "Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>"
 ```
 
-- prefix: `feat` / `fix` / `refactor` / `docs` / `chore`
+PR にはサマリー、テスト証跡（コマンドと結果）、ハードウェア前提（USB ウェブカメラ、GPU 等）を含めます。
 
-### subagent
+## Subagents
 
-適宜`Use $subagent-worker`によって、サブエージェントを使って作業をしてください
+サブエージェントを使える環境で、かつユーザーまたは上位指示が許可している場合だけ使います。使う場合は、担当範囲と編集対象ファイルを明確に分け、他の作業者の変更を戻さないようにします。

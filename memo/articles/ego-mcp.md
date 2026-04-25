@@ -70,7 +70,7 @@ README では `embodied-claude` への謝辞もあり、系譜としてはこの
 
 記憶系の核は次のあたり。
 
-- ChromaDB ベースの semantic search
+- ベクトル検索ベースの semantic search
 - Hopfield pattern completion による連想想起
 - memory link と episode
 - forgetting / resurfacing

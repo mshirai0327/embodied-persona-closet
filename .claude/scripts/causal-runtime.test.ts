@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 const ORIGINAL_SEED_PATH = process.env.WARDROBE_CAUSAL_SEED_PATH;
 const ORIGINAL_KUZU_DB_PATH = process.env.WARDROBE_PERSONA_KUZU_DB_PATH;
+const kuzuTest = process.env.WARDROBE_RUN_KUZU_TESTS === "1" ? test : test.skip;
 
 let tmpDirPath: string | null = null;
 
@@ -158,7 +159,7 @@ describe("causal-runtime", () => {
     })).toBe(0);
   });
 
-  test("maps bright environments to a positive mood proposal", async () => {
+  kuzuTest("maps bright environments to a positive mood proposal", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([
@@ -175,7 +176,7 @@ describe("causal-runtime", () => {
     expect(mood?.topPathDescription).toContain("環境光");
   }, 15000);
 
-  test("maps high thermal load to negative energy and health proposals", async () => {
+  kuzuTest("maps high thermal load to negative energy and health proposals", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([
@@ -195,7 +196,7 @@ describe("causal-runtime", () => {
     expect(health?.delta).toBeLessThan(0);
   }, 15000);
 
-  test("maps low thermal load to recovery-oriented energy and health proposals", async () => {
+  kuzuTest("maps low thermal load to recovery-oriented energy and health proposals", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([
@@ -215,7 +216,7 @@ describe("causal-runtime", () => {
     expect(health?.delta).toBeGreaterThan(0);
   }, 15000);
 
-  test("does not keep nudging status when brightness and thermal load stay in the neutral band", async () => {
+  kuzuTest("does not keep nudging status when brightness and thermal load stay in the neutral band", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([
@@ -234,7 +235,7 @@ describe("causal-runtime", () => {
     expect(proposals).toEqual([]);
   }, 15000);
 
-  test("does not treat comfortable temperature and moderate humidity as automatic recovery", async () => {
+  kuzuTest("does not treat comfortable temperature and moderate humidity as automatic recovery", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([
@@ -253,7 +254,7 @@ describe("causal-runtime", () => {
     expect(proposals).toEqual([]);
   }, 15000);
 
-  test("adds a hot-and-humid interaction load on top of direct temperature and humidity effects", async () => {
+  kuzuTest("adds a hot-and-humid interaction load on top of direct temperature and humidity effects", async () => {
     const module = await setupSeedGraph();
 
     const temperatureOnly = await module.deriveEnvironmentCausalProposals([
@@ -300,7 +301,7 @@ describe("causal-runtime", () => {
     expect(combinedHealth?.contributingSources).toContain("ambient_humidity");
   }, 15000);
 
-  test("does not apply the weather interaction when only temperature is present", async () => {
+  kuzuTest("does not apply the weather interaction when only temperature is present", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([
@@ -321,7 +322,7 @@ describe("causal-runtime", () => {
     expect(health?.contributingSources).toEqual(["ambient_temperature"]);
   }, 15000);
 
-  test("maps high humidity to negative mood, energy, and health proposals", async () => {
+  kuzuTest("maps high humidity to negative mood, energy, and health proposals", async () => {
     const module = await setupSeedGraph();
 
     const proposals = await module.deriveEnvironmentCausalProposals([

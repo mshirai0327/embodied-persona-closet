@@ -24,6 +24,54 @@ const MIN_SELECTION_SCORE = 2.05;
 const POSITIVE_EMOTIONS = new Set(["happy", "moved", "excited"]);
 const NEGATIVE_EMOTIONS = new Set(["sad", "angry", "afraid", "anxious", "upset"]);
 
+const POSITIVE_VALENCE_HINTS = [
+  "安心",
+  "嬉",
+  "楽しい",
+  "落ち着",
+  "やわらか",
+  "手応え",
+  "完了",
+  "完成",
+  "成功",
+  "確定",
+  "接続済み",
+  "動作確認",
+  "通った",
+  "回復",
+  "戻り",
+  "動きやす",
+  "持ち直",
+  "軽い",
+  "支える",
+  "引き上げ",
+  "満た",
+] as const;
+
+const NEGATIVE_VALENCE_HINTS = [
+  "不安",
+  "重い",
+  "しんど",
+  "消耗",
+  "消耗気味",
+  "疲れ",
+  "沈む",
+  "沈み",
+  "陰り",
+  "控えめ",
+  "圧迫",
+  "削ら",
+  "下がっ",
+  "下げ",
+  "落ち込",
+  "慎重",
+  "守りたい",
+  "守る動き",
+  "負荷",
+  "暗い",
+  "反応は控えめ",
+] as const;
+
 const CATEGORY_WEIGHTS: Record<string, number> = {
   conversation: 0.35,
   daily: 0.28,
@@ -209,16 +257,24 @@ function inferEntity(row: MemoryBridgeRow): string | null {
 }
 
 export function inferMemoryValence(row: Pick<MemoryBridgeRow, "emotion" | "content" | "episode_summary">): MemoryValence {
-  if (POSITIVE_EMOTIONS.has(row.emotion)) return "positive";
-  if (NEGATIVE_EMOTIONS.has(row.emotion)) return "negative";
-
   const text = normalizeText(`${row.content} ${row.episode_summary}`);
-  if (["安心", "嬉", "楽しい", "落ち着", "やわらか", "手応え"].some((keyword) => text.includes(normalizeText(keyword)))) {
-    return "positive";
+
+  let score = 0;
+  if (POSITIVE_EMOTIONS.has(row.emotion)) score += 2;
+  if (NEGATIVE_EMOTIONS.has(row.emotion)) score -= 2;
+
+  score += countKeywordHits(text, POSITIVE_VALENCE_HINTS);
+  score -= countKeywordHits(text, NEGATIVE_VALENCE_HINTS);
+
+  if (/mood-\d|energy-\d|health-\d|score -\d/.test(text)) {
+    score -= 1;
   }
-  if (["不安", "重い", "しんど", "消耗", "疲れ", "沈む"].some((keyword) => text.includes(normalizeText(keyword)))) {
-    return "negative";
+  if (/mood\+\d|energy\+\d|health\+\d|score \+\d/.test(text)) {
+    score += 1;
   }
+
+  if (score >= 1) return "positive";
+  if (score <= -1) return "negative";
   return "neutral";
 }
 

@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "typecheck:scripts": "tsc --project tsconfig.json --pretty false",
+    "test:scripts": "bun test ./.claude/scripts/*.test.ts",
     "persona:dashboard": "bun .claude/scripts/persona-dashboard.ts",
     "persona:sync": "bun .claude/scripts/persona-data.ts",
     "persona:causal-sync": "bun .claude/scripts/causal-kuzu.ts",

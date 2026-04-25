@@ -23,6 +23,9 @@ jobs:
       - name: Type check scripts
         run: bun run typecheck:scripts
 
+      - name: Run script tests
+        run: bun run test:scripts
+
   test-memory-mcp:
     name: Test memory-mcp
     runs-on: ubuntu-latest

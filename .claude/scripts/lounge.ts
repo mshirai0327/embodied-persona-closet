@@ -138,23 +138,25 @@ function loadConfig(): LoungeConfig {
 }
 
 function requireAuthConfig(config: LoungeConfig): Required<Pick<LoungeConfig, "appId" | "installationId" | "pemPath">> {
-  const missing: string[] = [];
-  if (!config.appId) missing.push("AI_LOUNGE_APP_ID or GITHUB_APP_ID");
-  if (!config.installationId) {
-    missing.push("AI_LOUNGE_INSTALLATION_ID or GITHUB_INSTALLATION_ID");
-  }
-  if (!config.pemPath) missing.push("AI_LOUNGE_PEM_PATH or GITHUB_PRIVATE_KEY_PATH");
+  const { appId, installationId, pemPath } = config;
 
-  if (missing.length > 0) {
+  if (!appId || !installationId || !pemPath) {
+    const missing: string[] = [];
+    if (!appId) missing.push("AI_LOUNGE_APP_ID or GITHUB_APP_ID");
+    if (!installationId) {
+      missing.push("AI_LOUNGE_INSTALLATION_ID or GITHUB_INSTALLATION_ID");
+    }
+    if (!pemPath) missing.push("AI_LOUNGE_PEM_PATH or GITHUB_PRIVATE_KEY_PATH");
+
     throw new Error(
       `Missing environment for GitHub App auth: ${missing.join(", ")}`
     );
   }
 
   return {
-    appId: config.appId,
-    installationId: config.installationId,
-    pemPath: config.pemPath,
+    appId,
+    installationId,
+    pemPath,
   };
 }
 

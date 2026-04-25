@@ -88,6 +88,42 @@ afterEach(async () => {
 });
 
 describe("causal-memory-bridge", () => {
+  test("infers negative valence from neutral observation language when the text carries drain signals", async () => {
+    const module = await importBridgeModule();
+
+    expect(module.inferMemoryValence({
+      emotion: "curious",
+      content: "ambient_brightness→mood（score -0.14, weak negative）。気分に少し陰りがあって、反応は控えめになりやすい。",
+      episode_summary: "今は刺激を増やしすぎず、落ち着けるものから触れたい。",
+    })).toBe("negative");
+
+    expect(module.inferMemoryValence({
+      emotion: "neutral",
+      content: "energy=29（消耗気味）だったので軽い保守に留めた。",
+      episode_summary: "今は負荷を絞って進めたい。",
+    })).toBe("negative");
+  });
+
+  test("keeps clearly recovery-oriented memories positive even if they mention an earlier dip", async () => {
+    const module = await importBridgeModule();
+
+    expect(module.inferMemoryValence({
+      emotion: "neutral",
+      content: "mood=48に回復。朝は下がっていたが、夜になって持ち直した。",
+      episode_summary: "照明で明るくなり、気分が戻った。",
+    })).toBe("positive");
+  });
+
+  test("keeps technical completion memories positive even if they quote negative runtime examples", async () => {
+    const module = await importBridgeModule();
+
+    expect(module.inferMemoryValence({
+      emotion: "excited",
+      content: "Phase 1-3実装完了。causal-hint.ts が完成し、environment-tick.ts と接続済み。動作確認で『気分に少し陰りがあって、反応は控えめになりやすい』も出た。",
+      episode_summary: "",
+    })).toBe("positive");
+  });
+
   test("selects one recent memory that overlaps active causal nodes", async () => {
     tmpDirPath = await mkdtemp(join(tmpdir(), "persona-causal-memory-bridge-test-"));
     process.env.WARDROBE_CAUSAL_RUNTIME_PATH = join(tmpDirPath, "causal-runtime.json");

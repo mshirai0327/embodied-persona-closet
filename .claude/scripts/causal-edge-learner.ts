@@ -17,6 +17,10 @@ const DEFAULT_PENDING_LEARNED_EDGES_PATH = resolve(
   PROJECT_ROOT,
   ".claude/workingDirs/pending-learned-edges.json",
 );
+const DEFAULT_LEARNED_SEEDS_PATH = resolve(
+  PROJECT_ROOT,
+  ".claude/persona/learned-seeds.json",
+);
 
 export const PHASE5_NODE_IDS = [
   "mood",
@@ -28,6 +32,8 @@ export const PHASE5_NODE_IDS = [
 
 export type Phase5NodeId = typeof PHASE5_NODE_IDS[number];
 export type LearnedEdgeDirection = `${Phase5NodeId}->${Phase5NodeId}` | "ambiguous";
+export type LearnedEdgeRelation = "lifts" | "drains" | "modulates";
+export type LearnedEdgeStatus = "observing" | "confirmed";
 
 const MEMORY_SCAN_LIMIT = 200;
 const MIN_EVIDENCE_COUNT = 5;
@@ -108,6 +114,38 @@ export interface PendingLearnedEdgesSnapshot {
   scannedMemoryCount: number;
   candidateCount: number;
   candidates: PendingLearnedEdgeCandidate[];
+}
+
+export interface LearnedSeedEdge {
+  id: string;
+  pair: [Phase5NodeId, Phase5NodeId];
+  source: Phase5NodeId | null;
+  target: Phase5NodeId | null;
+  direction: LearnedEdgeDirection;
+  relation: LearnedEdgeRelation;
+  causalLevel: "Lv2";
+  weight: number;
+  status: LearnedEdgeStatus;
+  evidenceCount: number;
+  evidenceMemoryIds: string[];
+  evidenceSummary: PendingEvidenceSummary[];
+  positiveEvidenceCount: number;
+  negativeEvidenceCount: number;
+  neutralEvidenceCount: number;
+  timeSignal: PendingLearnedEdgeCandidate["timeSignal"];
+  learnedAt: string;
+  lastUpdated: string;
+  description: string;
+}
+
+export interface LearnedSeedsSnapshot {
+  learnedEdges: LearnedSeedEdge[];
+}
+
+export interface PromotionResult {
+  promotedCount: number;
+  skippedCount: number;
+  learnedEdges: LearnedSeedEdge[];
 }
 
 function normalizeText(value: string): string {
@@ -339,6 +377,76 @@ function buildCandidateId(pair: [Phase5NodeId, Phase5NodeId]): string {
   return `pending_${pair[0]}_${pair[1]}`;
 }
 
+function buildLearnedEdgeId(candidate: Pick<PendingLearnedEdgeCandidate, "pair" | "source" | "target">): string {
+  const left = candidate.source ?? candidate.pair[0];
+  const right = candidate.target ?? candidate.pair[1];
+  return `learned_${left}_${right}_001`;
+}
+
+function buildCandidateIdentityKey(candidate: Pick<PendingLearnedEdgeCandidate, "pair" | "source" | "target">): string {
+  if (candidate.source && candidate.target) {
+    return `${candidate.source}->${candidate.target}`;
+  }
+  return `ambiguous:${candidate.pair[0]}->${candidate.pair[1]}`;
+}
+
+function buildLearnedEdgeIdentityKey(edge: Pick<LearnedSeedEdge, "pair" | "source" | "target">): string {
+  if (edge.source && edge.target) {
+    return `${edge.source}->${edge.target}`;
+  }
+  return `ambiguous:${edge.pair[0]}->${edge.pair[1]}`;
+}
+
+function inferLearnedRelation(candidate: Pick<
+  PendingLearnedEdgeCandidate,
+  "direction" | "positiveEvidenceCount" | "negativeEvidenceCount"
+>): LearnedEdgeRelation {
+  if (candidate.direction === "ambiguous") {
+    return "modulates";
+  }
+  if (candidate.positiveEvidenceCount > candidate.negativeEvidenceCount) {
+    return "lifts";
+  }
+  if (candidate.negativeEvidenceCount > candidate.positiveEvidenceCount) {
+    return "drains";
+  }
+  return "modulates";
+}
+
+function buildLearnedDescription(candidate: PendingLearnedEdgeCandidate): string {
+  const base = candidate.direction === "ambiguous"
+    ? `${candidate.pair[0]} と ${candidate.pair[1]} の共起が ${candidate.evidenceCount} 件観測されたが、方向は未確定。`
+    : `${candidate.source} から ${candidate.target} への経験起因エッジ候補が ${candidate.evidenceCount} 件観測された。`;
+
+  const evidence = candidate.evidenceSummary[0]?.contentSnippet;
+  return evidence ? `${base} 代表記憶: ${evidence}` : base;
+}
+
+function toLearnedSeedEdge(candidate: PendingLearnedEdgeCandidate, now = new Date()): LearnedSeedEdge {
+  const timestamp = now.toISOString();
+  return {
+    id: buildLearnedEdgeId(candidate),
+    pair: candidate.pair,
+    source: candidate.source,
+    target: candidate.target,
+    direction: candidate.direction,
+    relation: inferLearnedRelation(candidate),
+    causalLevel: "Lv2",
+    weight: 0.3,
+    status: "observing",
+    evidenceCount: candidate.evidenceCount,
+    evidenceMemoryIds: candidate.evidenceMemoryIds,
+    evidenceSummary: candidate.evidenceSummary,
+    positiveEvidenceCount: candidate.positiveEvidenceCount,
+    negativeEvidenceCount: candidate.negativeEvidenceCount,
+    neutralEvidenceCount: candidate.neutralEvidenceCount,
+    timeSignal: candidate.timeSignal,
+    learnedAt: timestamp,
+    lastUpdated: timestamp,
+    description: buildLearnedDescription(candidate),
+  };
+}
+
 export function buildPendingLearnedEdgesSnapshot(
   rows: LearnerMemoryRow[],
   options: {
@@ -412,6 +520,45 @@ export function resolvePendingLearnedEdgesPath(explicitPath?: string): string {
     ?? DEFAULT_PENDING_LEARNED_EDGES_PATH;
 }
 
+export function resolveLearnedSeedsPath(explicitPath?: string): string {
+  return explicitPath
+    ?? process.env.WARDROBE_LEARNED_SEEDS_PATH?.trim()
+    ?? DEFAULT_LEARNED_SEEDS_PATH;
+}
+
+export async function readPendingLearnedEdgesSnapshot(
+  inputPath?: string,
+): Promise<PendingLearnedEdgesSnapshot | null> {
+  const resolvedPath = resolvePendingLearnedEdgesPath(inputPath);
+  const file = Bun.file(resolvedPath);
+  if (!(await file.exists())) return null;
+
+  try {
+    return await file.json() as PendingLearnedEdgesSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+export async function readLearnedSeedsSnapshot(
+  inputPath?: string,
+): Promise<LearnedSeedsSnapshot> {
+  const resolvedPath = resolveLearnedSeedsPath(inputPath);
+  const file = Bun.file(resolvedPath);
+  if (!(await file.exists())) {
+    return { learnedEdges: [] };
+  }
+
+  try {
+    const parsed = await file.json() as Partial<LearnedSeedsSnapshot> | null;
+    return {
+      learnedEdges: parsed?.learnedEdges ?? [],
+    };
+  } catch {
+    return { learnedEdges: [] };
+  }
+}
+
 export async function savePendingLearnedEdgesSnapshot(
   snapshot: PendingLearnedEdgesSnapshot,
   outputPath?: string,
@@ -419,6 +566,48 @@ export async function savePendingLearnedEdgesSnapshot(
   const resolvedPath = resolvePendingLearnedEdgesPath(outputPath);
   mkdirSync(dirname(resolvedPath), { recursive: true });
   await Bun.write(resolvedPath, JSON.stringify(snapshot, null, 2) + "\n");
+}
+
+export async function saveLearnedSeedsSnapshot(
+  snapshot: LearnedSeedsSnapshot,
+  outputPath?: string,
+): Promise<void> {
+  const resolvedPath = resolveLearnedSeedsPath(outputPath);
+  mkdirSync(dirname(resolvedPath), { recursive: true });
+  await Bun.write(resolvedPath, JSON.stringify(snapshot, null, 2) + "\n");
+}
+
+export function promotePendingCandidatesToLearnedSeeds(
+  pending: PendingLearnedEdgesSnapshot,
+  existing: LearnedSeedsSnapshot,
+  options: {
+    now?: Date;
+  } = {},
+): PromotionResult {
+  const learnedEdges = [...existing.learnedEdges];
+  const existingKeys = new Set(learnedEdges.map((edge) => buildLearnedEdgeIdentityKey(edge)));
+  let promotedCount = 0;
+  let skippedCount = 0;
+
+  for (const candidate of pending.candidates) {
+    const key = buildCandidateIdentityKey(candidate);
+    if (existingKeys.has(key)) {
+      skippedCount += 1;
+      continue;
+    }
+
+    learnedEdges.push(toLearnedSeedEdge(candidate, options.now));
+    existingKeys.add(key);
+    promotedCount += 1;
+  }
+
+  learnedEdges.sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    promotedCount,
+    skippedCount,
+    learnedEdges,
+  };
 }
 
 export async function buildAndSavePendingLearnedEdgesSnapshot(options: {
@@ -438,7 +627,81 @@ export async function buildAndSavePendingLearnedEdgesSnapshot(options: {
   return snapshot;
 }
 
+export async function promotePendingLearnedEdgesSnapshot(options: {
+  now?: Date;
+  pendingPath?: string;
+  learnedSeedsPath?: string;
+  pendingSnapshot?: PendingLearnedEdgesSnapshot;
+} = {}): Promise<PromotionResult> {
+  const pendingSnapshot = options.pendingSnapshot ?? await readPendingLearnedEdgesSnapshot(options.pendingPath);
+  if (!pendingSnapshot) {
+    return {
+      promotedCount: 0,
+      skippedCount: 0,
+      learnedEdges: [],
+    };
+  }
+
+  const existing = await readLearnedSeedsSnapshot(options.learnedSeedsPath);
+  const result = promotePendingCandidatesToLearnedSeeds(pendingSnapshot, existing, {
+    now: options.now,
+  });
+
+  await saveLearnedSeedsSnapshot({ learnedEdges: result.learnedEdges }, options.learnedSeedsPath);
+  return result;
+}
+
+export async function buildAndPromotePendingLearnedEdgesSnapshot(options: {
+  now?: Date;
+  outputPath?: string;
+  memoryDbPath?: string;
+  scanLimit?: number;
+  learnedSeedsPath?: string;
+} = {}): Promise<{
+  pending: PendingLearnedEdgesSnapshot;
+  promotion: PromotionResult;
+}> {
+  const pending = await buildAndSavePendingLearnedEdgesSnapshot({
+    now: options.now,
+    outputPath: options.outputPath,
+    memoryDbPath: options.memoryDbPath,
+    scanLimit: options.scanLimit,
+  });
+  const promotion = await promotePendingLearnedEdgesSnapshot({
+    now: options.now,
+    pendingSnapshot: pending,
+    learnedSeedsPath: options.learnedSeedsPath,
+  });
+  return { pending, promotion };
+}
+
 async function main() {
+  const args = new Set(Bun.argv.slice(2));
+
+  if (args.has("--promote-pending")) {
+    const result = await promotePendingLearnedEdgesSnapshot();
+    console.log(JSON.stringify({
+      promotedCount: result.promotedCount,
+      skippedCount: result.skippedCount,
+      learnedSeedsPath: resolveLearnedSeedsPath(),
+    }, null, 2));
+    return;
+  }
+
+  if (args.has("--promote-all")) {
+    const { pending, promotion } = await buildAndPromotePendingLearnedEdgesSnapshot();
+    console.log(JSON.stringify({
+      updatedAt: pending.updatedAt,
+      candidateCount: pending.candidateCount,
+      scannedMemoryCount: pending.scannedMemoryCount,
+      outputPath: resolvePendingLearnedEdgesPath(),
+      promotedCount: promotion.promotedCount,
+      skippedCount: promotion.skippedCount,
+      learnedSeedsPath: resolveLearnedSeedsPath(),
+    }, null, 2));
+    return;
+  }
+
   const snapshot = await buildAndSavePendingLearnedEdgesSnapshot();
   console.log(JSON.stringify({
     updatedAt: snapshot.updatedAt,

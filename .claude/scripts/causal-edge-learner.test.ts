@@ -8,6 +8,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 const ORIGINAL_MEMORY_DB_PATH = process.env.MEMORY_DB_PATH;
 const ORIGINAL_PENDING_LEARNED_EDGES_PATH = process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH;
+const ORIGINAL_LEARNED_SEEDS_PATH = process.env.WARDROBE_LEARNED_SEEDS_PATH;
 const ORIGINAL_CAUSAL_RUNTIME_PATH = process.env.WARDROBE_CAUSAL_RUNTIME_PATH;
 
 let tmpDirPath: string | null = null;
@@ -71,6 +72,12 @@ afterEach(async () => {
     delete process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH;
   } else {
     process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH = ORIGINAL_PENDING_LEARNED_EDGES_PATH;
+  }
+
+  if (ORIGINAL_LEARNED_SEEDS_PATH == null) {
+    delete process.env.WARDROBE_LEARNED_SEEDS_PATH;
+  } else {
+    process.env.WARDROBE_LEARNED_SEEDS_PATH = ORIGINAL_LEARNED_SEEDS_PATH;
   }
 
   if (ORIGINAL_CAUSAL_RUNTIME_PATH == null) {
@@ -192,5 +199,118 @@ describe("causal-edge-learner", () => {
     ));
     expect(candidate).toBeTruthy();
     expect(candidate?.evidenceCount).toBe(5);
+  });
+
+  test("promotes pending candidates into learned seeds with stable IDs and idempotency", async () => {
+    tmpDirPath = await mkdtemp(join(tmpdir(), "persona-causal-edge-learner-promote-test-"));
+    process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH = join(tmpDirPath, "pending-learned-edges.json");
+    process.env.WARDROBE_LEARNED_SEEDS_PATH = join(tmpDirPath, "learned-seeds.json");
+
+    const module = await importLearnerModule();
+    const pending = {
+      updatedAt: "2026-04-25T13:00:00.000Z",
+      memoryDbPath: join(tmpDirPath, "memory.db"),
+      scanLimit: 200,
+      scannedMemoryCount: 12,
+      candidateCount: 2,
+      candidates: [
+        {
+          id: "pending_mood_trust_mizuho",
+          pair: ["mood", "trust_mizuho"],
+          source: "trust_mizuho",
+          target: "mood",
+          direction: "trust_mizuho->mood",
+          evidenceCount: 6,
+          evidenceMemoryIds: ["m1", "m2", "m3", "m4", "m5", "m6"],
+          evidenceSummary: [
+            {
+              id: "m1",
+              timestamp: "2026-04-25T12:00:00.000Z",
+              valence: "positive",
+              contentSnippet: "mizuhoと話したあと、気分が軽くなった。",
+            },
+          ],
+          positiveEvidenceCount: 6,
+          negativeEvidenceCount: 0,
+          neutralEvidenceCount: 0,
+          timeSignal: {
+            leadNode: "trust_mizuho",
+            lagNode: "mood",
+            deltaHours: 8,
+            averageTimestamps: {
+              mood: "2026-04-25T12:00:00.000Z",
+              trust_mizuho: "2026-04-25T04:00:00.000Z",
+            },
+          },
+        },
+        {
+          id: "pending_mood_health",
+          pair: ["mood", "health"],
+          source: null,
+          target: null,
+          direction: "ambiguous",
+          evidenceCount: 5,
+          evidenceMemoryIds: ["a1", "a2", "a3", "a4", "a5"],
+          evidenceSummary: [
+            {
+              id: "a1",
+              timestamp: "2026-04-25T10:00:00.000Z",
+              valence: "negative",
+              contentSnippet: "気分と健康感の両方が少し下がった。",
+            },
+          ],
+          positiveEvidenceCount: 2,
+          negativeEvidenceCount: 2,
+          neutralEvidenceCount: 1,
+          timeSignal: {
+            leadNode: null,
+            lagNode: null,
+            deltaHours: 2.25,
+            averageTimestamps: {
+              mood: "2026-04-25T10:00:00.000Z",
+              health: "2026-04-25T12:15:00.000Z",
+            },
+          },
+        },
+      ],
+    } satisfies Awaited<ReturnType<typeof module.readPendingLearnedEdgesSnapshot>> extends infer T
+      ? T extends object
+        ? NonNullable<T>
+        : never
+      : never;
+
+    await module.savePendingLearnedEdgesSnapshot(pending);
+    const first = await module.promotePendingLearnedEdgesSnapshot({
+      now: new Date("2026-04-25T13:30:00.000Z"),
+    });
+
+    expect(first.promotedCount).toBe(2);
+    expect(first.skippedCount).toBe(0);
+
+    const learned = await module.readLearnedSeedsSnapshot();
+    expect(learned.learnedEdges).toHaveLength(2);
+
+    const trustMood = learned.learnedEdges.find((edge: { id: string }) => edge.id === "learned_trust_mizuho_mood_001");
+    expect(trustMood).toBeTruthy();
+    expect(trustMood?.status).toBe("observing");
+    expect(trustMood?.weight).toBe(0.3);
+    expect(trustMood?.relation).toBe("lifts");
+    expect(trustMood?.direction).toBe("trust_mizuho->mood");
+
+    const ambiguous = learned.learnedEdges.find((edge: { id: string }) => edge.id === "learned_mood_health_001");
+    expect(ambiguous).toBeTruthy();
+    expect(ambiguous?.direction).toBe("ambiguous");
+    expect(ambiguous?.source).toBeNull();
+    expect(ambiguous?.target).toBeNull();
+    expect(ambiguous?.relation).toBe("modulates");
+
+    const second = await module.promotePendingLearnedEdgesSnapshot({
+      now: new Date("2026-04-25T14:00:00.000Z"),
+    });
+    expect(second.promotedCount).toBe(0);
+    expect(second.skippedCount).toBe(2);
+
+    const learnedAgain = await module.readLearnedSeedsSnapshot();
+    expect(learnedAgain.learnedEdges).toHaveLength(2);
   });
 });

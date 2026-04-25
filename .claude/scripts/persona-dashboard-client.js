@@ -76,8 +76,16 @@
     { key: "Lv3-1", label: "Lv3-1" },
     { key: "Lv3-2", label: "Lv3-2" },
   ];
+  const LEARNED_STATUS_STYLES = {
+    observing: { color: "#b98928", label: "observing" },
+    confirmed: { color: "#0e8b63", label: "confirmed" },
+    rejected: { color: "#a94643", label: "rejected" },
+    other: { color: "#6c7b73", label: "other" },
+  };
   const NODE_HALF_WIDTH = 74;
   const NODE_HALF_HEIGHT = 22;
+  const LEARNED_NODE_HALF_WIDTH = 82;
+  const LEARNED_NODE_HALF_HEIGHT = 30;
 
   let initialDataError = null;
   function readInitialData() {
@@ -204,6 +212,10 @@
 
   function relationStyleFor(relation) {
     return RELATION_STYLES[normalizeRelationKey(relation)] || RELATION_STYLES.other;
+  }
+
+  function statusStyleFor(status) {
+    return LEARNED_STATUS_STYLES[status] || LEARNED_STATUS_STYLES.other;
   }
 
   function legendLineStyle(color) {
@@ -400,6 +412,40 @@
       })
       .join("");
     root.innerHTML = relationLegend;
+  }
+
+  function renderLearnedGraphLegend() {
+    const root = document.getElementById("learned-graph-legend");
+    if (!root) return;
+
+    const edges = state.data?.learnedGraph?.edges ?? [];
+    const relationKeys = Array.from(
+      new Set(edges.map((edge) => normalizeRelationKey(edge.relation)))
+    ).sort((left, right) => RELATION_STYLE_ORDER.indexOf(left) - RELATION_STYLE_ORDER.indexOf(right));
+    const statuses = Array.from(new Set(edges.map((edge) => edge.status || "other"))).sort();
+
+    const relationLegend = relationKeys
+      .map((relationKey) => {
+        const item = RELATION_STYLES[relationKey] || RELATION_STYLES.other;
+        return '<span class="pill legend-chip">'
+          + '<span class="legend-line" style="' + legendLineStyle(item.color) + '"></span>'
+          + escapeHtml(item.label)
+          + "</span>";
+      })
+      .join("");
+
+    const statusLegend = statuses
+      .map((status) => {
+        const item = statusStyleFor(status);
+        return '<span class="pill legend-chip">'
+          + '<span style="background:' + item.color + '; width:10px; height:10px; border-radius:999px; display:inline-block;"></span>'
+          + escapeHtml(item.label)
+          + "</span>";
+      })
+      .join("");
+
+    root.innerHTML = relationLegend + statusLegend
+      + '<span class="pill">' + escapeHtml(String(edges.length)) + " learned edges</span>";
   }
 
   function renderGraphSelector() {
@@ -752,6 +798,189 @@
     svg.innerHTML = parts.join("");
   }
 
+  function learnedNodeIdsForEdge(edge) {
+    const ids = edge.sourceId && edge.targetId
+      ? [edge.sourceId, edge.targetId]
+      : edge.pair || [];
+    return Array.from(new Set(ids.map((id) => String(id || "").trim()).filter(Boolean)));
+  }
+
+  function learnedEdgeTitle(edge, nodeById) {
+    const ids = learnedNodeIdsForEdge(edge).slice(0, 2);
+    const labels = ids.map((id) => nodeById.get(id)?.label || id);
+    return edge.sourceId && edge.targetId ? labels.join(" → ") : labels.join(" ↔ ");
+  }
+
+  function buildLearnedGraphLayout(nodes, edges) {
+    const width = 980;
+    const height = 420;
+    const positioned = new Map();
+    const degree = new Map();
+
+    for (const edge of edges) {
+      for (const id of learnedNodeIdsForEdge(edge)) {
+        degree.set(id, (degree.get(id) || 0) + Math.max(1, edge.evidenceCount || 1));
+      }
+    }
+
+    const orderedNodes = [...nodes].sort((left, right) =>
+      (degree.get(right.id) || 0) - (degree.get(left.id) || 0)
+      || left.label.localeCompare(right.label, "ja")
+    );
+
+    if (orderedNodes.length === 1) {
+      positioned.set(orderedNodes[0].id, { x: width / 2, y: height / 2 });
+      return { width, height, positioned };
+    }
+
+    const centerX = width / 2;
+    const centerY = height / 2 + 8;
+    const radiusX = 330;
+    const radiusY = 136;
+    orderedNodes.forEach((node, index) => {
+      const angle = -Math.PI / 2 + (Math.PI * 2 * index) / orderedNodes.length;
+      positioned.set(node.id, {
+        x: centerX + Math.cos(angle) * radiusX,
+        y: centerY + Math.sin(angle) * radiusY,
+      });
+    });
+
+    return { width, height, positioned };
+  }
+
+  function learnedBoundaryPoint(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const divisor = Math.max(
+      Math.abs(dx) / LEARNED_NODE_HALF_WIDTH,
+      Math.abs(dy) / LEARNED_NODE_HALF_HEIGHT
+    );
+    if (!Number.isFinite(divisor) || divisor === 0) return from;
+    const scale = Math.min(1, 1 / divisor);
+    return {
+      x: from.x + dx * scale,
+      y: from.y + dy * scale,
+    };
+  }
+
+  function learnedEdgeHash(edge) {
+    return String(edge.id || edge.direction || "")
+      .split("")
+      .reduce((total, char) => total + char.charCodeAt(0), 0);
+  }
+
+  function buildLearnedEdgePath(source, target, edge) {
+    const start = learnedBoundaryPoint(source, target);
+    const end = learnedBoundaryPoint(target, source);
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    const sign = learnedEdgeHash(edge) % 2 === 0 ? 1 : -1;
+    const bend = Math.min(110, distance * 0.22) * sign;
+    const controlX = (start.x + end.x) / 2 + (-dy / distance) * bend;
+    const controlY = (start.y + end.y) / 2 + (dx / distance) * bend;
+
+    return {
+      path: "M" + start.x + " " + start.y + " Q" + controlX + " " + controlY + " " + end.x + " " + end.y,
+      labelX: controlX,
+      labelY: controlY,
+    };
+  }
+
+  function renderLearnedGraph() {
+    const svg = document.getElementById("learned-graph");
+    if (!svg) return;
+
+    const graph = state.data.learnedGraph || { nodes: [], edges: [] };
+    const nodes = graph.nodes || [];
+    const edges = graph.edges || [];
+    const layout = buildLearnedGraphLayout(nodes, edges);
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const currentByKey = new Map((state.data.current || []).map((metric) => [metric.key, metric]));
+    const maxEvidence = Math.max(1, ...edges.map((edge) => edge.evidenceCount || 0));
+    const selected = state.selectedKey;
+    const hasSelectedNode = nodes.some((node) => node.id === selected);
+
+    const markerStyles = Array.from(
+      new Map(
+        edges.map((edge) => {
+          const style = relationStyleFor(edge.relation);
+          return [style.markerId, style];
+        })
+      ).values()
+    );
+
+    const parts = [
+      "<defs>",
+      ...markerStyles.map((style) =>
+        '<marker id="learned-' + style.markerId + '" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.8" markerHeight="4.8" orient="auto">'
+        + '<path d="M 0 0 L 10 5 L 0 10 z" fill="' + style.color + '"></path>'
+        + "</marker>"
+      ),
+      "</defs>",
+      '<rect x="0" y="0" width="' + layout.width + '" height="' + layout.height + '" rx="18" fill="transparent"></rect>',
+      '<ellipse cx="' + (layout.width / 2) + '" cy="' + (layout.height / 2 + 8) + '" rx="382" ry="168" fill="rgba(255,255,255,0.35)" stroke="rgba(32,53,42,0.08)" stroke-dasharray="7 9"></ellipse>',
+    ];
+
+    if (edges.length === 0) {
+      parts.push('<text x="40" y="64" fill="#68756d" font-size="14">learned-seeds.json に表示できるエッジがまだありません。</text>');
+      svg.innerHTML = parts.join("");
+      return;
+    }
+
+    for (const edge of edges) {
+      const edgeNodeIds = learnedNodeIdsForEdge(edge).slice(0, 2);
+      const source = layout.positioned.get(edgeNodeIds[0]);
+      const target = layout.positioned.get(edgeNodeIds[1]);
+      if (!source || !target) continue;
+
+      const related = edgeNodeIds.includes(selected);
+      const opacity = hasSelectedNode ? (related ? 0.95 : 0.18) : 0.78;
+      const relationStyle = relationStyleFor(edge.relation);
+      const statusStyle = statusStyleFor(edge.status || "other");
+      const strength = Math.log1p(edge.evidenceCount || 0) / Math.log1p(maxEvidence);
+      const path = buildLearnedEdgePath(source, target, edge);
+      const directed = Boolean(edge.sourceId && edge.targetId);
+      const dash = directed ? "" : ' stroke-dasharray="7 7"';
+      const marker = directed ? ' marker-end="url(#learned-' + relationStyle.markerId + ')"' : "";
+
+      parts.push(
+        '<path d="' + path.path + '" fill="none" stroke="' + relationStyle.color + '" stroke-width="' + (1.6 + strength * 3.4) + '" opacity="' + opacity + '" stroke-linecap="round"' + dash + marker + ">"
+        + '<title>' + escapeHtml(learnedEdgeTitle(edge, nodeById) + " / " + edge.relation + " / evidence " + edge.evidenceCount) + "</title>"
+        + "</path>"
+      );
+      parts.push(
+        '<g opacity="' + opacity + '">'
+        + '<circle cx="' + path.labelX + '" cy="' + path.labelY + '" r="13" fill="' + statusStyle.color + '" opacity="0.9"></circle>'
+        + '<text x="' + path.labelX + '" y="' + (path.labelY + 4) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">' + escapeHtml(String(edge.evidenceCount || 0)) + "</text>"
+        + "</g>"
+      );
+    }
+
+    for (const node of nodes) {
+      const point = layout.positioned.get(node.id);
+      if (!point) continue;
+      const metric = currentByKey.get(node.id);
+      const currentValue = metric?.valueNumber != null
+        ? String(metric.valueNumber) + (metric.unit === "score" ? "/100" : "")
+        : metric?.valueText || "—";
+      const related = node.id === selected || edges.some((edge) => learnedNodeIdsForEdge(edge).includes(node.id) && learnedNodeIdsForEdge(edge).includes(selected));
+      const opacity = hasSelectedNode ? (related ? 1 : 0.28) : 1;
+      const fill = KIND_COLORS[node.kind] || "#ececec";
+      const stroke = node.id === selected ? "#0e8b63" : "rgba(32,53,42,0.16)";
+
+      parts.push(
+        '<g opacity="' + opacity + '" data-node-id="' + escapeHtml(node.id) + '">'
+        + '<rect x="' + (point.x - LEARNED_NODE_HALF_WIDTH) + '" y="' + (point.y - LEARNED_NODE_HALF_HEIGHT) + '" width="' + (LEARNED_NODE_HALF_WIDTH * 2) + '" height="' + (LEARNED_NODE_HALF_HEIGHT * 2) + '" rx="18" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (node.id === selected ? 2.5 : 1.2) + '"></rect>'
+        + '<text x="' + point.x + '" y="' + (point.y - 5) + '" text-anchor="middle" font-size="13" fill="#1c2822">' + escapeHtml(node.label) + '</text>'
+        + '<text x="' + point.x + '" y="' + (point.y + 13) + '" text-anchor="middle" font-size="11" fill="#68756d">' + escapeHtml(currentValue) + '</text>'
+        + "</g>"
+      );
+    }
+
+    svg.innerHTML = parts.join("");
+  }
+
   function renderSelectionSummary() {
     const root = document.getElementById("selection-summary");
     const selectedMetric = state.data.current.find((metric) => metric.key === state.selectedKey);
@@ -770,6 +999,31 @@
         + (selectedMetric.reason ? "<br>" + escapeHtml(selectedMetric.reason) : "")
         + "</div></div></article>"
       );
+    }
+
+    const learnedGraph = state.data.learnedGraph || { nodes: [], edges: [] };
+    const learnedNodeById = new Map(learnedGraph.nodes.map((node) => [node.id, node]));
+    const learnedEdges = learnedGraph.edges
+      .filter((edge) => learnedNodeIdsForEdge(edge).includes(state.selectedKey))
+      .slice(0, 6);
+    if (learnedEdges.length > 0) {
+      const body = learnedEdges.map((edge) =>
+        '<div class="detail-item"><div class="detail-title"><strong>'
+        + escapeHtml(learnedEdgeTitle(edge, learnedNodeById))
+        + '</strong><span class="detail-time">'
+        + escapeHtml((edge.status || "unknown") + " / " + edge.evidenceCount + " obs")
+        + '</span></div><div class="detail-body">'
+        + escapeHtml(
+          edge.relation + " (" + edge.causalLevel + ")"
+          + " / weight " + Number(edge.weight || 0).toFixed(2)
+          + " / + " + edge.positiveEvidenceCount
+          + " / - " + edge.negativeEvidenceCount
+          + " / 0 " + edge.neutralEvidenceCount
+        )
+        + (edge.description ? "<br>" + escapeHtml(edge.description) : "")
+        + "</div></div>"
+      ).join("");
+      parts.push('<article class="group"><h3>Learned Seed</h3><div class="detail-list">' + body + "</div></article>");
     }
 
     function renderChains(title, chains) {
@@ -850,12 +1104,14 @@
     initializeSelectedSeries();
     renderTraceControls();
     renderGraphLegend();
+    renderLearnedGraphLegend();
     renderGraphSelector();
     renderHeader();
     renderCurrent();
     renderHistory();
     renderLogs();
     renderGraph();
+    renderLearnedGraph();
     renderSelectionSummary();
   }
 
@@ -897,6 +1153,7 @@
     if (state.selectedKey !== key || state.traceDirection !== direction || state.traceDepth !== depth) return;
     state.trace = trace;
     renderGraph();
+    renderLearnedGraph();
     renderSelectionSummary();
     renderTraceControls();
   }
@@ -989,6 +1246,7 @@
     if (node) {
       state.selectedKey = node.getAttribute("data-node-id");
       renderGraph();
+      renderLearnedGraph();
       renderSelectionSummary();
       renderCurrent();
       loadTraceForSelection().catch(() => {});

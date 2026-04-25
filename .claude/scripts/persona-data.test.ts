@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildLearnedSeedGraphSnapshot,
   buildDashboardSnapshotFromMarkdownDocuments,
   parseBodyDocument,
   parseSoulDocument,
@@ -147,5 +148,71 @@ describe("buildDashboardSnapshotFromMarkdownDocuments", () => {
     expect(snapshot.current.find((metric) => metric.key === "ambient_humidity")?.valueNumber).toBe(72);
     expect(snapshot.history.find((entry) => entry.key === "ambient_humidity")?.nextValueText).toBe("72 %");
     expect(snapshot.observations.find((entry) => entry.key === "ambient_temperature")?.normalizedValue).toBe(27);
+  });
+});
+
+describe("buildLearnedSeedGraphSnapshot", () => {
+  test("builds nodes from causal seeds and learned edges", () => {
+    const graph = buildLearnedSeedGraphSnapshot({
+      causalSeedText: JSON.stringify({
+        nodes: [
+          { id: "mood", label: "mood", kind: "emotion", dataLevel: "Lv3-2" },
+          { id: "energy", label: "energy", kind: "emotion", dataLevel: "Lv3-2" },
+        ],
+      }),
+      learnedSeedText: JSON.stringify({
+        learnedEdges: [
+          {
+            id: "learned_energy_mood_001",
+            pair: ["mood", "energy"],
+            source: "energy",
+            target: "mood",
+            direction: "energy->mood",
+            relation: "lifts",
+            causalLevel: "Lv2",
+            weight: 0.3,
+            status: "observing",
+            evidenceCount: 17,
+            positiveEvidenceCount: 12,
+            negativeEvidenceCount: 4,
+            neutralEvidenceCount: 1,
+          },
+        ],
+      }),
+      current: [],
+    });
+
+    expect(graph.nodes.map((node) => node.id).sort()).toEqual(["energy", "mood"]);
+    expect(graph.edges[0]?.sourceId).toBe("energy");
+    expect(graph.edges[0]?.targetId).toBe("mood");
+    expect(graph.edges[0]?.evidenceCount).toBe(17);
+  });
+
+  test("keeps ambiguous learned pairs drawable", () => {
+    const graph = buildLearnedSeedGraphSnapshot({
+      causalSeedText: null,
+      learnedSeedText: JSON.stringify({
+        learnedEdges: [
+          {
+            id: "learned_mood_health_001",
+            pair: ["mood", "health"],
+            source: null,
+            target: null,
+            direction: "ambiguous",
+            relation: "modulates",
+            causalLevel: "Lv2",
+            weight: 0.3,
+            status: "observing",
+            evidenceCount: 10,
+          },
+        ],
+      }),
+      current: [],
+    });
+
+    expect(graph.nodes.map((node) => node.id).sort()).toEqual(["health", "mood"]);
+    expect(graph.edges[0]?.sourceId).toBeNull();
+    expect(graph.edges[0]?.targetId).toBeNull();
+    expect(graph.edges[0]?.pair).toEqual(["mood", "health"]);
   });
 });

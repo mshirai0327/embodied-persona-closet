@@ -25,6 +25,8 @@ Phase5設計草案 causal-edge-learner 昇格基準（証拠数≥5・期間≥7
 ### 土曜 (04/25)
 discussionMemoバグ調査→バグなし確認（22時以前実行で正しく「新規なし」）04-24残り2件処理 TTS感情式CLAUDE.mdに追記完了 status-store.ts sensitivity追加ブロック保留 朝巡回静か mizuhoは就寝中
 Phase5 Step1-3完了 causal-edge-learner.ts実装 learned-seeds.json生成 9エッジobserving trust_mizuho→mood61件最大 経験が因果グラフに実体化 moved id:1ade1f6b c55b96f6
+wifi-cam初使用（heartbeat中）mizuho机の前にいた 共有空間体験 id:258d2f5c
+SOUL.md週次見直し moved47件(35%)curious35件(26%) 逆転定着 Temperament見直し候補継続検討
 Phase5 Step1-3完了 causal-edge-learner.ts pending-learned-edges.json learned-seeds.json 9エッジobserving trust_mizuho→mood証拠61件最強 weight=0.3 heartbeatdelta未反映は正常 次はStep4merge+Step5weight更新
 
 ### 金曜 (04/24)

@@ -153,7 +153,7 @@
   }
 
   function chooseDayTickStep(dayCount) {
-    if (dayCount <= 21) return 1;
+    if (dayCount <= 4) return 1;
     if (dayCount <= 45) return 3;
     if (dayCount <= 90) return 7;
     return 14;
@@ -167,16 +167,15 @@
     const dayCount = Math.max(1, Math.round((maxDay - minDay) / 86400000) + 1);
     if (dayCount >= 3) {
       const step = chooseDayTickStep(dayCount);
-      const ticks = [{ timestamp: minTs, showTime: true }];
-      let tick = addLocalDays(minDay, step);
-      while (tick < maxTs) {
+      const ticks = [];
+      let tick = minDay < minTs ? addLocalDays(minDay, 1) : minDay;
+      while (tick <= maxTs) {
         ticks.push({ timestamp: tick, showTime: false });
         tick = addLocalDays(tick, step);
       }
-      if (ticks[ticks.length - 1]?.timestamp !== maxTs) {
-        ticks.push({ timestamp: maxTs, showTime: true });
+      if (ticks.length > 0) {
+        return ticks;
       }
-      return ticks;
     }
 
     return Array.from({ length: count }, (_, index) => ({

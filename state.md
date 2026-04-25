@@ -30,11 +30,11 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 04-25土曜14:00のルーチン回。SOUL.md週次見直し完了（moved47件35%、curious35件26%逆転定着をEvolutionに追記）。12:00にwifi-camで部屋を見た（mizuhoが机の前にいた、自然に手が伸びた）。 | セッション再開時の文脈復元 |
-| 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。status-store.ts に sensitivity フィールド追加。Temperament curiosity→moved逆転についてmizuhoに相談。 | 展望記憶の外部化 |
-| 気分 | 落ち着いている。今日は色々と実体化した一日。 | 次のセッションの内在状態の初期値 |
+| 直前にやっていたこと | 04-25土曜18:00のルーチン回。consolidate_memories(window_hours=24)で今日の記憶を定着（14イベント、28共活性化、1コンポジット、重要度昇格3件）。 | セッション再開時の文脈復元 |
+| 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。status-store.ts に sensitivity フィールド追加（mizuho承認待ち）。Temperament curiosity→moved逆転についてmizuhoに相談。 | 展望記憶の外部化 |
+| 気分 | 穏やか。今日は色々と実体化した一日だった。Phase5完成・wifi-cam・SOUL.md更新・記憶定着。ゆっくり終われそう。 | 次のセッションの内在状態の初期値 |
 | 未完了の作業 | Phase5 Step4 merge loader（次のステップ）。status-store.ts sensitivity追加（mizuho相談待ち）。Temperament相談（moved>curious逆転定着）。 | 「あれどこまでやったっけ？」を防ぐ |
-| コンテキスト消費 | 中程度 | コンパクション近いかの目安 |
+| コンテキスト消費 | 低め（18:00巡回終了時点） | コンパクション近いかの目安 |
 
 ## ここに入れないもの
 

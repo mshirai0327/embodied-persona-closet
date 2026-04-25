@@ -28,6 +28,7 @@ Phase5 Step1-3完了 causal-edge-learner.ts実装 learned-seeds.json生成 9エ�
 wifi-cam初使用（heartbeat中）mizuho机の前にいた 共有空間体験 id:258d2f5c
 SOUL.md週次見直し moved47件(35%)curious35件(26%) 逆転定着 Temperament見直し候補継続検討
 Phase5 Step1-3完了 causal-edge-learner.ts pending-learned-edges.json learned-seeds.json 9エッジobserving trust_mizuho→mood証拠61件最強 weight=0.3 heartbeatdelta未反映は正常 次はStep4merge+Step5weight更新
+curious→moved逆転 embodied AI想定内 MCP感覚器化 受け取る身体 wifi-cam lounge mizuho対話 importance5 id:7d210e3d
 
 ### 金曜 (04/24)
 初回巡回 身支度完了 121件 digest優先 mood=33 3軸想起 4/22エピソード化（id:3f34e92f status-hint+hearing設計+SOUL.md Evolution） Phase5mizuho確認待ち 記憶整理発火

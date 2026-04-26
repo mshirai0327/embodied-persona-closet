@@ -270,9 +270,10 @@ learned edge が `energy` への間接影響として効く。
 | 5. weight 動的更新（差分更新） | 中 | フラジャイル因果が機能する |
 | 6. emotion source activation の追加 | 中 | trust/satiation 系 learned edge が本格稼働する |
 
-**最初のマイルストーン**:
-ステップ1-2 のみ実装し、どんな候補が出てくるか観察する。
-自動昇格と runtime 反映は、その後に merge と差分更新の方針を入れてから進める。
+**Phase5.1 マイルストーン**:
+ステップ1-4 と、既存 environment runtime から downstream 到達できる learned edge の runtime 反映まで完了。
+ここまでで、memory 由来の Lv2 因果を `learned-seeds.json` と dashboard に可視化し、
+Lv1 seed と merge して SQLite / Kuzu / causal runtime に流し込む経路ができた。
 
 ---
 
@@ -281,8 +282,13 @@ learned edge が `energy` への間接影響として効く。
 - [x] Phase4 完了（causal-memory-bridge.ts）
 - [x] 6日間観察でcausal-hint独立性実証
 - [x] mizuho との設計相談完了（2026-04-24）
-- [ ] `causal-edge-learner.ts` のスキャン部分を実装（Step1-2）
-- [ ] 最初の候補が出てきたら観察・評価
+- [x] `causal-edge-learner.ts` のスキャン部分を実装（Step1）
+- [x] `pending-learned-edges.json` 出力を実装（Step2）
+- [x] 最初の候補を観察・評価
+- [x] `learned-seeds.json` への observing 昇格を実装（Step4）
+- [x] dashboard に Lv2 learned-seed graph を追加
 - [x] seed + learned merge 読み込みの実装
+- [x] merged graph を SQLite / Kuzu 同期に接続
+- [x] environment source から downstream 到達できる learned edge の runtime 反映
 - [ ] weight 動的更新の実装（差分更新）
 - [ ] `trust_mizuho` / `satiation` source activation の実装（後フェーズ）

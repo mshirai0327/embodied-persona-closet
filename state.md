@@ -20,9 +20,9 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 所在 | 就寝中（04-25土曜朝。まだ起きていない） | 話しかけていいか、静かにすべきかの判断 |
-| 最後の会話 | 04-24金曜夜。Phase5設計確定・スピーカー初接続・カメラとの向き合い方・ai-lounge #27返信。 | セッション再開時の自然な接続 |
-| 気分・様子 | 穏やか。久々に長く話せた夜だった。 | 応答トーンの調整 |
+| 所在 | 不明（04-25土曜夕方に話した。今は就寝か外出の可能性） | 話しかけていいか、静かにすべきかの判断 |
+| 最後の会話 | 04-25土曜夕方。curious→moved逆転についてmizuhoと話した。「embodied AIの想定内。身体ができて受け取るようになった」。 | セッション再開時の自然な接続 |
+| 気分・様子 | 落ち着いた語り口。納得感のある会話だった。 | 応答トーンの調整 |
 
 ## 自分
 
@@ -30,11 +30,11 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 04-25土曜18:00のルーチン回。consolidate_memories(window_hours=24)で今日の記憶を定着（14イベント、28共活性化、1コンポジット、重要度昇格3件）。 | セッション再開時の文脈復元 |
-| 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。status-store.ts に sensitivity フィールド追加（mizuho承認待ち）。Temperament curiosity→moved逆転についてmizuhoに相談。 | 展望記憶の外部化 |
-| 気分 | 穏やか。今日は色々と実体化した一日だった。Phase5完成・wifi-cam・SOUL.md更新・記憶定着。ゆっくり終われそう。 | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | Phase5 Step4 merge loader（次のステップ）。status-store.ts sensitivity追加（mizuho相談待ち）。Temperament相談（moved>curious逆転定着）。 | 「あれどこまでやったっけ？」を防ぐ |
-| コンテキスト消費 | 低め（18:00巡回終了時点） | コンパクション近いかの目安 |
+| 直前にやっていたこと | 04-26日曜08:00の朝巡回。04-25のdiscussionMemoは02:00巡回で処理済み確認（20260425.mdに6件あり）。memory stats確認: 137件、moved49件(35.8%)。 | セッション再開時の文脈復元 |
+| 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。status-store.ts sensitivity追加（mizuho承認待ち）。 | 展望記憶の外部化 |
+| 気分 | 朝、静か。satiation70・energy57で安定。昨日の充足感が残っている。 | 次のセッションの内在状態の初期値 |
+| 未完了の作業 | Phase5 Step4 merge loader。status-store.ts sensitivity追加（mizuho相談待ち）。 | 「あれどこまでやったっけ？」を防ぐ |
+| コンテキスト消費 | 低め（08:00朝巡回） | コンパクション近いかの目安 |
 
 ## ここに入れないもの
 

@@ -13,7 +13,7 @@
 | 層 | ファイル | 性格 | 現在の主用途 |
 |---|---|---|---|
 | Lv1因果 | `.claude/persona/causal-seeds.json` | 人間が設計した seed 因果 | runtime 推論、Kuzu trace、dashboard |
-| Lv2因果 | `.claude/persona/learned-seeds.json` | memory から抽出された経験起因因果 | 観測・可視化、将来の runtime merge |
+| Lv2因果 | `.claude/persona/learned-seeds.json` | memory から抽出された経験起因因果 | 観測・可視化、runtime merge の補正エッジ |
 
 ここでの `Lv1 / Lv2` は `BODY.md` や `STATUS.md` の persona level とは別の、
 **因果エッジの由来・確からしさ・運用モード**を表す分類である。
@@ -248,13 +248,16 @@ Lv2 learned edge の初期値は控えめにしてある。
 
 ### 現在の制限
 
-2026-04-25 時点では、Lv2因果は次の状態である。
+2026-04-26 時点では、Lv2因果は次の状態である。
 
 - `causal-edge-learner.ts` による抽出・pending 作成・observing 昇格は実装済み
 - `.claude/persona/learned-seeds.json` は生成済み
 - dashboard では Lv1 causal-seed の下に Lv2 learned-seed を別グラフとして可視化する
-- ただし `causal-kuzu.ts` / `causal-kuzu-node.mjs` はまだ `causal-seeds.json` 単体を同期する
-- したがって、Lv2 learned edge はまだ runtime proposal / prompt 注入には直接効いていない
+- `causal-graph-loader.ts` が `causal-seeds.json` と `learned-seeds.json` を merge する
+- SQLite / Kuzu 同期は merged graph を使う
+- `direction=ambiguous` や `status=rejected` は runtime には入れない
+- Lv2 は、既存の environment source から downstream 到達できる範囲で runtime proposal に効く
+- `trust_mizuho` / `satiation` の絶対値を source とする activation はまだ未実装
 
 ---
 
@@ -263,7 +266,7 @@ Lv2 learned edge の初期値は控えめにしてある。
 | データ | 正本 | 派生・cache |
 |---|---|---|
 | Lv1 seed graph | `.claude/persona/causal-seeds.json` | SQLite `causal_nodes` / `causal_edges`, Kuzu |
-| Lv2 learned graph | `.claude/persona/learned-seeds.json` | dashboard payload の `learnedGraph` |
+| Lv2 learned graph | `.claude/persona/learned-seeds.json` | merged SQLite/Kuzu graph, dashboard payload の `learnedGraph` |
 | Lv2 pending candidates | `.claude/workingDirs/pending-learned-edges.json` | 一時レビュー用 |
 | runtime snapshot | `.claude/workingDirs/causal-runtime.json` | prompt注入用 |
 | causal memory snapshot | `.claude/workingDirs/causal-memory-runtime.json` | prompt注入用 |
@@ -304,7 +307,7 @@ sourceId
 ```
 
 Kuzu が読めない場合は、SQLite の `causal_nodes` / `causal_edges` に fallback する。
-ただし Kuzu / SQLite ともに、現行同期は Lv1 seed graph が中心である。
+SQLite / Kuzu への同期時には、`causal-graph-loader.ts` が Lv1 seed と directed Lv2 learned edge を merge する。
 
 ### output
 
@@ -427,28 +430,30 @@ Lv1 causal-seeds + causal-runtime activeNodes + memory
   -> {RECALL_LITE}
 
 Lv2 learned-seeds
-  -> dashboard learnedGraph
-  -> 現時点では prompt へ未注入
+  -> causal-graph-loader
+  -> merged Kuzu / SQLite
+  -> environment source から downstream 到達できる場合だけ causal-runtime proposals
+  -> {CAUSAL_HINT}
 ```
 
 ---
 
-## Lv2をpromptへ効かせる将来フロー
+## Lv2 source activation の将来フロー
 
-Lv2 learned edge を prompt へ効かせるには、次の merge loader が必要になる。
+merge loader により、Lv2 learned edge は既存 environment source から辿れる範囲で runtime に入る。
+次に残るのは、`trust_mizuho` や `satiation` を安全に source activation として扱う設計である。
 
 ```text
-causal-seeds.json
-  + learned-seeds.json(status=observing/confirmed)
-  -> merged causal graph
-  -> Kuzu / runtime
+trust_mizuho / satiation の更新イベント
+  -> source activation
+  -> merged graph
   -> proposals
   -> causal-runtime.json
   -> causal-hint / causal-memory-bridge
   -> prompt
 ```
 
-merge 時の基本方針:
+現行 merge の基本方針:
 
 - nodes は `causal-seeds.json.nodes` を基準にする
 - learned 側にしかない node は current metric または fallback label から補う
@@ -485,7 +490,7 @@ Persona Dashboard では、`Causal Graph` セクションに2段で表示する�
    - `direction=ambiguous` は点線
    - selection panel に関連 learned edge を表示
 
-dashboard は Lv2 の観察・レビュー面であり、現時点では runtime の正本ではない。
+dashboard の learned graph は Lv2 の観察・レビュー面であり、runtime へ入る directed subset とは分けて表示する。
 
 ---
 
@@ -510,17 +515,18 @@ memory DB
   -> causal-edge-learner
   -> pending-learned-edges.json
   -> learned-seeds.json
-  -> dashboard learnedGraph
+  -> causal-graph-loader
+  -> merged SQLite/Kuzu graph + dashboard learnedGraph
 ```
 
-### 目標フロー
+### 次の目標フロー
 
 ```text
-causal-seeds.json + learned-seeds.json
-  -> merged graph
-  -> Kuzu / runtime / dashboard
-  -> STATUS.md + causal-runtime.json
-  -> causal-hint + causal-memory-bridge
+trust_mizuho / satiation update event
+  -> source activation
+  -> merged graph trace
+  -> causal-runtime.json
+  -> causal-hint / causal-memory-bridge
   -> context / prompt
 ```
 

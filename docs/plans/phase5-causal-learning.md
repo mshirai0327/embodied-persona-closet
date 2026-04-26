@@ -2,7 +2,7 @@
 
 > 作成: スミレ、2026-04-20
 > 更新: 2026-04-25（レビュー結果を反映）
-> 状態: 設計確定・実装待ち
+> 状態: 設計確定・実装中
 
 ## 概要
 
@@ -20,8 +20,9 @@ Lv1 と Lv2 は**意味としては競合しにくい**。
 - **Lv1**: 主に lower layer → upper layer の公理的因果
 - **Lv2 learned**: 主に Lv3-2 emotion ノード間の経験起因補正
 
-ただし、**現行実装は `causal-seeds.json` 単体前提**で runtime / Kuzu / dashboard を組んでいる。
-そのため Phase5 実装では、読み込み時に `causal-seeds.json` と `learned-seeds.json` を **merge した 1 つの因果グラフ**として扱う必要がある。
+当初実装は `causal-seeds.json` 単体前提だったが、Phase5 では読み込み時に
+`causal-seeds.json` と `learned-seeds.json` を **merge した 1 つの因果グラフ**として扱う。
+2026-04-26 時点で、Kuzu / SQLite 同期用の merge loader は実装済み。
 
 ### merge ルール
 
@@ -282,6 +283,6 @@ learned edge が `energy` への間接影響として効く。
 - [x] mizuho との設計相談完了（2026-04-24）
 - [ ] `causal-edge-learner.ts` のスキャン部分を実装（Step1-2）
 - [ ] 最初の候補が出てきたら観察・評価
-- [ ] seed + learned merge 読み込みの実装
+- [x] seed + learned merge 読み込みの実装
 - [ ] weight 動的更新の実装（差分更新）
 - [ ] `trust_mizuho` / `satiation` source activation の実装（後フェーズ）

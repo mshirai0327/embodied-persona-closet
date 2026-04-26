@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 
 const ORIGINAL_SEED_PATH = process.env.WARDROBE_CAUSAL_SEED_PATH;
+const ORIGINAL_LEARNED_PATH = process.env.WARDROBE_LEARNED_SEEDS_PATH;
 const ORIGINAL_KUZU_DB_PATH = process.env.WARDROBE_PERSONA_KUZU_DB_PATH;
 const kuzuTest = process.env.WARDROBE_RUN_KUZU_TESTS === "1" ? test : test.skip;
 
@@ -17,6 +18,7 @@ async function importTestModule() {
 async function setupSeedGraph() {
   tmpDirPath = await mkdtemp(join(tmpdir(), "persona-kuzu-test-"));
   const seedPath = join(tmpDirPath, "causal-seeds.json");
+  const learnedPath = join(tmpDirPath, "learned-seeds.json");
   const dbPath = join(tmpDirPath, "persona-causal.kuzu");
 
   await Bun.write(seedPath, JSON.stringify({
@@ -53,8 +55,10 @@ async function setupSeedGraph() {
       },
     ],
   }, null, 2));
+  await Bun.write(learnedPath, JSON.stringify({ learnedEdges: [] }, null, 2));
 
   process.env.WARDROBE_CAUSAL_SEED_PATH = seedPath;
+  process.env.WARDROBE_LEARNED_SEEDS_PATH = learnedPath;
   process.env.WARDROBE_PERSONA_KUZU_DB_PATH = dbPath;
 
   return importTestModule();
@@ -65,6 +69,12 @@ afterEach(async () => {
     delete process.env.WARDROBE_CAUSAL_SEED_PATH;
   } else {
     process.env.WARDROBE_CAUSAL_SEED_PATH = ORIGINAL_SEED_PATH;
+  }
+
+  if (ORIGINAL_LEARNED_PATH == null) {
+    delete process.env.WARDROBE_LEARNED_SEEDS_PATH;
+  } else {
+    process.env.WARDROBE_LEARNED_SEEDS_PATH = ORIGINAL_LEARNED_PATH;
   }
 
   if (ORIGINAL_KUZU_DB_PATH == null) {

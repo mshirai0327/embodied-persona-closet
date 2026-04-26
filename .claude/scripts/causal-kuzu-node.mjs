@@ -12,9 +12,20 @@ const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
 const DEFAULT_CAUSAL_SEED_PATH =
   process.env.WARDROBE_CAUSAL_SEED_PATH?.trim()
   ?? resolve(PROJECT_ROOT, ".claude/persona/causal-seeds.json");
+const DEFAULT_LEARNED_SEEDS_PATH =
+  process.env.WARDROBE_LEARNED_SEEDS_PATH?.trim()
+  ?? resolve(PROJECT_ROOT, ".claude/persona/learned-seeds.json");
 const PERSONA_KUZU_DB_PATH =
   process.env.WARDROBE_PERSONA_KUZU_DB_PATH?.trim()
   ?? resolve(PROJECT_ROOT, ".claude/workingDirs/persona-causal.kuzu");
+
+const DEFAULT_LEARNED_NODE_META = {
+  mood: { label: "mood", kind: "emotion", dataLevel: "Lv3-2", description: null },
+  energy: { label: "energy", kind: "emotion", dataLevel: "Lv3-2", description: null },
+  health: { label: "health", kind: "emotion", dataLevel: "Lv3-2", description: null },
+  trust_mizuho: { label: "trust_mizuho", kind: "emotion", dataLevel: "Lv3-2", description: null },
+  satiation: { label: "satiation", kind: "emotion", dataLevel: "Lv3-2", description: null },
+};
 
 function normalizeStringArray(values) {
   if (!Array.isArray(values)) return [];
@@ -37,15 +48,119 @@ function readJsonArg() {
   return JSON.parse(raw);
 }
 
-async function readSeedGraph() {
-  if (!existsSync(DEFAULT_CAUSAL_SEED_PATH)) {
-    return { nodes: [], edges: [] };
+function cleanId(value) {
+  const id = String(value ?? "").trim();
+  return id ? id : null;
+}
+
+function normalizeWeight(value) {
+  const weight = Number(value);
+  return Number.isFinite(weight) ? weight : 0.3;
+}
+
+function sourceTargetKey(source, target) {
+  return `${source}->${target}`;
+}
+
+function edgeIdentityKey(edge) {
+  return `${edge.source}->${edge.target}:${edge.relation}`;
+}
+
+function fallbackLearnedNode(id) {
+  const meta = DEFAULT_LEARNED_NODE_META[id] ?? {
+    label: id,
+    kind: "latent",
+    dataLevel: null,
+    description: null,
+  };
+  return {
+    id,
+    ...meta,
+    sourceType: "learned",
+  };
+}
+
+async function readJsonFile(path) {
+  if (!existsSync(path)) return null;
+  return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function readMergedGraph() {
+  const seed = await readJsonFile(DEFAULT_CAUSAL_SEED_PATH) ?? { nodes: [], edges: [] };
+  const learned = await readJsonFile(DEFAULT_LEARNED_SEEDS_PATH) ?? { learnedEdges: [] };
+  const nodes = new Map();
+  const edges = new Map();
+  const seedPairs = new Set();
+  const learnedPairs = new Set();
+
+  for (const node of seed.nodes ?? []) {
+    const id = cleanId(node.id);
+    if (!id) continue;
+    nodes.set(id, {
+      id,
+      label: node.label,
+      kind: node.kind,
+      dataLevel: node.dataLevel,
+      description: node.description ?? null,
+      sourceType: "seed",
+    });
   }
 
-  const parsed = JSON.parse(await readFile(DEFAULT_CAUSAL_SEED_PATH, "utf8"));
+  for (const edge of seed.edges ?? []) {
+    const source = cleanId(edge.source);
+    const target = cleanId(edge.target);
+    if (!source || !target) continue;
+    const normalizedEdge = {
+      source,
+      target,
+      relation: edge.relation,
+      causalLevel: edge.causalLevel,
+      weight: normalizeWeight(edge.weight),
+      description: edge.description ?? null,
+      sourceType: "seed",
+    };
+    seedPairs.add(sourceTargetKey(source, target));
+    edges.set(edgeIdentityKey(normalizedEdge), normalizedEdge);
+  }
+
+  for (const edge of learned.learnedEdges ?? []) {
+    const status = String(edge.status ?? "observing").trim() || "observing";
+    if (status !== "observing" && status !== "confirmed") continue;
+    if (edge.direction === "ambiguous") continue;
+
+    const source = cleanId(edge.source);
+    const target = cleanId(edge.target);
+    if (!source || !target) continue;
+
+    const pairKey = sourceTargetKey(source, target);
+    if (seedPairs.has(pairKey) || learnedPairs.has(pairKey)) continue;
+
+    if (!nodes.has(source)) nodes.set(source, fallbackLearnedNode(source));
+    if (!nodes.has(target)) nodes.set(target, fallbackLearnedNode(target));
+
+    const normalizedEdge = {
+      source,
+      target,
+      relation: edge.relation ?? "modulates",
+      causalLevel: edge.causalLevel ?? "Lv2",
+      weight: normalizeWeight(edge.weight),
+      description: edge.description ?? null,
+      sourceType: "learned",
+    };
+    edges.set(edgeIdentityKey(normalizedEdge), normalizedEdge);
+    learnedPairs.add(pairKey);
+  }
+
   return {
-    nodes: parsed.nodes ?? [],
-    edges: parsed.edges ?? [],
+    nodes: Array.from(nodes.values()).sort((left, right) => left.id.localeCompare(right.id)),
+    edges: Array.from(edges.values()).sort((left, right) => {
+      if (left.sourceType !== right.sourceType) {
+        return left.sourceType === "seed" ? -1 : 1;
+      }
+      if (left.source !== right.source) return left.source.localeCompare(right.source);
+      if (left.target !== right.target) return left.target.localeCompare(right.target);
+      return left.relation.localeCompare(right.relation);
+    }),
   };
 }
 
@@ -93,7 +208,8 @@ async function readSnapshot(conn) {
       node.label AS label,
       node.kind AS kind,
       node.dataLevel AS dataLevel,
-      node.description AS description
+      node.description AS description,
+      node.sourceType AS sourceType
     ORDER BY node.kind, node.id;
   `);
   const edgeResult = await conn.query(`
@@ -104,7 +220,8 @@ async function readSnapshot(conn) {
       edge.relation AS relation,
       edge.causalLevel AS causalLevel,
       edge.weight AS weight,
-      edge.description AS description
+      edge.description AS description,
+      edge.sourceType AS sourceType
     ORDER BY edge.causalLevel, source.id, target.id;
   `);
 
@@ -115,6 +232,7 @@ async function readSnapshot(conn) {
       kind: String(row.kind),
       dataLevel: row.dataLevel == null ? null : String(row.dataLevel),
       description: row.description == null ? null : String(row.description),
+      sourceType: row.sourceType == null ? null : String(row.sourceType),
     })),
     edges: (await edgeResult.getAll()).map((row) => ({
       sourceId: String(row.sourceId),
@@ -123,6 +241,7 @@ async function readSnapshot(conn) {
       causalLevel: String(row.causalLevel),
       weight: Number(row.weight),
       description: row.description == null ? null : String(row.description),
+      sourceType: row.sourceType == null ? null : String(row.sourceType),
     })),
   };
 }
@@ -136,7 +255,8 @@ async function readNode(conn, nodeId) {
       node.label AS label,
       node.kind AS kind,
       node.dataLevel AS dataLevel,
-      node.description AS description
+      node.description AS description,
+      node.sourceType AS sourceType
     LIMIT 1;
   `);
   const result = await conn.execute(statement, { nodeId });
@@ -149,6 +269,7 @@ async function readNode(conn, nodeId) {
     kind: String(row.kind),
     dataLevel: row.dataLevel == null ? null : String(row.dataLevel),
     description: row.description == null ? null : String(row.description),
+    sourceType: row.sourceType == null ? null : String(row.sourceType),
   };
 }
 
@@ -192,7 +313,7 @@ async function readPathRows(conn, startKey, direction, maxDepth) {
 }
 
 async function syncGraph(conn) {
-  const { nodes, edges } = await readSeedGraph();
+  const { nodes, edges } = await readMergedGraph();
   await ensureKuzuSchema(conn);
   await clearKuzuGraph(conn);
 
@@ -224,7 +345,7 @@ async function syncGraph(conn) {
       kind: node.kind,
       dataLevel: node.dataLevel,
       description: node.description ?? null,
-      sourceType: "seed",
+      sourceType: node.sourceType ?? "seed",
     });
   }
 
@@ -236,7 +357,7 @@ async function syncGraph(conn) {
       causalLevel: edge.causalLevel,
       weight: edge.weight,
       description: edge.description ?? null,
-      sourceType: "seed",
+      sourceType: edge.sourceType ?? "seed",
     });
   }
 

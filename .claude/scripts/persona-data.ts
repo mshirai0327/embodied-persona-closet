@@ -11,6 +11,7 @@ import {
   setEnvironmentObservation,
 } from "./environment-store";
 import { readKuzuCausalGraphSnapshot, syncKuzuCausalGraph } from "./causal-kuzu";
+import { readMergedCausalGraph } from "./causal-graph-loader";
 
 const SCRIPT_DIR = import.meta.dir;
 const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
@@ -212,6 +213,7 @@ interface DashboardNodeRow {
   kind: CausalNodeKind;
   dataLevel: PersonaLevel | null;
   description: string | null;
+  sourceType?: string | null;
 }
 
 interface DashboardEdgeRow {
@@ -221,6 +223,7 @@ interface DashboardEdgeRow {
   causalLevel: CausalLevel;
   weight: number;
   description: string | null;
+  sourceType?: string | null;
 }
 
 interface DashboardLearnedSeedEdgeRow {
@@ -560,6 +563,7 @@ export function buildCausalSeedGraphSnapshot(
       kind: node.kind,
       dataLevel: node.dataLevel,
       description: node.description ?? null,
+      sourceType: "seed",
     })),
     edges: (seed?.edges ?? []).map((edge) => ({
       sourceId: edge.source,
@@ -568,6 +572,7 @@ export function buildCausalSeedGraphSnapshot(
       causalLevel: edge.causalLevel,
       weight: edge.weight,
       description: edge.description ?? null,
+      sourceType: "seed",
     })),
   };
 }
@@ -1182,29 +1187,36 @@ function upsertMeta(db: Database, meta: PersonaMeta): void {
 }
 
 async function seedCausalGraph(db: Database): Promise<void> {
-  const seedText = await readPathOrNull(DEFAULT_CAUSAL_SEED_PATH);
-  if (!seedText) return;
+  const graph = await readMergedCausalGraph({
+    causalSeedPath: DEFAULT_CAUSAL_SEED_PATH,
+    learnedSeedsPath: DEFAULT_LEARNED_SEED_PATH,
+  });
 
-  const seed = JSON.parse(seedText) as { nodes?: CausalNode[]; edges?: CausalEdge[] };
-
-  db.query("DELETE FROM causal_edges WHERE source_type = 'seed'").run();
-  db.query("DELETE FROM causal_nodes WHERE source_type = 'seed'").run();
+  db.query("DELETE FROM causal_edges WHERE source_type IN ('seed', 'learned')").run();
+  db.query("DELETE FROM causal_nodes WHERE source_type IN ('seed', 'learned')").run();
 
   const insertNode = db.query(
     `INSERT INTO causal_nodes (id, label, kind, data_level, description, source_type)
-     VALUES (?, ?, ?, ?, ?, 'seed')`
+     VALUES (?, ?, ?, ?, ?, ?)`
   );
   const insertEdge = db.query(
     `INSERT INTO causal_edges (
       source_id, target_id, relation, causal_level, weight, description, source_type
-    ) VALUES (?, ?, ?, ?, ?, ?, 'seed')`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
 
-  for (const node of seed.nodes ?? []) {
-    insertNode.run(node.id, node.label, node.kind, node.dataLevel, node.description ?? null);
+  for (const node of graph.nodes) {
+    insertNode.run(
+      node.id,
+      node.label,
+      node.kind,
+      node.dataLevel,
+      node.description ?? null,
+      node.sourceType,
+    );
   }
 
-  for (const edge of seed.edges ?? []) {
+  for (const edge of graph.edges) {
     insertEdge.run(
       edge.source,
       edge.target,
@@ -1212,6 +1224,7 @@ async function seedCausalGraph(db: Database): Promise<void> {
       edge.causalLevel,
       edge.weight,
       edge.description ?? null,
+      edge.sourceType,
     );
   }
 }
@@ -1307,6 +1320,17 @@ export async function recordEnvironmentObservation(
   await syncPersonaStructuredStore();
 }
 
+function filterSeedDashboardGraph(graph: {
+  nodes: DashboardNodeRow[];
+  edges: DashboardEdgeRow[];
+}): { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] } {
+  const edges = graph.edges.filter((edge) => edge.sourceType !== "learned");
+  const visibleNodeIds = new Set(edges.flatMap((edge) => [edge.sourceId, edge.targetId]));
+  const nodes = graph.nodes.filter((node) => node.sourceType !== "learned" || visibleNodeIds.has(node.id));
+
+  return { nodes, edges };
+}
+
 export async function readPersonaDashboardSnapshot(): Promise<{
   meta: Record<string, string>;
   current: DashboardMetricRow[];
@@ -1344,7 +1368,7 @@ export async function readPersonaDashboardSnapshot(): Promise<{
   ]);
 
   try {
-    graph = await readKuzuCausalGraphSnapshot();
+    graph = filterSeedDashboardGraph(await readKuzuCausalGraphSnapshot());
   } catch {
     graph = buildCausalSeedGraphSnapshot(causalSeedText);
   }

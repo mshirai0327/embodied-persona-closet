@@ -20,9 +20,9 @@
  *   - baseline 100°C / current 110°C → 消耗方向
  *
  * カメラ平均輝度 (0-255) → mood:
- *   固定閾値ではなく、ROI の slow EMA baseline からのズレで判断する。
- *   カメラ位置や画角の違いを baseline 側に吸収しつつ、
- *   「いつもより暗い / 明るい」を mood に伝える。
+ *   ナイトビジョンを切った実輝度で「夜 / 朝」を区別する。
+ *   ROI の slow EMA baseline は設置位置差と「いつもより明るい」を見る補助に留め、
+ *   暗さそのものを baseline に吸収しない。
  */
 
 import { dirname } from "node:path";
@@ -92,6 +92,7 @@ export interface ThermalLoadProxy {
 
 export interface BrightnessObservation {
   normalizedValue: number;
+  relativeNormalizedValue: number;
   band: "dark" | "dim" | "neutral" | "bright";
   baseline: number;
   relativeDelta: number;
@@ -199,6 +200,10 @@ function normalizeBrightnessAgainstBaseline(currentBrightness: number, baseline:
   return clamp(Math.round(centered), 0, 100);
 }
 
+function normalizeAbsoluteBrightness(currentBrightness: number): number {
+  return clamp(Math.round((currentBrightness / 255) * 100), 0, 100);
+}
+
 function computeThermalLoadScore(relativeDelta: number): number {
   return clamp(Math.round(50 - relativeDelta * 4), 0, 100);
 }
@@ -279,33 +284,39 @@ export function describeBrightnessObservation(
   const baseline = Number.isFinite(options.baseline ?? Number.NaN)
     ? Number(options.baseline)
     : brightness;
-  const normalizedValue = normalizeBrightnessAgainstBaseline(brightness, baseline);
+  const normalizedValue = normalizeAbsoluteBrightness(brightness);
+  const relativeNormalizedValue = normalizeBrightnessAgainstBaseline(brightness, baseline);
   const relativeDelta = brightness - baseline;
   const deltaLabel = `${relativeDelta >= 0 ? "+" : ""}${relativeDelta.toFixed(1)}`;
   const roiSpec = options.roiSpec?.trim() || formatBrightnessRoiSpec(DEFAULT_BRIGHTNESS_ROI);
 
   let band: BrightnessObservation["band"] = "neutral";
-  let stateText = "baseline に近い明るさ。";
-  if (normalizedValue >= 75) {
+  let stateText = "夜朝判定では中間的な明るさ。";
+  if (normalizedValue >= 70) {
     band = "bright";
-    stateText = "いつもよりかなり明るい。";
+    stateText = "実輝度としてかなり明るい。";
   } else if (normalizedValue <= 20) {
     band = "dark";
-    stateText = "いつもよりかなり暗い。";
-  } else if (normalizedValue <= 40) {
+    stateText = "実輝度としてかなり暗い。";
+  } else if (normalizedValue <= 35) {
     band = "dim";
-    stateText = "いつもより少し暗め。";
+    stateText = "実輝度として少し暗め。";
+  } else if (relativeNormalizedValue >= 75) {
+    band = "bright";
+    stateText = "実輝度は中間だが、baseline よりかなり明るい。";
   }
 
   return {
     normalizedValue,
+    relativeNormalizedValue,
     band,
     baseline,
     relativeDelta,
     roiSpec,
     reason:
       `環境光 ${normalizedValue}/100（ROI輝度${brightness.toFixed(0)}/255 / ` +
-      `baseline ${baseline.toFixed(1)} / Δ${deltaLabel} / ROI ${roiSpec}）——${stateText}`,
+      `baseline相対 ${relativeNormalizedValue}/100 / baseline ${baseline.toFixed(1)} / ` +
+      `Δ${deltaLabel} / ROI ${roiSpec}）——${stateText}`,
   };
 }
 
@@ -588,7 +599,7 @@ async function main() {
       "environment_brightness_baseline",
       `${formatDecimal(nextBrightnessBaseline)} / 255`,
       {
-        note: "ROI 輝度の slow EMA 基準値",
+        note: "ROI 輝度の slow EMA 基準値（相対評価用）",
       }
     );
     await setEnvironmentAuxValue(

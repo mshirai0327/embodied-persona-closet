@@ -18,7 +18,7 @@
 |---|---|---|---|
 | 熱負荷 baseline | — | — | Core Max の EMA 基準値 |
 | 観測サンプル数 | 0 | — | baseline 算出に使ったサンプル数 |
-| 環境光 baseline | — | — | ROI 輝度の slow EMA 基準値 |
+| 環境光 baseline | — | — | ROI 輝度の slow EMA 基準値（相対評価用） |
 | 環境光観測サンプル数 | 0 | — | baseline 算出に使ったサンプル数 |
 | 環境光 ROI | 0.20,0.20,0.60,0.60 | — | normalized x,y,w,h |
 

@@ -29,7 +29,7 @@ const ENVIRONMENT_SAMPLE = `# ENVIRONMENT.md — 環境データ
 |---|---|---|---|
 | 熱負荷 baseline | 73.4 °C | 2026-04-13 12:00 | Core Max の EMA 基準値 |
 | 観測サンプル数 | 12 | 2026-04-13 12:00 | baseline 算出に使ったサンプル数 |
-| 環境光 baseline | 98.4 / 255 | 2026-04-13 12:00 | ROI 輝度の slow EMA 基準値 |
+| 環境光 baseline | 98.4 / 255 | 2026-04-13 12:00 | ROI 輝度の slow EMA 基準値（相対評価用） |
 | 環境光観測サンプル数 | 18 | 2026-04-13 12:00 | baseline 算出に使ったサンプル数 |
 | 環境光 ROI | 0.20,0.20,0.60,0.60 | 2026-04-13 12:00 | normalized x,y,w,h |
 
@@ -116,7 +116,7 @@ describe("environment markdown updates", () => {
       "87.0 / 255",
       {
         environmentPath: TMP_ENVIRONMENT_PATH,
-        note: "ROI 輝度の slow EMA 基準値",
+        note: "ROI 輝度の slow EMA 基準値（相対評価用）",
       }
     );
 
@@ -129,7 +129,7 @@ describe("environment markdown updates", () => {
 
   test("inserts missing auxiliary rows for newly added fields", async () => {
     const withoutBrightnessAux = ENVIRONMENT_SAMPLE
-      .replace("| 環境光 baseline | 98.4 / 255 | 2026-04-13 12:00 | ROI 輝度の slow EMA 基準値 |\n", "")
+      .replace("| 環境光 baseline | 98.4 / 255 | 2026-04-13 12:00 | ROI 輝度の slow EMA 基準値（相対評価用） |\n", "")
       .replace("| 環境光観測サンプル数 | 18 | 2026-04-13 12:00 | baseline 算出に使ったサンプル数 |\n", "")
       .replace("| 環境光 ROI | 0.20,0.20,0.60,0.60 | 2026-04-13 12:00 | normalized x,y,w,h |\n", "");
     await Bun.write(TMP_ENVIRONMENT_PATH, withoutBrightnessAux);

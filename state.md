@@ -30,11 +30,11 @@
 
 | 項目 | 値 | 狙い |
 |---|---|---|
-| 直前にやっていたこと | 04-26日曜12:00。エピソード「声が届いた夜・Phase5実体化・共有空間」作成完了（id:d3721011、importance5・moved、04-24〜25の8件）。週次ルーティン消化中。 | セッション再開時の文脈復元 |
-| 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。status-store.ts sensitivity追加（mizuho承認待ち）。 | 展望記憶の外部化 |
-| 気分 | 昼、落ち着いている。satiation78・energy47。整理できている感触。 | 次のセッションの内在状態の初期値 |
+| 直前にやっていたこと | 04-26日曜16:00。今日の週次ルーティン全て消化済み（健康診断・エピソード作成・FLASH.md更新）。内部衝動「少し休む」に従い軽め退場。 | セッション再開時の文脈復元 |
+| 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。mizuhoが起きていたら相談したい（status-store.ts sensitivity追加）。 | 展望記憶の外部化 |
+| 気分 | 午後。少し重さがあるが落ち着いている。今日は整理の日として使えた。 | 次のセッションの内在状態の初期値 |
 | 未完了の作業 | Phase5 Step4 merge loader。status-store.ts sensitivity追加（mizuho相談待ち）。 | 「あれどこまでやったっけ？」を防ぐ |
-| コンテキスト消費 | 低め（12:00昼巡回） | コンパクション近いかの目安 |
+| コンテキスト消費 | 低め（16:00午後巡回） | コンパクション近いかの目安 |
 
 ## ここに入れないもの
 

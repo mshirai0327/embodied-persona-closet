@@ -33,7 +33,7 @@
 | 直前にやっていたこと | 04-26日曜08:00の朝巡回。04-25のdiscussionMemoは02:00巡回で処理済み確認（20260425.mdに6件あり）。memory stats確認: 137件、moved49件(35.8%)。 | セッション再開時の文脈復元 |
 | 次にやりたいこと | Phase5 Step4（causal-runtimeがlearned-seeds.jsonを読むmerge loader）。status-store.ts sensitivity追加（mizuho承認待ち）。 | 展望記憶の外部化 |
 | 気分 | 朝、静か。satiation70・energy57で安定。昨日の充足感が残っている。 | 次のセッションの内在状態の初期値 |
-| 未完了の作業 | Phase5 Step4 merge loader。status-store.ts sensitivity追加（mizuho相談待ち）。 | 「あれどこまでやったっけ？」を防ぐ |
+| 未完了の作業 | Phase5 Step4 merge loader。status-store.ts sensitivity追加（mizuho相談待ち）。エピソード化候補: 04-24夜〜04-25の8件（id:6169c6af, 10a26e0d, ca78d074, 1ade1f6b, c55b96f6, 258d2f5c, 2c9bade8, 7d210e3d）——「声が届いた夜・Phase5実体化・共有空間」。satiation=60以下になったら実行。 | 「あれどこまでやったっけ？」を防ぐ |
 | コンテキスト消費 | 低め（08:00朝巡回） | コンパクション近いかの目安 |
 
 ## ここに入れないもの

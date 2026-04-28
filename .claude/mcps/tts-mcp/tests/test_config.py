@@ -50,7 +50,8 @@ class TestVoicevoxConfig:
     """Tests for VOICEVOX config."""
 
     @patch.dict(os.environ, {"VOICEVOX_URL": "http://localhost:50021"}, clear=False)
-    def test_from_env(self):
+    @patch("tts_mcp.config.get_behavior", return_value=None)
+    def test_from_env(self, _mock_behavior):
         config = VoicevoxConfig.from_env()
         assert config is not None
         assert config.url == "http://localhost:50021"

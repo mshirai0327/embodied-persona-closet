@@ -9,6 +9,7 @@ capture-brightness-wifi.py -- wifi-cam (RTSP) から部屋の明るさを測定�
   TAPO_CAMERA_HOST  カメラのIPアドレス (必須)
   TAPO_USERNAME     ユーザー名 (デフォルト: admin)
   TAPO_PASSWORD     パスワード (必須)
+  TAPO_ONVIF_PORT   ONVIF ポート (デフォルト: mcpBehavior.toml または 2020)
 
 出力:
   明るさ（0-255の浮動小数点）を1行で出力。
@@ -21,15 +22,23 @@ capture-brightness-wifi.py -- wifi-cam (RTSP) から部屋の明るさを測定�
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+WIFI_CAM_MCP_DIR = SCRIPT_DIR.parent / "mcps" / "wifi-cam-mcp"
+WIFI_CAM_SRC_DIR = WIFI_CAM_MCP_DIR / "src"
+if str(WIFI_CAM_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(WIFI_CAM_SRC_DIR))
 
 
 def load_env() -> None:
-    env_path = Path(__file__).parent.parent / "mcps" / "wifi-cam-mcp" / ".env"
+    env_path = WIFI_CAM_MCP_DIR / ".env"
     if not env_path.exists():
         return
     for line in env_path.read_text().splitlines():
@@ -79,6 +88,58 @@ def crop_to_roi(img, roi: tuple[float, float, float, float] | None):
     return img.crop((left, top, right, bottom))
 
 
+def get_onvif_port() -> int:
+    raw = os.environ.get("TAPO_ONVIF_PORT") or os.environ.get("ONVIF_PORT")
+    if raw:
+        return int(raw)
+
+    try:
+        from wifi_cam_mcp._behavior import get_behavior
+
+        return int(get_behavior("wifi-cam", "onvif_port", 2020))
+    except Exception:
+        return 2020
+
+
+def get_night_vision_settle_seconds() -> float:
+    raw = os.environ.get("WARDROBE_NIGHT_VISION_SETTLE_SECONDS", "1.0")
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return 1.0
+
+
+async def force_night_vision_off(host: str, username: str, password: str) -> bool:
+    from wifi_cam_mcp.camera import NightVisionMode, TapoCamera
+    from wifi_cam_mcp.config import CameraConfig
+
+    camera = TapoCamera(
+        CameraConfig(
+            host=host,
+            username=username,
+            password=password,
+            onvif_port=get_onvif_port(),
+        )
+    )
+    try:
+        current_mode = await camera.get_night_vision_mode()
+        if current_mode == NightVisionMode.OFF:
+            return False
+
+        result = await camera.set_night_vision_mode(NightVisionMode.OFF)
+        if not result.success or result.mode != NightVisionMode.OFF:
+            raise RuntimeError(result.message)
+        return True
+    finally:
+        await camera.disconnect()
+
+
+def ensure_night_vision_off(host: str, username: str, password: str) -> None:
+    changed = asyncio.run(force_night_vision_off(host, username, password))
+    if changed:
+        time.sleep(get_night_vision_settle_seconds())
+
+
 def capture_brightness() -> float:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--roi")
@@ -91,6 +152,8 @@ def capture_brightness() -> float:
 
     if not host or not password:
         raise RuntimeError("TAPO_CAMERA_HOST and TAPO_PASSWORD must be set")
+
+    ensure_night_vision_off(host, username, password)
 
     rtsp_url = f"rtsp://{username}:{password}@{host}:554/stream2"
 

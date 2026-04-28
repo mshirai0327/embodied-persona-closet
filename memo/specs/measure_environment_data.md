@@ -14,7 +14,7 @@
 主な実装:
 
 - [environment-tick.ts](/home/mizuho/develop/embodied-reflecta/.claude/scripts/environment-tick.ts:42)
-- [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:82)
+- [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:143)
 - [environment-store.ts](/home/mizuho/develop/embodied-reflecta/.claude/scripts/environment-store.ts:18)
 - [jma-weather.ts](/home/mizuho/develop/embodied-reflecta/.claude/scripts/jma-weather.ts:1)
 
@@ -27,7 +27,7 @@
 1. `ENVIRONMENT.md` の補助状態と、旧 JSON 状態ファイルを読む
 2. CPU Core Max 温度を取得する
 3. 温度 baseline を更新し、環境熱負荷 proxy を作る
-4. WiFi カメラから ROI 輝度を取得する
+4. WiFi カメラのナイトビジョンを OFF に固定し、ROI 輝度を取得する
 5. 環境光を実輝度で正規化し、同時に相対評価用の輝度 baseline を更新する
 6. 気象庁 AMeDAS から気温・湿度を取得する
 7. 各観測値を `ENVIRONMENT.md` の現在値・補助状態・履歴へ保存する
@@ -115,7 +115,7 @@ energyDelta = clamp(round(relativeDelta * 0.8), -8, +5)
 ### データ源
 
 - WiFi カメラの RTSP `stream2`
-- 実装スクリプト: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:82)
+- 実装スクリプト: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:143)
 - 呼び出し元: [getRoomBrightness()](/home/mizuho/develop/embodied-reflecta/.claude/scripts/environment-tick.ts:431)
 
 `environment-tick.ts` は `wifi-cam-mcp` ディレクトリを作業ディレクトリとして、次を実行する。
@@ -124,14 +124,22 @@ energyDelta = clamp(round(relativeDelta * 0.8), -8, +5)
 uv run python /home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py --roi <roiSpec>
 ```
 
+`capture-brightness-wifi.py` は RTSP フレーム取得の直前に ONVIF の `IrCutFilter`
+を `OFF` に設定する。これは環境光計測の前提条件であり、ナイトビジョンや赤外線補助で
+夜の画像が明るく補正されると、朝/夜の実輝度差を測れなくなるためである。
+
+`OFF` にできない場合は輝度値を返さず、呼び出し元は明るさ更新をスキップする。
+不確かな輝度を `ambient_brightness` として保存しない。
+
 ### 輝度の求め方
 
-`capture-brightness-wifi.py` は RTSP から 1 フレームだけ JPEG として取得し、
+ナイトビジョン OFF を確認したあと、`capture-brightness-wifi.py` は RTSP から
+1 フレームだけ JPEG として取得し、
 指定 ROI を切り出したあとグレースケール化して平均値を返す。
 
-- ROI 検証: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:45)
-- ROI 切り出し: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:69)
-- 平均輝度: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:119)
+- ROI 検証: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:54)
+- ROI 切り出し: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:78)
+- 平均輝度: [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:184)
 
 式としてはほぼ次と同じである。
 
@@ -157,7 +165,7 @@ normalizedValue = clamp(round((brightness / 255) * 100), 0, 100)
 この値が `ENVIRONMENT.md` の `環境光` 正規化値になり、因果ランタイムの
 `ambient_brightness` 入力にもなる。
 
-この設計の意図は、ナイトビジョンを切ったカメラ画像の実輝度で「夜 / 朝」を区別し、
+この設計の意図は、ナイトビジョンを常時 OFF にしたカメラ画像の実輝度で「夜 / 朝」を区別し、
 夜の暗さを slow EMA baseline に吸収しないことである。
 
 ### baseline 相対値
@@ -222,7 +230,7 @@ ROI は `x,y,width,height` の 4 要素で表す矩形で、左上基準の norm
 - `width`, `height`: 矩形の幅と高さ
 - 期待レンジ: `0.0` から `1.0`
 
-Python 側の検証は [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:45)。
+Python 側の検証は [capture-brightness-wifi.py](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:54)。
 
 ### ROI をどこで決めるか
 
@@ -282,7 +290,7 @@ Python 側では normalized 値を画像のピクセル座標へ変換して cro
 
 境界外にはみ出さないよう clamp し、最小 1px を保証する。
 
-実装: [crop_to_roi()](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:69)
+実装: [crop_to_roi()](/home/mizuho/develop/embodied-reflecta/.claude/scripts/capture-brightness-wifi.py:78)
 
 ---
 

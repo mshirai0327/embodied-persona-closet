@@ -49,6 +49,7 @@ make help
 | `make persona-causal-snapshot` | Kuzu の全 nodes / edges を JSON で見る |
 | `make persona-causal-node KEY=energy` | 指定 node の流入・流出因果を見る |
 | `make persona-causal-trace KEY=energy DIRECTION=both DEPTH=3` | 指定 node の upstream / downstream を辿る |
+| `make persona-causal-candidates` | learned edge 候補を JSON で表示する（ファイル更新なし） |
 | `make persona-test` | persona 関連テストをまとめて実行する |
 
 ---

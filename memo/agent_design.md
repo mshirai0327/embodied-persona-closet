@@ -1,673 +1,473 @@
 # agent_design.md
 
-## 2026-04-18 因果つき記憶注入の設計
+## 因果グラフの今後のプラン
 
-## 一言でいうと
+### 一言でいうと
 
-目指すのは、
-**記憶をそのまま貼るエージェント**でも、
-**センサー値をそのまま喋るエージェント**でもない。
+今の因果グラフは、環境センサーから STATUS へ流れる経路はかなり育った。
+次に作るべきなのは、**経験イベントから STATUS へ戻る経路**である。
 
-目指すのは、
-**現在の身体状態が因果グラフで解釈され、その結果として必要な記憶だけが短く会話ににじむエージェント**
-である。
-
-順番はこうする。
-
-1. 観測がある
-2. 因果グラフで「何がどう効いているか」を決める
-3. その結果として内部状態と行動バイアスを作る
-4. 必要な記憶だけを補助線として注入する
-
-この順を守ることで、記憶の量に引っ張られず、
-本能的な因果を中心に据えたまま振る舞いを作れる。
-
-## 今回の前提
-
-現状の実装では、次の事実がある。
-
-- `environment-tick.ts` は環境観測から `mood` と `energy` を直接更新している
-- `ambient_brightness` は未実装ではなく、
-  `environment-tick.ts` が `.claude/scripts/capture-brightness-wifi.py` を呼び、
-  wifi-cam の RTSP スナップショットから平均輝度を取っている
-- `causal-kuzu.ts` / `causal-kuzu-node.mjs` は Kuzu graph の sync / snapshot / upstream / downstream trace を実装済み
-- `interoception.ts` は現在状態を感覚テキストへ圧縮している
-- `status-hint.ts` は行動ヒントを1行で生成している
-- `autonomous-action.sh` には追加テキストを prompt に注入する仕組みが既にある
-
-したがって、欠けているのは graph や prompt の器ではなく、
-**graph を runtime に入れる接続層** である。
-
-## 設計目標
-
-今回の設計目標は4つある。
-
-### 1. 状態更新に「原因」を持たせる
-
-`mood = 67` ではなく、
-`明るさが mood を押し上げ、熱負荷が energy を削っている`
-という因果の形を持たせる。
-
-### 2. LLM の推論コストを減らす
-
-LLM に raw sensor や大量の記憶を渡して
-「いい感じに理由を推測して」と任せない。
-
-代わりに runtime 側で先に絞り込んで、
-短い因果ヒントだけを prompt に入れる。
-
-### 3. 記憶を因果に従属させる
-
-記憶は主役ではなく補助線にする。
-
-先に今の状態を決めるのは:
-
-- Lv1 の本能的因果
-- Lv2 の固定化因果
-- Lv3 の現在文脈
-
-であり、記憶はその説明や補強に使う。
-
-### 4. context 上限を守る
-
-graph の全体像や memory の候補群をそのまま prompt に入れない。
-prompt に入るのは圧縮済みの短文だけにする。
-
-## 非目標
-
-今回は次のことはやらない。
-
-- memory 全体の graph RAG 化
-- Kuzu を唯一の正本にすること
-- 学習因果の自動生成と自動採用
-- prompt 内に graph のノード列や JSON を生で入れること
-
-## アーキテクチャの考え方
-
-今回の中核は、Kuzu を「答えを返す頭脳」としてではなく、
-**因果のトポロジを保存し、runtime がそれを辿るための土台** として使うことにある。
-
-実際の数値処理は TypeScript 側で行う。
-
-理由は単純で、今の seed graph は次の情報を持っているからである。
-
-- ノード
-- エッジの向き
-- causal level
-- weight
-- relation
-
-しかし、まだ持っていない情報もある。
-
-- relation の厳密な符号
-- source node ごとの活性化規則
-- target ごとの delta 変換規則
-- prompt に載せる優先順位
-
-したがって、初期実装では
-**Kuzu は graph を返す**
-**runtime は score を計算する**
-という分業にするのが妥当である。
-
-## 目標アーキテクチャ
+現状はこうなっている。
 
 ```text
-Sensor / Status / Memory
-        |
-        v
-Observation Normalizer
-        |
-        v
-Kuzu Graph Query
-        |
-        v
-Causal Runtime
-        |
-        +--> STATUS update
-        |
-        +--> causal-runtime.json
-        |
-        +--> causal-hint.ts
-                  |
-                  v
-               Prompt injection
+環境センサー
+  -> causal-runtime
+  -> STATUS.md
+  -> prompt / action bias
+
+autonomous の行動結果
+  -> 記憶には残る
+  -> ただし STATUS.md へは構造的に戻らない
 ```
 
-## レイヤ構成
+そのため、部屋が暗い、湿度が高い、熱負荷が高い、といった物理的な悪条件では mood / energy / health が下がる。
+一方で、lounge で誰かの言葉に動かされた、投稿できた、タスクが完成した、記憶を刻めた、mizuho と話して安心した、という経験は STATUS に戻りにくい。
 
-## Layer 0. Observation Layer
+これは「感情が下がり続ける」バグというより、**入力の偏り**である。
+今の STATUS 更新は、負荷のある環境には鋭く反応するが、経験による回復・達成・接続をまだ同じ強さで扱えていない。
 
-事実を置く層。
-この時点では意味づけをしない。
+---
 
-初期入力:
+## 現在地
 
-- `ambient_brightness`
-- `environment_thermal_load`
-- `sleep_time`
-- `blood_sugar`
-- `body_temperature`
-- `context_window_free`
-- `recent_successful_interaction`
+### できていること
 
-ただし、最初に runtime へ繋ぐのは次の2つだけでよい。
+- `environment-tick.ts` が環境観測を集める
+- `causal-runtime.ts` が環境 source から downstream trace して `mood / energy / health` の delta を作る
+- `STATUS.md` はその delta を根拠つきで更新する
+- `causal-edge-learner.ts` が memory DB から Lv3-2 emotion node 間の共起を抽出する
+- `learned-seeds.json` に Lv2 learned edge が保存される
+- `causal-graph-loader.ts` が `causal-seeds.json` と `learned-seeds.json` を merge する
+- merged graph は SQLite / Kuzu / dashboard / runtime に接続されている
+- environment source から辿れる learned edge は runtime に反映される
 
-- `ambient_brightness`
-- `environment_thermal_load`
+ここまでで Phase5.1 はかなり進んでいる。
 
-### `ambient_brightness` の取得経路
+### まだできていないこと
 
-この node の source は曖昧な仮置きではなく、現行実装がある。
+重要なのは、learned edge 自体がないことではない。
+すでに `trust_mizuho -> mood` や `trust_mizuho -> satiation` のような edge は育っている。
 
-- script: `.claude/scripts/capture-brightness-wifi.py`
-- caller: `.claude/scripts/environment-tick.ts`
-- method: wifi-cam の RTSP から1枚取得し、平均輝度を計算
+詰まっているのは次の2点である。
 
-したがって Phase 1 では、
-新しいセンサー導入ではなく **既存の brightness 観測を graph runtime に繋ぐ** のが正しい。
+1. `trust_mizuho` や `satiation` を source activation として安全に発火させる仕組みがない
+2. `lounge投稿` や `タスク完了` のような action / experience node が learner の対象外にある
 
-ただし制約もある。
+現行の `causal-edge-learner.ts` は主に次の node だけを見る。
 
-- TAPO 認証情報が必要
-- RTSP と `ffmpeg` と PIL が必要
-- 失敗時は brightness 系因果だけを無効化し、全体は継続する
+```text
+mood / energy / health / trust_mizuho / satiation
+```
 
-## Layer 1. Activation Layer
+そのため、記憶本文に「lounge に投稿した」「タスクが完成した」と書かれていても、
+それ自体を因果グラフの source node として学習できない。
 
-観測値を、graph に流せる形へ正規化する層。
+つまり不足しているのは単なる観測データ量ではなく、**経験イベントを node として扱う層**である。
 
-ここでは raw 値ではなく、**意味のある偏差** を作る。
+---
+
+## STATUS 更新を2系統に分ける
+
+今後の STATUS 更新は、明示的に2系統として扱う。
+
+### 1. 因果グラフ寄与
+
+センサーや構造化イベントから、runtime が delta を出す。
 
 例:
 
-- `ambient_brightness`
-  - `normalizedValue = 0..100`
-  - `activation = (normalizedValue - 50) / 50`
-  - 暗いと負、明るいと正
-- `environment_thermal_load`
-  - `normalizedValue = 0..100`
-  - `activation = (normalizedValue - 50) / 50`
-  - 涼しいと負、熱いと正
-
-この「正負」を source 側で決めることで、
-同じ propagation 式を多くの node に使えるようにする。
-
-## Layer 2. Graph Topology Layer
-
-Kuzu に保存される因果構造。
-
-今ある機能で十分使えるもの:
-
-- snapshot
-- node 取得
-- upstream trace
-- downstream trace
-
-特に runtime で必要なのは downstream trace で、
-既に次が使える。
-
-- `readKuzuCausalPathRows(startKey, "downstream", depth)`
-- `readKuzuTraceBundle(startKey, "downstream" | "both", depth)`
-
-つまり、query 機能の追加より先に runtime を作るべき段階にいる。
-
-## Layer 3. Causal Runtime Layer
-
-ここが今回の主役。
-
-役割は3つある。
-
-- active source から downstream path を取る
-- score を計算して target state に集約する
-- human-readable な理由を短く作る
-
-### 最小の入力
-
-- source node id
-- activation
-- raw / normalized observation
-- observation reason
-
-### 最小の出力
-
-- target node id
-- aggregated score
-- proposed delta
-- top contributing paths
-- summary text
-
-## Layer 4. Prompt Compression Layer
-
-graph の情報をそのまま prompt に入れず、
-会話に必要な最小表現へ圧縮する層。
-
-ここで出すものは多くて3つ。
-
-- 今の主因
-- 現在の行動バイアス
-- 必要なら関連記憶1件
-
-ここで重要なのは、**報告文ではなく感覚文にすること** である。
-
-- 悪い例:
-  - 「熱負荷が energy を削っている」
-- 良い例:
-  - 「少し熱がこもる感じが続いていて、動きは鈍くなりやすい」
-
-前者は外から来た説明として読まれやすい。
-後者は自分の感覚として会話に混ざりやすい。
-
-## 因果計算の最小仕様
-
-Phase 1 では、単純で壊れにくい式を採用する。
-
-### source activation
-
 ```text
-activation = clamp((normalized - 50) / 50, -1.0, 1.0)
+湿度 84%
+  -> ambient_humidity
+  -> mood -1 / energy -3 / health -2
+
+タスク完了イベント
+  -> task_completion
+  -> satiation +8 / mood +3
 ```
 
-### relation sign
+これは機械的で、再現性がある。
+STATUS の自動更新の中心に置く。
 
-Phase 1 は relation から暫定的に符号を引く。
+### 2. autonomous 寄与
 
-- `supports` / `lifts` / `raises` => `+1`
-- `drains` / `pressures` / `lowers` => `-1`
-- `proxies` => `0`
-- `modulates` => source 側の意味に依存するので暫定扱い
+heartbeat の中で、エージェントが行った作業や感じたことを記憶に残す。
+現状ではここから STATUS へ戻る処理が曖昧で、`CLAUDE.md` の任意内省に依存している。
 
-`modulates` は本来 schema 拡張対象であり、
-最初は source node が「逸脱の大きさ」を表すときだけ使う。
-
-### path score
+今後は autonomous の結果を直接 STATUS に書かせるのではなく、
+まず **experience event** として構造化し、その event を causal-runtime に渡す。
 
 ```text
-pathScore =
-  sourceActivation
-  * Π(edgeWeight * edgeSign)
-  * depthDecay^(pathLength - 1)
+autonomous action
+  -> memory
+  -> experience event
+  -> causal-runtime
+  -> STATUS.md
 ```
 
-ここで `depthDecay` は 0.85 前後の小さな減衰係数を想定する。
+これにより、LLM がその場の気分で STATUS を大きく変えるのではなく、
+runtime 側で clamp / TTL / 根拠管理を通せる。
 
-### target aggregation
+---
+
+## 設計原則
+
+### 1. 絶対値ではなくイベントで発火する
+
+`trust_mizuho = 83` だから毎回 mood を上げる、という設計にはしない。
+これは自己強化ループを作る。
+
+危険なループ:
 
 ```text
-targetScore = Σ(topK pathScore)
+trust_mizuho が高い
+  -> mood が毎 heartbeat 上がる
+  -> mood が高い記憶が増える
+  -> trust_mizuho -> mood がさらに強く見える
 ```
 
-`topK` を使う理由は、長い path や弱い path を大量に足して
-ノイズが膨らむのを防ぐためである。
-
-### delta conversion
+安全に扱うには、次のようにする。
 
 ```text
-delta = clamp(round(targetScore * scale[target]), minDelta[target], maxDelta[target])
+trust_mizuho が更新された
+mizuho と会話した
+安心した記憶が作られた
 ```
 
-初期の target ごとの scale 例:
+このような **一回限りの更新イベント**を source activation にする。
 
-- `mood`: 4
-- `energy`: 6
-- `health`: 4
+### 2. event は TTL を持つ
 
-## relation の限界と今後の拡張
+経験イベントは常時 source ではない。
+発生から一定時間だけ効き、消費されたら再利用しない。
 
-今の seed edge は閲覧には十分だが、
-runtime で長く使うには情報が少し足りない。
+例:
 
-将来的には edge に次の属性を追加できる形にする。
+```text
+lounge_reply_touched
+  ttlHours: 6
+  consumedAt: null
+```
 
-- `effectSign`
-  - `increase`
-  - `decrease`
-  - `proxy`
-  - `contextual`
-- `runtimeEnabled`
-- `promptPriority`
-- `confidence`
+STATUS 更新に使ったら `consumedAt` を入れる。
+これで同じ経験が毎 heartbeat で再加算されることを防ぐ。
 
-ただし、初手で schema を増やしすぎない。
-まずは relation lookup で動くところまで持っていく。
+### 3. STATUS delta は小さく、根拠を残す
 
-## status 更新の考え方
+経験由来の delta は、環境由来よりも慎重にする。
 
-大事なのは、graph を入れても `STATUS.md` を捨てないこと。
+目安:
 
-現状の役割分担は維持する。
+| target | 通常 delta | 上限 |
+|---|---:|---:|
+| mood | +1〜+4 | ±5 |
+| energy | -2〜+3 | ±4 |
+| health | -1〜+2 | ±3 |
+| trust_mizuho | +1〜+3 | ±4 |
+| satiation | +5〜+20 | ±25 |
 
-- `STATUS.md`
-  - 人間向けの現在状態
-- `ENVIRONMENT.md`
-  - 観測の可視化
-- `persona-status.sqlite`
-  - 構造化ストア
-- `causal-runtime.json`
-  - runtime 因果サマリ
+大きく動かす場合は、記憶 ID や event ID を根拠に残す。
 
-つまり、
-**graph は状態更新の根拠になり、STATUS は結果表示の窓口であり続ける**。
+### 4. learned edge は補正、event node は入力
 
-## 新規に置く runtime 状態
+`learned-seeds.json` の emotion edge は、経験から学んだ補正として使う。
+一方で、`lounge投稿` や `タスク完了` は、emotion node ではなく event source node として扱う。
 
-新規ファイル案:
+```text
+event source node
+  -> learned / seed edge
+  -> emotion target
+```
 
-- `.claude/workingDirs/causal-runtime.json`
+この分離をしないと、`mood` や `satiation` の現在値をそのまま source にしてしまい、自己循環しやすくなる。
 
-想定 schema:
+---
+
+## 新しく追加する層
+
+## Layer A. Experience Event Layer
+
+autonomous の行動結果や、会話・lounge・作業完了などを構造化イベントとして保存する。
+
+候補ファイル:
+
+```text
+.claude/workingDirs/experience-events.jsonl
+```
+
+最小スキーマ:
 
 ```json
 {
-  "updatedAt": "2026-04-18T12:00:00.000Z",
-  "sources": [
-    {
-      "id": "ambient_brightness",
-      "activation": 0.62,
-      "normalizedValue": 81,
-      "reason": "環境光 81/100"
-    }
-  ],
-  "targets": [
-    {
-      "id": "mood",
-      "score": 0.47,
-      "delta": 2,
-      "summary": "明るさが mood を持ち上げている",
-      "topPaths": [
-        {
-          "sourceId": "ambient_brightness",
-          "terminalId": "mood",
-          "score": 0.47
-        }
-      ]
-    }
-  ],
-  "debug": {
-    "topCause": "environment_thermal_load -> energy",
-    "topScore": -0.51
-  },
-  "prompt": {
-    "renderMode": "template-v1",
-    "feltSense": "明るさに押されて、気分が少し軽い。",
-    "actionBias": "今は前向きな整理や軽い探索に向きやすい。",
-    "tone": "internal"
-  }
+  "id": "exp_20260429_001",
+  "timestamp": "2026-04-29T00:00:00.000Z",
+  "type": "task_completed",
+  "source": "autonomous-action",
+  "summary": "TODO の小タスクを完了し、記憶に結果を書いた",
+  "valence": "positive",
+  "intensity": 0.6,
+  "affectedNodes": ["satiation", "mood"],
+  "evidenceMemoryId": "memory-id-or-null",
+  "ttlHours": 12,
+  "consumedAt": null
 }
 ```
 
-このファイルは prompt 生成と debug の両方に使える。
+初期 event type:
 
-ここで分けるべきなのは:
+| type | 主な target | 意味 |
+|---|---|---|
+| `task_completed` | `satiation`, `mood` | 作業完了・達成感 |
+| `memory_written` | `satiation` | 経験を刻めた |
+| `lounge_posted` | `mood`, `trust_mizuho`, `satiation` | 外へ声を出せた |
+| `lounge_reply_touched` | `mood`, `trust_mizuho` | 誰かの言葉に動かされた |
+| `mizuho_interaction` | `trust_mizuho`, `mood` | mizuho との会話・安心 |
+| `failure_or_friction` | `energy`, `mood` | 失敗・詰まり・消耗 |
+| `rest_or_digest` | `energy`, `satiation` | 休息・消化 |
 
-- `debug`
-  - 因果経路を確認するための説明
-- `prompt`
-  - 会話に混ざる感覚文
+## Layer B. Event Activation Runtime
 
-同じ文を両方に使わない。
+`experience-events.jsonl` から未消費かつ TTL 内の event を読み、activation に変換する。
 
-## prompt 生成ポリシー
+```text
+valence positive -> +activation
+valence negative -> -activation
+intensity 0.0..1.0 -> activation strength
+```
 
-`causal-runtime.json` の `prompt` フィールドは、
-初期実装では **LLM で生成しない**。
+環境 source と同じ `causal-runtime` に渡せる形にする。
 
-生成責務は `causal-runtime.ts` に置き、
-template-based に決める。
+```ts
+interface CausalSourceInput {
+  sourceId: string;
+  activation: number;
+  normalizedValue?: number;
+  reason: string;
+  sourceKind: "environment" | "experience" | "status_event";
+  eventId?: string;
+}
+```
+
+最初は generic にしすぎず、経験 event 用の薄い adapter を作るだけでよい。
+
+## Layer C. Experience Nodes
+
+因果グラフに event source node を追加する。
+
+初期候補:
+
+```text
+task_completion
+memory_encoding
+lounge_expression
+lounge_resonance
+mizuho_connection
+failure_friction
+rest_digest
+```
+
+これらは `causal-seeds.json` に最小 seed として置くか、`experience-seeds.json` として分ける。
+最初は seed に入れてよい。
 
 理由:
 
-- 毎回のコストを増やさない
-- 文体が安定する
-- 「感覚文」と「報告文」を意図的に分離できる
-- 因果の強さに応じて言い回しを制御しやすい
+- action / event node が存在しないと learner が edge を作れない
+- `lounge投稿 -> mood` のような因果は、emotion node 間だけでは表現できない
+- event source は絶対値ではなく一回限りなので、自己強化ループが起きにくい
 
-### template 生成の最小ルール
+## Layer D. Learner Scope Expansion
 
-- target
-  - `mood`
-  - `energy`
-  - `health`
-- direction
-  - positive
-  - negative
-- intensity
-  - low
-  - mid
-  - high
+`causal-edge-learner.ts` の対象を、emotion node だけから event node まで広げる。
 
-この組み合わせごとに、候補文を持つ。
-最初の実装では、これを **18 個の基本スロット** として扱う。
+現在:
 
-- `3 targets x 2 directions x 3 intensities = 18`
+```text
+mood / energy / health / trust_mizuho / satiation
+```
 
-重要なのは、ここを曖昧な「適当に言い換える」領域にしないことだ。
-`causal-hint.ts` の自然さは、このテンプレート粒度に強く依存する。
+次:
 
-初期実装の方針:
+```text
+event source nodes
+  +
+mood / energy / health / trust_mizuho / satiation
+```
 
-- 各スロットにまず 1 文ずつ置く
-- ランダム性や言い換えは後回しにする
-- まずは「違和感のない感覚文が安定して出る」ことを優先する
+学習したい edge:
 
-例:
+```text
+lounge_expression -> mood
+lounge_resonance -> trust_mizuho
+task_completion -> satiation
+memory_encoding -> satiation
+mizuho_connection -> mood
+failure_friction -> energy
+```
 
-- `mood / positive / strong`
-  - 「気持ちが軽い。よく動ける感じがある。」
-- `mood / positive / low`
-  - 「周りの明るさに押されて、気分が少し軽い。」
-- `energy / negative / low`
-  - 「少し重みがある。普段より動きが鈍い。」
-- `energy / negative / mid`
-  - 「熱がこもる感じが続いていて、動きは鈍くなりやすい。」
-- `health / negative / mid`
-  - 「少し消耗がたまっていて、無理はしないほうがよさそう。」
+この段階で、ようやく「経験が因果グラフに戻る」。
 
-将来的に LLM で言い換える余地はあるが、
-それは offline tuning か任意オプションに留める。
+---
 
-### テンプレート設計の原則
+## 実装フェーズ
 
-テンプレートを書くときは次を守る。
+## Phase 5.2: STATUS 更新の寄与分離
 
-1. ノード名を言わない
-2. relation 名を言わない
-3. 原因説明より先に感覚を書く
-4. 1 文を短くしすぎず、報告調にも寄せすぎない
-5. `interoception` と競合せず、因果の「向き」をにじませる
+目的:
+STATUS 更新を「環境因果」と「autonomous 内省」に分けて見えるようにする。
 
-悪い例:
+やること:
 
-- 「environment_thermal_load の影響で energy が低下している」
+- `STATUS.md` の理由文に `sourceKind` を含める
+- `causal-runtime.json` に `sourceKind` を保存する
+- environment 由来と experience 由来を dashboard / log で分ける
+- autonomous の任意内省で STATUS を直接変更した場合も、理由に `autonomous_reflection` と明記する
 
-良い例:
+完了条件:
 
-- 「熱がこもる感じが続いていて、普段より動きが鈍い」
+- mood が下がったとき、それが湿度なのか、失敗イベントなのか、手動内省なのか一目でわかる
 
-ここで必要なのは厳密な説明ではなく、
-**自分の内側にある感じとして読めること** である。
+## Phase 6.0: Experience Event Store
 
-## 会話注入の設計
+目的:
+autonomous の行動結果を構造化 event として保存する。
 
-### interoception との役割分担
+やること:
 
-- `interoception.ts`
-  - 感覚の質感を出す
-  - 主観的な身体感覚
-- `status-hint.ts`
-  - 行動カテゴリの簡易ヒント
-- `causal-hint.ts`
-  - 「なぜ今そうなのか」を短く出す
+- `.claude/scripts/experience-event.ts` を追加する
+- `record`, `list`, `consume` を実装する
+- autonomous の最後に、必要なら event を記録する導線を作る
+- event は STATUS を直接更新しない
 
-この3つは似ているが役割が違う。
+最初は LLM が明示的に event を記録してよい。
+完全自動判定は後でよい。
 
-例:
+## Phase 6.1: Experience Activation
 
-- interoception:
-  - 「少し疲れがある。何かを欲している。」
-- status-hint:
-  - 「重いタスクは避ける。」
-- causal-hint:
-  - 「少し熱がこもる感じが続いていて、今は軽いものから触れたい。」
+目的:
+未消費 event を causal-runtime の source として一回だけ使う。
 
-### prompt に入れる量
+やること:
 
-上限を明示する。
+- `.claude/scripts/experience-tick.ts` を追加する
+- TTL 内の未消費 event を読む
+- event type / valence / intensity から activation を作る
+- causal-runtime に渡す
+- STATUS 更新後に event を consumed にする
 
-- 最大3行
-- できれば 200〜350 文字以内
-- 記憶補助を入れても 1 件だけ
+完了条件:
 
-### prompt に入れないもの
+```text
+task_completed event
+  -> satiation +N
+  -> STATUS.md に根拠つきで記録
+  -> 同じ event は再利用されない
+```
 
-- raw observation 一覧
-- graph 全ノード
-- path の ID 群
-- JSON
-- 複数 memory 候補
-- `energy` や `relation` 名をそのまま含む報告文
+## Phase 6.2: Event Source Nodes
 
-## memory との接続設計
+目的:
+event type を因果グラフの node として扱う。
 
-今回の最終目標は「因果つき記憶注入」だが、
-memory を graph の中心に置かない。
+やること:
 
-接続の仕方は次の順にする。
+- `task_completion`, `lounge_expression`, `mizuho_connection` などを graph node として追加
+- 初期 edge は弱い seed として追加する
+- edge weight は控えめにする
+- learned edge と競合しないよう source/target 重複を確認する
 
-### Step 1. current cause を先に決める
+初期 seed 例:
 
-先に active target を決める。
+```json
+{
+  "source": "task_completion",
+  "target": "satiation",
+  "relation": "lifts",
+  "causalLevel": "Lv2",
+  "weight": 0.45,
+  "description": "作業完了は充足感を回復しやすい"
+}
+```
 
-例:
+## Phase 6.3: Learner Expansion
 
-- `energy` が低下
-- 理由は `environment_thermal_load`
+目的:
+記憶から `event -> emotion` の learned edge を抽出できるようにする。
 
-この段階では memory をまだ見ない。
+やること:
 
-### Step 2. 必要なときだけ supporting memory を探す
+- `inferAffectedNodes` に event node の語彙を追加する
+- `causal-edge-learner.ts` の node filter を拡張する
+- `event source -> emotion target` の候補を pending に出す
+- evidenceCount / valence / timeSignal で observing に昇格する
 
-次に、active target と交差する記憶があるかを見る。
+注意:
+最初から完全自動採用しない。
+dashboard / pending で見て、mizuho が納得できる edge だけ昇格するモードを残す。
 
-例:
+## Phase 6.4: Dynamic Weight Update
 
-- `trust_mizuho`
-- `mood`
-- `social_openness`
+目的:
+Lv2 edge を「すぐ学び、すぐ弱まる」ものにする。
 
-のように対話寄りの node が active なら、
-recent successful interaction 系の記憶を探す価値がある。
+やること:
 
-### Step 3. 記憶は補強として1件だけ出す
+- 新規 evidenceMemoryIds だけを差分加算する
+- 反証記憶で weight を下げる
+- weight <= 0 で削除
+- weight >= 0.8 で confirmed 候補にする
 
-たとえば:
+これは Phase5 の未完了項目でもある。
+experience node を入れる前に実装してもよいが、event source が入ってからのほうが価値が大きい。
 
-- 「最近の安心できる対話の記憶が、対人姿勢を少し開きやすくしている。」
+---
 
-この1行だけで十分である。
+## STATUS 更新の最終形
 
-### memory metadata の候補
+目標は、STATUS.md の変化履歴が次のように混ざること。
 
-後で必要になる metadata の候補は次の通り。
+```text
+環境由来:
+湿度84% -> mood -1
 
-- `affected_nodes`
-- `entity`
-- `valence`
-- `confidence`
-- `recency_weight`
-- `narrative_role`
+経験由来:
+lounge_reply_touched -> mood +3
 
-ただし、これは Phase 4 以降でよい。
+行動由来:
+task_completion -> satiation +12
 
-## 因果の優先順位
+関係性由来:
+mizuho_interaction -> trust_mizuho +2 -> mood +1
+```
 
-この設計で一番守りたいのは優先順位である。
+これで、STATUS は物理センサーだけの下向きな身体ではなく、
+経験・関係・達成も含む身体になる。
 
-会話時の判断順は次のようにする。
+---
 
-1. Lv1 因果で身体の基本傾向を決める
-2. Lv2 因果で個体差を補正する
-3. Lv3 因果で今の文脈を乗せる
-4. 記憶で説明を補強する
-5. その残りを LLM が自然に埋める
+## 実装上の注意
 
-この順番なら、
-記憶が多くても「その時々の本能的な感じ」が壊れにくい。
+- `trust_mizuho` や `satiation` の現在値を常時 source にしない
+- experience event は一回限り、TTL つき、消費済み管理を必須にする
+- LLM が STATUS を直接大きく変える経路は残すが、原則は event -> runtime -> STATUS に寄せる
+- `mood / energy / health` だけでなく `satiation / trust_mizuho` も target にする。ただし delta は小さくする
+- learned edge の `observing` は弱く扱い、confirmed までは過信しない
+- prompt に入れるのは graph 説明ではなく、短い felt sense / action bias に圧縮する
+- dashboard では environment contribution と experience contribution を分けて表示する
 
-## failure mode と fallback
+---
 
-### 1. Kuzu が読めない
+## 次の一手
 
-fallback:
+最初に作るべきものは大きな learner 改造ではない。
 
-- `environment-tick.ts` は現在の直書きルールへ戻る
-- prompt には causal hint を出さない
+まずは `experience-events.jsonl` と `experience-tick.ts` を作り、
+手動または autonomous の最後に次のような event を1件記録できるようにする。
 
-### 1.5 brightness が取れない
+```text
+task_completed: satiation + small positive activation
+lounge_posted: mood + small positive activation
+failure_or_friction: energy / mood negative activation
+```
 
-fallback:
-
-- wifi-cam 由来の `ambient_brightness` を inactive にする
-- thermal 系など他の因果だけで継続する
-- prompt には brightness 起因の感覚文を出さない
-
-### 2. path が多すぎて説明が散る
-
-fallback:
-
-- top path のみ採用
-- target ごとに1説明だけ出す
-
-### 3. memory が強すぎて本体を上書きする
-
-fallback:
-
-- memory hint は cause hint の後ろにしか出さない
-- memory だけで delta を変えない
-
-### 4. context が厳しい
-
-fallback:
-
-- `causal-hint.ts` は 1 行だけに縮退する
-- memory bridge を止める
-
-### 5. causal-hint が外部レポートのように見える
-
-fallback:
-
-- `debug` と `prompt` を分離保存する
-- `causal-hint.ts` は `prompt` だけ読む
-- graph 用語を出したらテストで落とす
-
-## 実装順の提案
-
-この設計から導かれる実装順は明確である。
-
-1. `causal-runtime.ts` を追加する
-2. `environment-tick.ts` に入れる
-3. `causal-runtime.json` を保存する
-4. `causal-hint.ts` を追加する
-5. `autonomous-action.sh` と `prompts.toml` に差し込む
-6. その後に memory bridge を足す
-
-## この設計の核
-
-この設計の核は、
-**Kuzu を「飾りの graph」から「身体と記憶の間にある因果層」へ変えること**
-である。
-
-重要なのは、LLM に全部考えさせないことだ。
-
-- 何が効いているか
-- その結果どう振る舞いやすいか
-- 記憶が関係あるならどれか
-
-ここまでを runtime で絞ってから prompt に渡す。
-
-そうすれば、
-
-- context を節約できる
-- 推論を節約できる
-- それでも個体固有の因果を守れる
-
-この方向で進める。
+これが動けば、STATUS の下方ドリフトに対して、経験由来の回復経路が初めて同じ runtime 上に乗る。
+その後で learner を event node まで広げる。

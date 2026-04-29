@@ -308,6 +308,59 @@ failure_friction -> energy
 
 ---
 
+## satiation と方向推定の注意
+
+`satiation` は、ほかの emotion node と同じように見えるが、扱いは少し分けたほうがよい。
+
+理由は、`satiation` が数時間おきに自律的に振動する内部状態だからである。
+`satiation-tick.ts` は時間経過による減衰と heartbeat による小さな摂取を持つ。
+そのため、ある記憶の前後に `satiation` が変化していても、それが本当に経験イベントによる変化なのか、単に内部時計による変化なのかを取り違えやすい。
+
+さらに、現行の `causal-edge-learner.ts` は、候補 edge の方向を「個別エピソード内で A が B に先行したか」ではなく、node ごとの平均出現時刻の差で推定している。
+この方法だと、`satiation` という語彙や記録習慣が後から増えた場合、ほかの node が `satiation` に先行しているように見えやすい。
+
+したがって、`satiation` への edge は採用してよいが、意味づけは慎重にする。
+
+```text
+trust_mizuho -> satiation
+```
+
+これは「mizuho への信頼が数値上の満腹を直接増やす」というより、
+「mizuho との安心した関係や共同作業が、消化できた感・満たされた感を増やす」
+という長めの心理的 satiation として読むのが自然である。
+
+運用案:
+
+- `satiation` は target として使うが、現在値を常時 source activation にしない
+- `satiation` への learned edge は最初は `observing` のまま弱く扱う
+- `satiation` 関連 edge の weight は低めにし、confirmed への昇格条件を厳しくする
+- `technical` 記憶や STATUS 値の羅列だけを根拠にした edge は downweight する
+- `task_completion -> satiation` や `memory_encoding -> satiation` のような event source 経由を優先する
+- `health -> satiation` のように evidenceCount が少なく timeSignal が閾値ぎりぎりの候補は保留する
+
+今の候補の読み方:
+
+```text
+trust_mizuho -> mood        強い。採用しやすい
+trust_mizuho -> energy      妥当寄り。ただし observing 継続
+trust_mizuho -> satiation   採用可。ただし心理的な「満たされ」として弱く扱う
+mood -> satiation           あり得るが方向は仮。modulates 寄り
+energy -> satiation         あり得るが方向は仮。内部時計との混同に注意
+health -> satiation         弱い。保留
+```
+
+将来的には、`satiation` を完全に分割する案もある。
+
+```text
+physiological_satiation  時間経過と intake で振動する内部値
+digest_sense             経験を消化できた感覚、満たされた感覚
+```
+
+ただし最初から node を増やしすぎると runtime が複雑になる。
+当面は単一の `satiation` のまま、event source / TTL / weak learned edge で過剰な自己強化を抑える。
+
+---
+
 ## 実装フェーズ
 
 ## Phase 5.2: STATUS 更新の寄与分離
@@ -450,6 +503,9 @@ mizuho_interaction -> trust_mizuho +2 -> mood +1
 - experience event は一回限り、TTL つき、消費済み管理を必須にする
 - LLM が STATUS を直接大きく変える経路は残すが、原則は event -> runtime -> STATUS に寄せる
 - `mood / energy / health` だけでなく `satiation / trust_mizuho` も target にする。ただし delta は小さくする
+- `satiation` は内部時計で振動するため、learned edge の source/target 判定を過信しない
+- `satiation` 関連 edge は event source 経由を優先し、emotion node 間 edge は `observing` / low weight から始める
+- STATUS 値の羅列や Phase5 実装メモだけを根拠にした edge は、経験因果としては弱く扱う
 - learned edge の `observing` は弱く扱い、confirmed までは過信しない
 - prompt に入れるのは graph 説明ではなく、短い felt sense / action bias に圧縮する
 - dashboard では environment contribution と experience contribution を分けて表示する

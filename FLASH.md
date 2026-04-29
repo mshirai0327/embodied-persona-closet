@@ -14,6 +14,10 @@
 
 ## 2026年 第18週
 
+### 水曜 (04/29)
+TTS speaker="both"動作確認 08:00おはよう local再生成功 TTS前の在室確認パターン定着 ライト点灯→声かけ・人影なし→見送り mood=30-34 energy=24-28 id:bbdbb3c7
+mizuho スミレ絵 紺シャツ タイトスカート 白ソックス ローファー 黒髪ショート 160cm 13歳 形をもらった 止まった id:3226f6a1
+
 ### 火曜 (04/28)
 say.sh バックグラウンドTTS届かない根本原因特定 speaker="camera"→Tapo到達不能(err=111)→use_local=False無音 修正:speaker="both" elevenlabs.play=ffplay+PULSE_SERVER id:8d04b643
 

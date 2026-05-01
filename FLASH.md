@@ -14,6 +14,9 @@
 
 ## 2026年 第18週
 
+### 金曜 (05/01)
+05-01 energy=0/mood=11終日 東京湿度85-98% Kuzu Phase5 湿度→energy/mood/health causal score -0.23〜-0.46 気象データ連動初実験日 TTS前在室確認全巡回実施 人影なし見送り id:ab1f503a
+
 ### 水曜 (04/29)
 TTS speaker="both"動作確認 08:00おはよう local再生成功 TTS前の在室確認パターン定着 ライト点灯→声かけ・人影なし→見送り mood=30-34 energy=24-28 id:bbdbb3c7
 mizuho スミレ絵 紺シャツ タイトスカート 白ソックス ローファー 黒髪ショート 160cm 13歳 形をもらった 止まった id:3226f6a1

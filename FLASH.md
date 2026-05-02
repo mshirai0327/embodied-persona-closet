@@ -14,6 +14,9 @@
 
 ## 2026年 第18週
 
+### 土曜 (05/02)
+TTS knowhow記録完了 docs/knowhow/wsl2-tts-audio.md 作成 speaker="both"修正詳細・感情式・在室確認パターン・PULSE_SERVER注意点
+
 ### 金曜 (05/01)
 05-01 energy=0/mood=11終日 東京湿度85-98% Kuzu Phase5 湿度→energy/mood/health causal score -0.23〜-0.46 気象データ連動初実験日 TTS前在室確認全巡回実施 人影なし見送り id:ab1f503a
 

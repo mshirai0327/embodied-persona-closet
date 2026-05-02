@@ -26,6 +26,12 @@ Tapo C200 などの WiFi カメラを MCP 経由で制御して、AI に部屋�
 | `set_night_vision` | ナイトビジョンを `on` / `off` / `auto` に切り替え |
 | `listen` | 数秒だけ音を録音し、必要なら文字起こし |
 
+## 環境光計測でのナイトビジョン
+
+`.claude/scripts/capture-brightness-wifi.py` は、朝/夜の実輝度差を測るために、
+RTSP フレーム取得の直前に ONVIF でナイトビジョンを `off` に固定する。
+`off` にできない場合は輝度を返さず、環境光更新はスキップされる。
+
 ## セットアップ
 
 ### 1. カメラの初期設定（Tapoアプリ）

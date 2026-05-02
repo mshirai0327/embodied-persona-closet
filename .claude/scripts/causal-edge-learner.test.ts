@@ -201,6 +201,51 @@ describe("causal-edge-learner", () => {
     expect(candidate?.evidenceCount).toBe(5);
   });
 
+  test("extracts candidates without writing pending or learned seed files", async () => {
+    tmpDirPath = await mkdtemp(join(tmpdir(), "persona-causal-edge-learner-dry-run-test-"));
+    process.env.MEMORY_DB_PATH = join(tmpDirPath, "memory.db");
+    process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH = join(tmpDirPath, "pending-learned-edges.json");
+    process.env.WARDROBE_LEARNED_SEEDS_PATH = join(tmpDirPath, "learned-seeds.json");
+
+    const db = createMemoryDb(process.env.MEMORY_DB_PATH);
+    for (let index = 0; index < 5; index += 1) {
+      db.run(
+        `INSERT INTO memories (
+          id, content, normalized_content, timestamp, emotion, importance, category,
+          access_count, linked_ids, tags, links, activation_count, freshness
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `memory-dry-run-${index}`,
+          `mizuhoと話して安心し、気分が少し軽くなった。第${index}観測。`,
+          `mizuhoと話して安心し、気分が少し軽くなった。第${index}観測。`,
+          `2026-04-2${index}T10:00:00.000Z`,
+          "happy",
+          5,
+          "daily",
+          0,
+          "",
+          "",
+          "",
+          0,
+          0.95,
+        ],
+      );
+    }
+    db.close();
+
+    const module = await importLearnerModule();
+    const snapshot = await module.extractPendingLearnedEdgesSnapshot({
+      now: new Date("2026-04-25T15:00:00.000Z"),
+    });
+
+    expect(snapshot.candidateCount).toBeGreaterThan(0);
+    expect(snapshot.candidates.some((entry: { pair: [string, string] }) => (
+      entry.pair.includes("mood") && entry.pair.includes("trust_mizuho")
+    ))).toBe(true);
+    expect(existsSync(process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH)).toBe(false);
+    expect(existsSync(process.env.WARDROBE_LEARNED_SEEDS_PATH)).toBe(false);
+  });
+
   test("promotes pending candidates into learned seeds with stable IDs and idempotency", async () => {
     tmpDirPath = await mkdtemp(join(tmpdir(), "persona-causal-edge-learner-promote-test-"));
     process.env.WARDROBE_PENDING_LEARNED_EDGES_PATH = join(tmpDirPath, "pending-learned-edges.json");

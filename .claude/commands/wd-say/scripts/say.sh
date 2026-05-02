@@ -17,4 +17,10 @@ fi
 TTS_DIR="${WARDROBE_ROOT}/.claude/mcps/tts-mcp"
 export MCP_BEHAVIOR_TOML="${WARDROBE_ROOT}/mcpBehavior.toml"
 
-exec uv run --directory "$TTS_DIR" python -m tts_mcp.cli "$@"
+LOG_FILE="${WARDROBE_ROOT}/logs/tts-say.log"
+TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+echo "[$TIMESTAMP] say: $*" >> "$LOG_FILE"
+uv run --directory "$TTS_DIR" python -m tts_mcp.cli "$@" >> "$LOG_FILE" 2>&1
+EXIT_CODE=$?
+echo "[$TIMESTAMP] exit: $EXIT_CODE" >> "$LOG_FILE"
+exit $EXIT_CODE

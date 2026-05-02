@@ -49,7 +49,7 @@ export const ENVIRONMENT_AUX_FIELDS = {
   },
   environment_brightness_baseline: {
     label: "環境光 baseline",
-    noteHint: "ROI 輝度の slow EMA 基準値",
+    noteHint: "ROI 輝度の slow EMA 基準値（相対評価用）",
   },
   environment_brightness_sample_count: {
     label: "環境光観測サンプル数",

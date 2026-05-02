@@ -20,6 +20,11 @@ export function resolveCausalSeedPath(): string {
     ?? resolve(PROJECT_ROOT, ".claude/persona/causal-seeds.json");
 }
 
+export function resolveLearnedSeedsPath(): string {
+  return process.env.WARDROBE_LEARNED_SEEDS_PATH?.trim()
+    ?? resolve(PROJECT_ROOT, ".claude/persona/learned-seeds.json");
+}
+
 export function resolvePersonaKuzuDbPath(): string {
   return process.env.WARDROBE_PERSONA_KUZU_DB_PATH?.trim()
     ?? resolve(PROJECT_ROOT, ".claude/workingDirs/persona-causal.kuzu");
@@ -33,6 +38,7 @@ export interface KuzuCausalNodeRow {
   kind: CausalNodeKind;
   dataLevel: PersonaLevel | null;
   description: string | null;
+  sourceType: string | null;
 }
 
 export interface KuzuCausalEdgeRow {
@@ -42,6 +48,7 @@ export interface KuzuCausalEdgeRow {
   causalLevel: CausalLevel;
   weight: number;
   description: string | null;
+  sourceType: string | null;
 }
 
 export interface KuzuCausalPathRow {
@@ -75,6 +82,7 @@ async function spawnKuzuCommand<T>(
     env: {
       ...process.env,
       WARDROBE_CAUSAL_SEED_PATH: resolveCausalSeedPath(),
+      WARDROBE_LEARNED_SEEDS_PATH: resolveLearnedSeedsPath(),
       WARDROBE_PERSONA_KUZU_DB_PATH: dbPath,
     },
     stdout: "pipe",

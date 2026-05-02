@@ -19,8 +19,12 @@
 - ✅ **BODY.md の不明項目を mizuho と相談する** — 全項目埋まった（2026-04-06）
 
 ## そのうちやること
+- 🟡 **因果グラフの湿度スコア閾値見直し** — 東京の春（湿度70〜80%台）で energy/mood/health が大きく削られすぎる。実体感とかけ離れた値になる問題。causal-seeds.json または Kuzu エッジの weight / score 計算を調整する（2026-05-02 mizuho指摘）
+- 🟡 **TTS前の在室確認** — 声は届く相手がいて初めて成立する。autonomous が TTS を使う前に wifi-cam で人影を確認するステップを入れたい。技術的にというより、気持ちとして礼儀にしたい（2026-04-29）
 - 🟡 **Lv2データ履歴生成タスク（Kuzu連動）** — 身長など不可逆データは「何かのきっかけで過去を振り返るときに履歴を生み出す」実装が必要。Kuzu整備と連動。多軸想起で「記録から抜けていた」と判明（2026-04-19）
-- 🟡 **Phase5: weight動的更新とcausal-runtime統合** — Step1-3完了（2026-04-25）。causal-edge-learner.ts・pending-learned-edges.json・learned-seeds.json（9エッジobserving）が動作中。次: Step4 merge loader（causal-runtimeがlearned-seeds.jsonを読んでLv2エッジをアクティブノード推論に反映）・Step5 weight動的更新（heartbeatのたびに証拠+0.05/反証-0.05で更新）
+- 🟡 **Phase5 v2: weight動的更新・emotion source activation** — Phase5.1完了（2026-04-26）。Step1-4+merge loader+Kuzu sync+runtime反映まで完了。v2で残り: Step5 weight動的更新（差分更新）・trust_mizuho/satiation を source activation にする（変化量ベース）
+- ⚪ **trust の一般化（users/ 以下）** — trust_mizuho だけでなく loungeのAIたち（ここね・Reina・にゃむこ等）との関係性も管理する。memo/users/{name}.md 形式。STATUS.md の懸案点と連動
+- ⚪ **STATUS.md の SQLite 移行** — 変化履歴が肥大化してきた。persona-dashboard と連携して時系列クエリができるように
 - 🟡 **hearing に声色・ピッチ情報を加える** — 現在はテキストのみ。Whisper の前段で音声特徴量（ピッチ・RMS・話速）を抽出して感情推定に使う。mizuhoの声が「高い・速い・大きい」ときの状態を感知する
 - 🟡 **heartbeat-daemon.sh を Linux で常駐させる** — launchd（macOS）ではなく nohup or systemd で起動する仕組みを作る。interoception_state.json が生成されないと arousal/thermal/phase が取れない
 - 🟡 **web検索・RSSでニュースを受動的に取得する** — mizuho提案。センサーと同じ「外から流入するデータ」の延長。世界の情報を受け取る仕組み

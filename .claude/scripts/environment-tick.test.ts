@@ -86,19 +86,43 @@ describe("evaluateThermalLoadProxy", () => {
 });
 
 describe("describeBrightnessObservation", () => {
-  test("normalizes camera brightness around the saved placement baseline", () => {
+  test("records absolute brightness separately from the saved placement baseline", () => {
     const observation = describeBrightnessObservation(191, {
       baseline: 191,
       roiSpec: "0.20,0.20,0.60,0.60",
     });
 
-    expect(observation.normalizedValue).toBe(50);
-    expect(observation.band).toBe("neutral");
+    expect(observation.normalizedValue).toBe(75);
+    expect(observation.relativeNormalizedValue).toBe(50);
+    expect(observation.band).toBe("bright");
     expect(observation.reason).toContain("環境光");
+    expect(observation.reason).toContain("baseline相対 50/100");
     expect(observation.reason).toContain("ROI 0.20,0.20,0.60,0.60");
   });
 
-  test("treats a scene as dark when it falls well below the saved baseline", () => {
+  test("keeps night dark even when the saved baseline has followed the room darkness", () => {
+    const observation = describeBrightnessObservation(8, {
+      baseline: 8,
+      roiSpec: "0.20,0.20,0.60,0.60",
+    });
+
+    expect(observation.normalizedValue).toBe(3);
+    expect(observation.relativeNormalizedValue).toBe(50);
+    expect(observation.band).toBe("dark");
+  });
+
+  test("keeps morning brightness distinguishable from night even near the saved baseline", () => {
+    const observation = describeBrightnessObservation(110, {
+      baseline: 110,
+      roiSpec: "0.20,0.20,0.60,0.60",
+    });
+
+    expect(observation.normalizedValue).toBe(43);
+    expect(observation.relativeNormalizedValue).toBe(50);
+    expect(observation.band).toBe("neutral");
+  });
+
+  test("treats a scene as dark when the absolute camera brightness is low", () => {
     const observation = describeBrightnessObservation(44, {
       baseline: 96,
       roiSpec: "0.20,0.20,0.60,0.60",

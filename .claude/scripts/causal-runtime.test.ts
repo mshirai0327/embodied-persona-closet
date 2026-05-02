@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 
 const ORIGINAL_SEED_PATH = process.env.WARDROBE_CAUSAL_SEED_PATH;
+const ORIGINAL_LEARNED_PATH = process.env.WARDROBE_LEARNED_SEEDS_PATH;
 const ORIGINAL_KUZU_DB_PATH = process.env.WARDROBE_PERSONA_KUZU_DB_PATH;
 const kuzuTest = process.env.WARDROBE_RUN_KUZU_TESTS === "1" ? test : test.skip;
 
@@ -14,9 +15,12 @@ async function importRuntimeModule() {
   return import(new URL(`./causal-runtime.ts?test=${Date.now()}`, import.meta.url).href);
 }
 
-async function setupSeedGraph() {
+async function setupSeedGraph(options: {
+  learnedEdges?: unknown[];
+} = {}) {
   tmpDirPath = await mkdtemp(join(tmpdir(), "persona-causal-runtime-test-"));
   const seedPath = join(tmpDirPath, "causal-seeds.json");
+  const learnedPath = join(tmpDirPath, "learned-seeds.json");
   const dbPath = join(tmpDirPath, "persona-causal.kuzu");
 
   await Bun.write(seedPath, JSON.stringify({
@@ -104,8 +108,12 @@ async function setupSeedGraph() {
       },
     ],
   }, null, 2));
+  await Bun.write(learnedPath, JSON.stringify({
+    learnedEdges: options.learnedEdges ?? [],
+  }, null, 2));
 
   process.env.WARDROBE_CAUSAL_SEED_PATH = seedPath;
+  process.env.WARDROBE_LEARNED_SEEDS_PATH = learnedPath;
   process.env.WARDROBE_PERSONA_KUZU_DB_PATH = dbPath;
 
   return importRuntimeModule();
@@ -116,6 +124,12 @@ afterEach(async () => {
     delete process.env.WARDROBE_CAUSAL_SEED_PATH;
   } else {
     process.env.WARDROBE_CAUSAL_SEED_PATH = ORIGINAL_SEED_PATH;
+  }
+
+  if (ORIGINAL_LEARNED_PATH == null) {
+    delete process.env.WARDROBE_LEARNED_SEEDS_PATH;
+  } else {
+    process.env.WARDROBE_LEARNED_SEEDS_PATH = ORIGINAL_LEARNED_PATH;
   }
 
   if (ORIGINAL_KUZU_DB_PATH == null) {
@@ -194,6 +208,38 @@ describe("causal-runtime", () => {
     expect(health).toBeTruthy();
     expect(energy?.delta).toBeLessThan(0);
     expect(health?.delta).toBeLessThan(0);
+  }, 15000);
+
+  kuzuTest("uses directed learned edges reachable from environment sources", async () => {
+    const module = await setupSeedGraph({
+      learnedEdges: [
+        {
+          id: "learned_energy_mood_001",
+          pair: ["mood", "energy"],
+          source: "energy",
+          target: "mood",
+          direction: "energy->mood",
+          relation: "lifts",
+          causalLevel: "Lv2",
+          weight: 0.3,
+          status: "observing",
+          evidenceCount: 17,
+        },
+      ],
+    });
+
+    const proposals = await module.deriveEnvironmentCausalProposals([
+      {
+        sourceId: "environment_thermal_load",
+        normalizedValue: 90,
+        reason: "環境熱負荷 proxy 90/100",
+      },
+    ]);
+
+    const mood = proposals.find((proposal: { field: string }) => proposal.field === "mood");
+    expect(mood).toBeTruthy();
+    expect(mood?.delta).toBeLessThan(0);
+    expect(mood?.topPathDescription).toContain("energy");
   }, 15000);
 
   kuzuTest("maps low thermal load to recovery-oriented energy and health proposals", async () => {

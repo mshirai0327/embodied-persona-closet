@@ -11,6 +11,7 @@ import {
   setEnvironmentObservation,
 } from "./environment-store";
 import { readKuzuCausalGraphSnapshot, syncKuzuCausalGraph } from "./causal-kuzu";
+import { readMergedCausalGraph } from "./causal-graph-loader";
 
 const SCRIPT_DIR = import.meta.dir;
 const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
@@ -20,6 +21,7 @@ const DEFAULT_BODY_PATH = resolve(PROJECT_ROOT, "BODY.md");
 const DEFAULT_STATUS_PATH = resolve(PROJECT_ROOT, "STATUS.md");
 const DEFAULT_ENVIRONMENT_PATH = resolve(PROJECT_ROOT, "ENVIRONMENT.md");
 const DEFAULT_CAUSAL_SEED_PATH = resolve(PROJECT_ROOT, ".claude/persona/causal-seeds.json");
+const DEFAULT_LEARNED_SEED_PATH = resolve(PROJECT_ROOT, ".claude/persona/learned-seeds.json");
 
 export const PERSONA_DB_PATH =
   process.env.WARDROBE_PERSONA_DB_PATH?.trim()
@@ -140,6 +142,33 @@ export interface CausalEdge {
   description?: string;
 }
 
+export interface LearnedSeedEvidenceSummary {
+  id: string;
+  timestamp: string;
+  valence: string;
+  contentSnippet: string;
+}
+
+export interface LearnedSeedEdge {
+  id: string;
+  pair?: string[];
+  source?: string | null;
+  target?: string | null;
+  direction?: string;
+  relation: string;
+  causalLevel: CausalLevel;
+  weight: number;
+  status: string;
+  evidenceCount: number;
+  evidenceSummary?: LearnedSeedEvidenceSummary[];
+  positiveEvidenceCount?: number;
+  negativeEvidenceCount?: number;
+  neutralEvidenceCount?: number;
+  learnedAt?: string;
+  lastUpdated?: string;
+  description?: string;
+}
+
 interface DashboardMetricRow {
   key: string;
   label: string;
@@ -184,6 +213,7 @@ interface DashboardNodeRow {
   kind: CausalNodeKind;
   dataLevel: PersonaLevel | null;
   description: string | null;
+  sourceType?: string | null;
 }
 
 interface DashboardEdgeRow {
@@ -193,6 +223,32 @@ interface DashboardEdgeRow {
   causalLevel: CausalLevel;
   weight: number;
   description: string | null;
+  sourceType?: string | null;
+}
+
+interface DashboardLearnedSeedEdgeRow {
+  id: string;
+  pair: string[];
+  sourceId: string | null;
+  targetId: string | null;
+  direction: string;
+  relation: string;
+  causalLevel: CausalLevel;
+  weight: number;
+  status: string;
+  evidenceCount: number;
+  positiveEvidenceCount: number;
+  negativeEvidenceCount: number;
+  neutralEvidenceCount: number;
+  learnedAt: string | null;
+  lastUpdated: string | null;
+  description: string | null;
+  evidenceSummary: LearnedSeedEvidenceSummary[];
+}
+
+interface DashboardLearnedSeedGraph {
+  nodes: DashboardNodeRow[];
+  edges: DashboardLearnedSeedEdgeRow[];
 }
 
 interface DashboardMarkdownDocuments {
@@ -467,6 +523,154 @@ export function ensurePersonaSchema(db: Database): void {
 function readPathOrNull(path: string): Promise<string | null> {
   const file = Bun.file(path);
   return file.exists().then(async (exists) => (exists ? file.text() : null));
+}
+
+function parseJsonOrNull<T>(text: string | null | undefined): T | null {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+function kindFromMetric(metric: DashboardMetricRow): CausalNodeKind {
+  if (metric.domain === "environment") return "environment";
+  if (metric.level === "Lv3-1") return "vital";
+  if (metric.level === "Lv3-2") return "emotion";
+  return "latent";
+}
+
+function nodeFromMetric(metric: DashboardMetricRow): DashboardNodeRow {
+  return {
+    id: metric.key,
+    label: metric.label,
+    kind: kindFromMetric(metric),
+    dataLevel: metric.level,
+    description: metric.reason,
+  };
+}
+
+export function buildCausalSeedGraphSnapshot(
+  seedText: string | null
+): { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] } {
+  const seed = parseJsonOrNull<{ nodes?: CausalNode[]; edges?: CausalEdge[] }>(seedText);
+
+  return {
+    nodes: (seed?.nodes ?? []).map((node) => ({
+      id: node.id,
+      label: node.label,
+      kind: node.kind,
+      dataLevel: node.dataLevel,
+      description: node.description ?? null,
+      sourceType: "seed",
+    })),
+    edges: (seed?.edges ?? []).map((edge) => ({
+      sourceId: edge.source,
+      targetId: edge.target,
+      relation: edge.relation,
+      causalLevel: edge.causalLevel,
+      weight: edge.weight,
+      description: edge.description ?? null,
+      sourceType: "seed",
+    })),
+  };
+}
+
+function normalizeLearnedNodeIds(edge: LearnedSeedEdge): string[] {
+  const ids = [
+    ...(edge.pair ?? []),
+    edge.source ?? null,
+    edge.target ?? null,
+  ]
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(ids));
+}
+
+function normalizeEvidenceSummary(
+  evidenceSummary: LearnedSeedEvidenceSummary[] | undefined
+): LearnedSeedEvidenceSummary[] {
+  return (evidenceSummary ?? [])
+    .filter((entry) => entry.id && entry.timestamp)
+    .slice(0, 3)
+    .map((entry) => ({
+      id: entry.id,
+      timestamp: entry.timestamp,
+      valence: entry.valence,
+      contentSnippet: entry.contentSnippet,
+    }));
+}
+
+export function buildLearnedSeedGraphSnapshot(options: {
+  learnedSeedText: string | null;
+  causalSeedText: string | null;
+  current: DashboardMetricRow[];
+}): DashboardLearnedSeedGraph {
+  const learnedSeed = parseJsonOrNull<{ learnedEdges?: LearnedSeedEdge[] }>(options.learnedSeedText);
+  const seedGraph = buildCausalSeedGraphSnapshot(options.causalSeedText);
+  const seedNodeById = new Map(seedGraph.nodes.map((node) => [node.id, node]));
+  const currentMetricByKey = new Map(options.current.map((metric) => [metric.key, metric]));
+  const nodeIds = new Set<string>();
+  const edges: DashboardLearnedSeedEdgeRow[] = [];
+
+  for (const edge of learnedSeed?.learnedEdges ?? []) {
+    const pair = normalizeLearnedNodeIds(edge);
+    const sourceId = edge.source?.trim() || null;
+    const targetId = edge.target?.trim() || null;
+
+    if (pair.length < 2 && (!sourceId || !targetId)) {
+      continue;
+    }
+
+    const endpointIds = sourceId && targetId ? [sourceId, targetId] : pair;
+    for (const id of endpointIds) {
+      nodeIds.add(id);
+    }
+
+    edges.push({
+      id: edge.id,
+      pair,
+      sourceId,
+      targetId,
+      direction: edge.direction ?? (sourceId && targetId ? `${sourceId}->${targetId}` : "ambiguous"),
+      relation: edge.relation,
+      causalLevel: edge.causalLevel,
+      weight: edge.weight,
+      status: edge.status,
+      evidenceCount: edge.evidenceCount,
+      positiveEvidenceCount: edge.positiveEvidenceCount ?? 0,
+      negativeEvidenceCount: edge.negativeEvidenceCount ?? 0,
+      neutralEvidenceCount: edge.neutralEvidenceCount ?? 0,
+      learnedAt: edge.learnedAt ?? null,
+      lastUpdated: edge.lastUpdated ?? null,
+      description: edge.description ?? null,
+      evidenceSummary: normalizeEvidenceSummary(edge.evidenceSummary),
+    });
+  }
+
+  const nodes = Array.from(nodeIds)
+    .map((id) => {
+      const seedNode = seedNodeById.get(id);
+      if (seedNode) return seedNode;
+
+      const metric = currentMetricByKey.get(id);
+      if (metric) return nodeFromMetric(metric);
+
+      return {
+        id,
+        label: id,
+        kind: "latent" as const,
+        dataLevel: null,
+        description: null,
+      };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, "ja"));
+
+  edges.sort((left, right) => right.evidenceCount - left.evidenceCount || left.id.localeCompare(right.id));
+
+  return { nodes, edges };
 }
 
 export function parseSoulDocument(text: string): ParsedSoulDocument {
@@ -983,29 +1187,36 @@ function upsertMeta(db: Database, meta: PersonaMeta): void {
 }
 
 async function seedCausalGraph(db: Database): Promise<void> {
-  const seedText = await readPathOrNull(DEFAULT_CAUSAL_SEED_PATH);
-  if (!seedText) return;
+  const graph = await readMergedCausalGraph({
+    causalSeedPath: DEFAULT_CAUSAL_SEED_PATH,
+    learnedSeedsPath: DEFAULT_LEARNED_SEED_PATH,
+  });
 
-  const seed = JSON.parse(seedText) as { nodes?: CausalNode[]; edges?: CausalEdge[] };
-
-  db.query("DELETE FROM causal_edges WHERE source_type = 'seed'").run();
-  db.query("DELETE FROM causal_nodes WHERE source_type = 'seed'").run();
+  db.query("DELETE FROM causal_edges WHERE source_type IN ('seed', 'learned')").run();
+  db.query("DELETE FROM causal_nodes WHERE source_type IN ('seed', 'learned')").run();
 
   const insertNode = db.query(
     `INSERT INTO causal_nodes (id, label, kind, data_level, description, source_type)
-     VALUES (?, ?, ?, ?, ?, 'seed')`
+     VALUES (?, ?, ?, ?, ?, ?)`
   );
   const insertEdge = db.query(
     `INSERT INTO causal_edges (
       source_id, target_id, relation, causal_level, weight, description, source_type
-    ) VALUES (?, ?, ?, ?, ?, ?, 'seed')`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
 
-  for (const node of seed.nodes ?? []) {
-    insertNode.run(node.id, node.label, node.kind, node.dataLevel, node.description ?? null);
+  for (const node of graph.nodes) {
+    insertNode.run(
+      node.id,
+      node.label,
+      node.kind,
+      node.dataLevel,
+      node.description ?? null,
+      node.sourceType,
+    );
   }
 
-  for (const edge of seed.edges ?? []) {
+  for (const edge of graph.edges) {
     insertEdge.run(
       edge.source,
       edge.target,
@@ -1013,6 +1224,7 @@ async function seedCausalGraph(db: Database): Promise<void> {
       edge.causalLevel,
       edge.weight,
       edge.description ?? null,
+      edge.sourceType,
     );
   }
 }
@@ -1108,12 +1320,24 @@ export async function recordEnvironmentObservation(
   await syncPersonaStructuredStore();
 }
 
+function filterSeedDashboardGraph(graph: {
+  nodes: DashboardNodeRow[];
+  edges: DashboardEdgeRow[];
+}): { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] } {
+  const edges = graph.edges.filter((edge) => edge.sourceType !== "learned");
+  const visibleNodeIds = new Set(edges.flatMap((edge) => [edge.sourceId, edge.targetId]));
+  const nodes = graph.nodes.filter((node) => node.sourceType !== "learned" || visibleNodeIds.has(node.id));
+
+  return { nodes, edges };
+}
+
 export async function readPersonaDashboardSnapshot(): Promise<{
   meta: Record<string, string>;
   current: DashboardMetricRow[];
   history: DashboardHistoryRow[];
   observations: EnvironmentObservationRow[];
   graph: { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] };
+  learnedGraph: DashboardLearnedSeedGraph;
 }> {
   const documents = await Promise.all([
     readPathOrNull(DEFAULT_SOUL_PATH),
@@ -1138,34 +1362,25 @@ export async function readPersonaDashboardSnapshot(): Promise<{
   }
 
   let graph: { nodes: DashboardNodeRow[]; edges: DashboardEdgeRow[] };
+  const [causalSeedText, learnedSeedText] = await Promise.all([
+    readPathOrNull(DEFAULT_CAUSAL_SEED_PATH),
+    readPathOrNull(DEFAULT_LEARNED_SEED_PATH),
+  ]);
 
   try {
-    graph = await readKuzuCausalGraphSnapshot();
+    graph = filterSeedDashboardGraph(await readKuzuCausalGraphSnapshot());
   } catch {
-    const seedText = await readPathOrNull(DEFAULT_CAUSAL_SEED_PATH);
-    const seed = seedText ? JSON.parse(seedText) as { nodes?: CausalNode[]; edges?: CausalEdge[] } : null;
-    graph = {
-      nodes: (seed?.nodes ?? []).map((node) => ({
-        id: node.id,
-        label: node.label,
-        kind: node.kind,
-        dataLevel: node.dataLevel,
-        description: node.description ?? null,
-      })),
-      edges: (seed?.edges ?? []).map((edge) => ({
-        sourceId: edge.source,
-        targetId: edge.target,
-        relation: edge.relation,
-        causalLevel: edge.causalLevel,
-        weight: edge.weight,
-        description: edge.description ?? null,
-      })),
-    };
+    graph = buildCausalSeedGraphSnapshot(causalSeedText);
   }
 
   return {
     ...markdownSnapshot,
     graph,
+    learnedGraph: buildLearnedSeedGraphSnapshot({
+      learnedSeedText,
+      causalSeedText,
+      current: markdownSnapshot.current,
+    }),
   };
 }
 

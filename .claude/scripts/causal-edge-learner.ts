@@ -577,6 +577,20 @@ export async function saveLearnedSeedsSnapshot(
   await Bun.write(resolvedPath, JSON.stringify(snapshot, null, 2) + "\n");
 }
 
+export async function extractPendingLearnedEdgesSnapshot(options: {
+  now?: Date;
+  memoryDbPath?: string;
+  scanLimit?: number;
+} = {}): Promise<PendingLearnedEdgesSnapshot> {
+  const memoryDbPath = options.memoryDbPath ?? resolveMemoryDbPath({ scriptDir: import.meta.dir });
+  const rows = readLearnerMemoryRows(memoryDbPath, options.scanLimit ?? MEMORY_SCAN_LIMIT);
+  return buildPendingLearnedEdgesSnapshot(rows, {
+    now: options.now,
+    memoryDbPath,
+    scanLimit: options.scanLimit,
+  });
+}
+
 export function promotePendingCandidatesToLearnedSeeds(
   pending: PendingLearnedEdgesSnapshot,
   existing: LearnedSeedsSnapshot,
@@ -616,11 +630,9 @@ export async function buildAndSavePendingLearnedEdgesSnapshot(options: {
   memoryDbPath?: string;
   scanLimit?: number;
 } = {}): Promise<PendingLearnedEdgesSnapshot> {
-  const memoryDbPath = options.memoryDbPath ?? resolveMemoryDbPath({ scriptDir: import.meta.dir });
-  const rows = readLearnerMemoryRows(memoryDbPath, options.scanLimit ?? MEMORY_SCAN_LIMIT);
-  const snapshot = buildPendingLearnedEdgesSnapshot(rows, {
+  const snapshot = await extractPendingLearnedEdgesSnapshot({
     now: options.now,
-    memoryDbPath,
+    memoryDbPath: options.memoryDbPath,
     scanLimit: options.scanLimit,
   });
   await savePendingLearnedEdgesSnapshot(snapshot, options.outputPath);
@@ -677,6 +689,12 @@ export async function buildAndPromotePendingLearnedEdgesSnapshot(options: {
 
 async function main() {
   const args = new Set(Bun.argv.slice(2));
+
+  if (args.has("--dry-run") || args.has("--candidates")) {
+    const snapshot = await extractPendingLearnedEdgesSnapshot();
+    console.log(JSON.stringify(snapshot, null, 2));
+    return;
+  }
 
   if (args.has("--promote-pending")) {
     const result = await promotePendingLearnedEdgesSnapshot();

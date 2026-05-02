@@ -3,7 +3,7 @@ KEY ?= energy
 DIRECTION ?= both
 DEPTH ?= 3
 
-.PHONY: help persona-sync persona-dashboard persona-causal-sync persona-causal-summary persona-causal-snapshot persona-causal-node persona-causal-trace persona-causal-memory persona-test
+.PHONY: help persona-sync persona-dashboard persona-causal-sync persona-causal-summary persona-causal-snapshot persona-causal-node persona-causal-trace persona-causal-memory persona-causal-candidates persona-test
 
 help:
 	@printf '%s\n' \
@@ -15,6 +15,7 @@ help:
 		'make persona-causal-node KEY=energy' \
 		'make persona-causal-trace KEY=energy DIRECTION=both DEPTH=3' \
 		'make persona-causal-memory    # 因果と交差する記憶ヒントを生成' \
+		'make persona-causal-candidates # learned edge 候補を表示（ファイル更新なし）' \
 		'make persona-test             # persona 関連テストを実行'
 
 persona-sync:
@@ -41,5 +42,8 @@ persona-causal-trace:
 persona-causal-memory:
 	$(BUN) .claude/scripts/causal-memory-bridge.ts
 
+persona-causal-candidates:
+	$(BUN) .claude/scripts/causal-edge-learner.ts --dry-run
+
 persona-test:
-	$(BUN) test ./.claude/scripts/causal-kuzu.test.ts ./.claude/scripts/causal-runtime.test.ts ./.claude/scripts/causal-hint-store.test.ts ./.claude/scripts/causal-hint.test.ts ./.claude/scripts/causal-memory-bridge.test.ts ./.claude/scripts/recall-lite.test.ts ./.claude/scripts/causal-graph.test.ts ./.claude/scripts/persona-data.test.ts ./.claude/scripts/environment-store.test.ts ./.claude/scripts/environment-tick.test.ts ./.claude/scripts/jma-weather.test.ts
+	$(BUN) test ./.claude/scripts/causal-kuzu.test.ts ./.claude/scripts/causal-runtime.test.ts ./.claude/scripts/causal-hint-store.test.ts ./.claude/scripts/causal-hint.test.ts ./.claude/scripts/causal-memory-bridge.test.ts ./.claude/scripts/recall-lite.test.ts ./.claude/scripts/causal-graph.test.ts ./.claude/scripts/causal-edge-learner.test.ts ./.claude/scripts/persona-data.test.ts ./.claude/scripts/environment-store.test.ts ./.claude/scripts/environment-tick.test.ts ./.claude/scripts/jma-weather.test.ts

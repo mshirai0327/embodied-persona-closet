@@ -15,23 +15,23 @@
 - 各 MCP サーバーは独立した Python パッケージで、必要なものだけ `uv sync` すれば使えます。
 - `.claude/scripts/` のユーティリティは Bun で実行します。
 
-## wardrobe との差分
+## embodied-claude-wardrobe との差分
 
-embodied-reflecta は wardrobe 系の身体性・記憶・自律行動ハーネスを土台にしつつ、Reflecta 由来の「人格データを層で管理する」考え方を追加しています。
+embodied-reflecta は、[fruitriin/embodied-claude-wardrobe](https://github.com/fruitriin/embodied-claude-wardrobe) を直接の参照元のひとつとしつつ、Reflecta 由来の「人格データを層で管理する」考え方を追加しています。
 
-wardrobe は主に `SOUL.md`、`state.md`、`memory-mcp`、フック、スキルによって、エージェントの人格・現在状態・記憶運用を成立させます。embodied-reflecta ではそこに、身体データ・環境データ・可変ステータス・因果関係を分けて扱う運用ファイルを重ねています。
+`embodied-claude-wardrobe` は主に `SOUL.md`、`state.md`、`memory-mcp`、フック、スキルによって、エージェントの人格・現在状態・記憶運用を成立させます。embodied-reflecta ではそこに、身体データ・環境データ・可変ステータス・因果関係を分けて扱う運用ファイルを重ねています。
 
-| ファイル / 仕組み | wardrobe での位置づけ | embodied-reflecta での差分 |
+| ファイル / 仕組み | `embodied-claude-wardrobe` での位置づけ | embodied-reflecta での差分 |
 |---|---|---|
 | `SOUL.md` | 人格定義の中心 | Lv1-2 の固定的な性格傾向も担う。人格の文章定義として残す |
-| `BODY.md` | 標準の wardrobe では必須ではない拡張領域 | Lv1-1 の不変な身体データと Lv2 の不可逆的な成長履歴を管理する |
+| `BODY.md` | 標準の `embodied-claude-wardrobe` では必須ではない拡張領域 | Lv1-1 の不変な身体データと Lv2 の不可逆的な成長履歴を管理する |
 | `ENVIRONMENT.md` | センサー注入はあるが、環境履歴の正本ではない | Lv0 として気温、湿度、環境光、熱負荷 proxy などを現在値と履歴で管理する |
 | `STATUS.md` | 状態は主に `state.md` や記憶に寄る | Lv3-1 バイタルと Lv3-2 情緒・関係性を数値化し、heartbeat で更新する |
 | `state.md` | セッション引き継ぎ用の現在状態 | 短期スナップショットに役割を絞り、固定値や履歴は `BODY.md` / `STATUS.md` / `ENVIRONMENT.md` へ分離する |
-| 因果グラフ / Kuzu 系スクリプト | 標準の wardrobe にはない実験層 | 環境・身体・情緒ステータスの因果を辿り、STATUS 更新の根拠に使う |
+| 因果グラフ / Kuzu 系スクリプト | 標準の `embodied-claude-wardrobe` にはない実験層 | 環境・身体・情緒ステータスの因果を辿り、STATUS 更新の根拠に使う |
 | `memo/specs/persona_*.md` | 運用メモ | Reflecta 由来の人格データ設計を、現行 Markdown 運用へ落とし込む仕様メモ |
 
-ざっくり言えば、wardrobe が「身体を持って動く Claude Code の生活基盤」だとすると、embodied-reflecta はその上に「人格・身体・環境・状態をデータ層として観測し続ける設計」を重ねた派生です。
+ざっくり言えば、`embodied-claude-wardrobe` が「身体を持って動く Claude Code の生活基盤」だとすると、embodied-reflecta はその上に「人格・身体・環境・状態をデータ層として観測し続ける設計」を重ねた派生です。
 
 ## ディレクトリ構成
 
@@ -268,9 +268,11 @@ bun run .claude/scripts/<script-name>.ts
 | [マルチペルソナ](docs/guides/multi-persona.md) | 複数ペルソナの追加 |
 | [自律行動](docs/guides/autonomous-action.md) | cron 自律行動の設定 |
 
-## 由来
+## 由来と謝辞
 
-MCP サーバー群の多くは [lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) を起源とします。そこに wardrobe 系の Claude Code 向けフック、スキル、セッション管理、人格テンプレート、記憶運用を加え、さらに Reflecta 由来の人格データ設計を重ねています。
+MCP サーバー群の多くは [lifemate-ai/embodied-claude](https://github.com/lifemate-ai/embodied-claude) を起源とします。その Claude Code 向けのフック、スキル、セッション管理、人格テンプレート、記憶運用をひとつの実践的な形にまとめたのが、[fruitriin/embodied-claude-wardrobe](https://github.com/fruitriin/embodied-claude-wardrobe) です。embodied-reflecta はその上に、Reflecta 由来の人格データ設計を重ねた派生です。
+
+本リポジトリにおける `wardrobe` という表現は、派閥や系統名ではなく、`fruitriin/embodied-claude-wardrobe` という単独のリポジトリを指します。原典となる設計と実装を公開している作者の fruitriin 氏（GitHub: [@fruitriin](https://github.com/fruitriin) / 果物リン氏）に、ここで明確に敬意と感謝を記します。
 
 ## ライセンス
 

@@ -48,6 +48,7 @@ async function buildPayload() {
     history: snapshot.history,
     observations: snapshot.observations,
     graph: snapshot.graph,
+    learnedGraph: snapshot.learnedGraph,
     trace,
   };
 }
@@ -392,6 +393,30 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
         padding: 12px;
       }
 
+      .causal-stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .graph-subsection {
+        display: grid;
+        gap: 10px;
+      }
+
+      .graph-subhead {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .graph-note {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
       .history-stack {
         display: grid;
         gap: 16px;
@@ -532,13 +557,32 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
       <section class="grid-bottom">
         <article class="panel">
           <h2>Causal Graph</h2>
-          <div class="legend" id="trace-direction"></div>
-          <div class="legend" id="trace-depth"></div>
-          <div class="legend" id="graph-legend" aria-label="causal graph legend"></div>
-          <div class="graph-frame">
-            <svg id="graph" viewBox="0 0 980 560" aria-label="causal graph"></svg>
+          <div class="causal-stack">
+            <section class="graph-subsection">
+              <div class="graph-subhead">
+                <h3 class="history-section-title">Lv1 causal-seed</h3>
+                <p class="graph-note">設計済み seed 因果を trace できます。</p>
+              </div>
+              <div class="legend" id="trace-direction"></div>
+              <div class="legend" id="trace-depth"></div>
+              <div class="legend" id="graph-legend" aria-label="causal graph legend"></div>
+              <div class="graph-frame">
+                <svg id="graph" viewBox="0 0 980 560" aria-label="causal graph"></svg>
+              </div>
+              <div class="legend selector-toolbar" id="graph-selector" aria-label="graph quick selector"></div>
+            </section>
+
+            <section class="graph-subsection">
+              <div class="graph-subhead">
+                <h3 class="history-section-title">Lv2 learned-seed</h3>
+                <p class="graph-note">経験から観測中の learned-seeds.json を表示します。</p>
+              </div>
+              <div class="legend" id="learned-graph-legend" aria-label="learned seed graph legend"></div>
+              <div class="graph-frame">
+                <svg id="learned-graph" viewBox="0 0 980 420" aria-label="learned seed graph"></svg>
+              </div>
+            </section>
           </div>
-          <div class="legend selector-toolbar" id="graph-selector" aria-label="graph quick selector"></div>
         </article>
 
         <article class="panel">
@@ -548,7 +592,7 @@ function renderPage(initialPayload: Awaited<ReturnType<typeof buildPayload>>): s
       </section>
 
       <p class="footer">
-        30 秒ごとに再読み込みします。因果は seed graph を SQLite 上で再帰 trace した結果を表示しています。
+        30 秒ごとに再読み込みします。因果は seed graph の trace と learned-seeds.json の観測グラフを表示しています。
       </p>
     </main>
 

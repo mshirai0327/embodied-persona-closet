@@ -42,6 +42,22 @@ ENV/
 # MCP config (may contain API keys)
 .mcp.json
 
+# Public export: private state files
+BODY.md
+ENVIRONMENT.md
+FLASH.md
+ROUTINES.md
+SOUL.md
+STATUS.md
+TODO.md
+state.md
+desires.conf
+desires.json
+schedule.conf
+memo/
+.claude/persona/
+.claude/settings.json
+
 # Captured images
 /captures/
 *.jpg

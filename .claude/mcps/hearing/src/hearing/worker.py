@@ -25,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ._behavior import get_behavior
 from .buffer import append_to_buffer
 from .config import (
     BUFFER_FILE,
@@ -49,37 +50,103 @@ def _handle_signal(signum: int, _frame: object) -> None:
 # ── ffmpeg management ─────────────────────────────────────────────────
 
 
-def _build_ffmpeg_cmd(source: str, segment_seconds: int) -> list[str]:
-    system = platform.system()
+def _is_wsl() -> bool:
+    if os.getenv("WSL_DISTRO_NAME") or os.getenv("WSL_INTEROP"):
+        return True
 
-    if source == "local":
-        if system == "Darwin":
-            input_args = ["-f", "avfoundation", "-i", ":0"]
-        elif system == "Linux":
-            input_args = ["-f", "alsa", "-i", "default"]
+    release = platform.release().lower()
+    if "microsoft" in release or "wsl" in release:
+        return True
+
+    try:
+        version = Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+    return "microsoft" in version or "wsl" in version
+
+
+def _default_input_device(input_format: str) -> str:
+    defaults = {
+        "alsa": "default",
+        "avfoundation": ":0",
+        "openal": "default",
+        "pulse": os.getenv("PULSE_SOURCE", "default"),
+    }
+    return defaults.get(input_format, "default")
+
+
+def _dedupe_input_args(candidates: list[list[str]]) -> list[list[str]]:
+    seen: set[tuple[str, ...]] = set()
+    deduped: list[list[str]] = []
+    for args in candidates:
+        key = tuple(args)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(args)
+    return deduped
+
+
+def _local_input_candidates() -> list[list[str]]:
+    configured_format = str(
+        os.getenv("HEARING_LOCAL_INPUT_FORMAT")
+        or get_behavior("hearing", "local_input_format", "")
+    ).strip()
+    configured_device = str(
+        os.getenv("HEARING_LOCAL_INPUT_DEVICE")
+        or get_behavior("hearing", "local_input_device", "")
+    ).strip()
+
+    candidates: list[list[str]] = []
+    if configured_format:
+        input_device = configured_device or _default_input_device(configured_format)
+        candidates.append(
+            ["-f", configured_format, "-i", input_device]
+        )
+
+    system = platform.system()
+    if system == "Darwin":
+        candidates.append(["-f", "avfoundation", "-i", ":0"])
+        return _dedupe_input_args(candidates)
+
+    if system == "Linux":
+        if _is_wsl():
+            candidates.append(["-f", "pulse", "-i", os.getenv("PULSE_SOURCE", "default")])
+            candidates.append(["-f", "alsa", "-i", "default"])
         else:
-            raise RuntimeError(
-                f"Unsupported platform for local microphone: {system}"
-            )
+            candidates.append(["-f", "alsa", "-i", "default"])
+            if os.getenv("PULSE_SERVER"):
+                candidates.append(["-f", "pulse", "-i", os.getenv("PULSE_SOURCE", "default")])
+        return _dedupe_input_args(candidates)
+
+    raise RuntimeError(f"Unsupported platform for local microphone: {system}")
+
+
+def _build_ffmpeg_cmds(source: str, segment_seconds: int) -> list[list[str]]:
+    if source == "local":
+        input_args_list = _local_input_candidates()
     else:
-        input_args = ["-rtsp_transport", "tcp", "-i", source]
+        input_args_list = [["-rtsp_transport", "tcp", "-i", source]]
 
     seg_pattern = str(SEGMENT_DIR / "seg_%03d.wav")
     seg_list = str(SEGMENT_LIST)
 
     return [
-        "ffmpeg",
-        "-loglevel", "warning",
-        *input_args,
-        "-ar", "16000",
-        "-ac", "1",
-        "-f", "segment",
-        "-segment_time", str(segment_seconds),
-        "-segment_list", seg_list,
-        "-segment_list_type", "csv",
-        "-segment_list_flags", "+live",
-        "-y",
-        seg_pattern,
+        [
+            "ffmpeg",
+            "-loglevel", "warning",
+            *input_args,
+            "-ar", "16000",
+            "-ac", "1",
+            "-f", "segment",
+            "-segment_time", str(segment_seconds),
+            "-segment_list", seg_list,
+            "-segment_list_type", "csv",
+            "-segment_list_flags", "+live",
+            "-y",
+            seg_pattern,
+        ]
+        for input_args in input_args_list
     ]
 
 
@@ -101,21 +168,32 @@ def _drain_stderr(proc: subprocess.Popen[bytes]) -> None:
 
 def _run_ffmpeg(source: str, segment_seconds: int) -> subprocess.Popen[bytes]:
     """Start ffmpeg and return the Popen handle."""
-    cmd = _build_ffmpeg_cmd(source, segment_seconds)
-    logger.info("ffmpeg cmd: %s", " ".join(cmd))
+    errors: list[str] = []
 
-    proc = subprocess.Popen(
-        cmd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-    )
+    for cmd in _build_ffmpeg_cmds(source, segment_seconds):
+        logger.info("ffmpeg cmd: %s", " ".join(cmd))
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        time.sleep(0.5)
 
-    threading.Thread(
-        target=_drain_stderr, args=(proc,), daemon=True, name="ffmpeg-stderr"
-    ).start()
+        if proc.poll() is None:
+            threading.Thread(
+                target=_drain_stderr, args=(proc,), daemon=True, name="ffmpeg-stderr"
+            ).start()
+            return proc
 
-    return proc
+        stderr_text = ""
+        if proc.stderr is not None:
+            stderr_text = proc.stderr.read().decode(errors="replace").strip()
+        input_desc = " ".join(cmd[3:7])
+        errors.append(f"{input_desc}: {stderr_text or f'rc={proc.returncode}'}")
+
+    detail = "; ".join(errors) if errors else "no ffmpeg input candidates available"
+    raise RuntimeError(f"Failed to start local audio capture: {detail}")
 
 
 # ── Main worker loop ──────────────────────────────────────────────────

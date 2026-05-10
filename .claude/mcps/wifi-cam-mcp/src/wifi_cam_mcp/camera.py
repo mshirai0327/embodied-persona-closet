@@ -4,13 +4,15 @@ import asyncio
 import base64
 import io
 import logging
+import os
+import platform
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from ._behavior import get_behavior
 from .config import CameraConfig
@@ -25,6 +27,18 @@ class Direction(str, Enum):
     RIGHT = "right"
     UP = "up"
     DOWN = "down"
+
+
+class NightVisionMode(str, Enum):
+    """Supported night vision modes."""
+
+    ON = "on"
+    OFF = "off"
+    AUTO = "auto"
+
+    @property
+    def onvif_value(self) -> str:
+        return self.value.upper()
 
 
 @dataclass(frozen=True)
@@ -55,6 +69,15 @@ class MoveResult:
 
     direction: Direction
     degrees: int
+    success: bool
+    message: str
+
+
+@dataclass(frozen=True)
+class NightVisionResult:
+    """Result of a night vision mode change."""
+
+    mode: NightVisionMode
     success: bool
     message: str
 
@@ -92,11 +115,127 @@ def _degrees_to_normalized_tilt(degrees: float) -> float:
     return max(-1.0, min(1.0, degrees / TILT_RANGE_DEGREES))
 
 
+def _get_attr_or_key(value: object, *names: str) -> object | None:
+    """Return the first non-None value from object attrs or dict keys."""
+    for name in names:
+        if isinstance(value, dict) and name in value:
+            candidate = value[name]
+        else:
+            candidate = getattr(value, name, None)
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _normalize_night_vision_mode(value: object) -> NightVisionMode:
+    normalized = str(value).strip().lower()
+    try:
+        return NightVisionMode(normalized)
+    except ValueError as exc:
+        valid = ", ".join(mode.value for mode in NightVisionMode)
+        raise ValueError(
+            f"Invalid night vision mode '{value}'. Must be one of: {valid}."
+        ) from exc
+
+
+def _extract_video_source_token(profile: object) -> str | None:
+    """Extract a video source token from an ONVIF media profile."""
+    video_source_config = _get_attr_or_key(profile, "VideoSourceConfiguration")
+    token = _get_attr_or_key(video_source_config, "SourceToken", "sourceToken", "token")
+    if token is None:
+        token = _get_attr_or_key(profile, "VideoSourceToken")
+    return None if token is None else str(token)
+
+
+def _apply_image_orientation(image: Image.Image, rotation: int) -> Image.Image:
+    """Normalize EXIF orientation and apply configured rotation."""
+    normalized = ImageOps.exif_transpose(image)
+    if rotation == 90:
+        return normalized.transpose(Image.Transpose.ROTATE_90)
+    if rotation == 180:
+        return normalized.transpose(Image.Transpose.ROTATE_180)
+    if rotation == 270:
+        return normalized.transpose(Image.Transpose.ROTATE_270)
+    return normalized
+
+
 # ---------------------------------------------------------------------------
 # Maximum retries for ONVIF reconnection
 # ---------------------------------------------------------------------------
 MAX_RECONNECT_RETRIES = 2
 RECONNECT_DELAY = 1.0  # seconds
+
+
+def _is_wsl() -> bool:
+    if os.getenv("WSL_DISTRO_NAME") or os.getenv("WSL_INTEROP"):
+        return True
+
+    release = platform.release().lower()
+    if "microsoft" in release or "wsl" in release:
+        return True
+
+    try:
+        version = Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+    return "microsoft" in version or "wsl" in version
+
+
+def _default_input_device(input_format: str) -> str:
+    defaults = {
+        "alsa": "default",
+        "avfoundation": ":0",
+        "openal": "default",
+        "pulse": os.getenv("PULSE_SOURCE", "default"),
+    }
+    return defaults.get(input_format, "default")
+
+
+def _dedupe_input_args(candidates: list[list[str]]) -> list[list[str]]:
+    seen: set[tuple[str, ...]] = set()
+    deduped: list[list[str]] = []
+    for args in candidates:
+        key = tuple(args)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(args)
+    return deduped
+
+
+def _local_input_candidates() -> list[list[str]]:
+    configured_format = str(
+        os.getenv("WIFI_CAM_LOCAL_INPUT_FORMAT")
+        or get_behavior("wifi-cam", "local_input_format", "")
+    ).strip()
+    configured_device = str(
+        os.getenv("WIFI_CAM_LOCAL_INPUT_DEVICE")
+        or get_behavior("wifi-cam", "local_input_device", "")
+    ).strip()
+
+    candidates: list[list[str]] = []
+    if configured_format:
+        input_device = configured_device or _default_input_device(configured_format)
+        candidates.append(
+            ["-f", configured_format, "-i", input_device]
+        )
+
+    system = platform.system()
+    if system == "Darwin":
+        candidates.append(["-f", "avfoundation", "-i", ":0"])
+        return _dedupe_input_args(candidates)
+
+    if system == "Linux":
+        if _is_wsl():
+            candidates.append(["-f", "pulse", "-i", os.getenv("PULSE_SOURCE", "default")])
+            candidates.append(["-f", "alsa", "-i", "default"])
+        else:
+            candidates.append(["-f", "alsa", "-i", "default"])
+            if os.getenv("PULSE_SERVER"):
+                candidates.append(["-f", "pulse", "-i", os.getenv("PULSE_SOURCE", "default")])
+        return _dedupe_input_args(candidates)
+
+    raise RuntimeError(f"Unsupported platform for local microphone: {system}")
 
 
 class TapoCamera:
@@ -115,7 +254,9 @@ class TapoCamera:
         self._media_service = None
         self._ptz_service = None
         self._devicemgmt_service = None
+        self._imaging_service = None
         self._profile_token: str | None = None
+        self._video_source_token: str | None = None
 
         # Software position tracking (fallback when GetStatus unavailable)
         self._sw_position = CameraPosition()
@@ -144,6 +285,14 @@ class TapoCamera:
             self._config.host,
             self._config.onvif_port,
         )
+
+        # Zeep defaults to ~/.cache/zeep, which is fragile in restricted or
+        # service-like environments. Keep its cache under the capture directory
+        # unless the caller has explicitly chosen an XDG cache root.
+        if not os.getenv("XDG_CACHE_HOME"):
+            cache_root = self._capture_dir / ".cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            os.environ["XDG_CACHE_HOME"] = str(cache_root)
 
         # onvif-zeep-async has a bug in its default wsdl_dir calculation:
         # it uses dirname(dirname(__file__)) which resolves to
@@ -175,6 +324,8 @@ class TapoCamera:
         if not profiles:
             raise RuntimeError("No media profiles found on camera")
         self._profile_token = profiles[0].token
+        self._video_source_token = _extract_video_source_token(profiles[0])
+        self._imaging_service = None
 
         self._capture_dir.mkdir(parents=True, exist_ok=True)
         self._connected = True
@@ -198,7 +349,9 @@ class TapoCamera:
             self._media_service = None
             self._ptz_service = None
             self._devicemgmt_service = None
+            self._imaging_service = None
             self._profile_token = None
+            self._video_source_token = None
             self._connected = False
             logger.info("Disconnected from camera at %s", self._config.host)
 
@@ -240,9 +393,108 @@ class TapoCamera:
                 logger.warning("Connection error during operation, reconnecting: %s", e)
                 self._connected = False
                 self._cam = None
+                self._imaging_service = None
+                self._video_source_token = None
                 await self._ensure_connected()
                 return await operation(*args, **kwargs)
             raise
+
+    async def _ensure_imaging_ready(self) -> str:
+        """Ensure imaging service is available and return the video source token."""
+        await self._ensure_connected()
+        if not self._video_source_token:
+            raise RuntimeError("Camera does not expose a video source token for imaging control")
+        if self._imaging_service is None:
+            try:
+                self._imaging_service = await self._cam.create_imaging_service()
+            except Exception as exc:
+                raise RuntimeError(
+                    "Camera does not support ONVIF imaging controls"
+                ) from exc
+        return self._video_source_token
+
+    async def _get_supported_night_vision_modes(self) -> list[NightVisionMode]:
+        video_source_token = await self._ensure_imaging_ready()
+        options = await self._imaging_service.GetOptions(
+            {"VideoSourceToken": video_source_token}
+        )
+        raw_modes = _get_attr_or_key(options, "IrCutFilterModes")
+        if raw_modes is None:
+            return []
+        if not isinstance(raw_modes, list):
+            raw_modes = [raw_modes]
+
+        modes: list[NightVisionMode] = []
+        for raw_mode in raw_modes:
+            try:
+                mode = _normalize_night_vision_mode(raw_mode)
+            except ValueError:
+                continue
+            if mode not in modes:
+                modes.append(mode)
+        return modes
+
+    async def get_night_vision_mode(self) -> NightVisionMode | None:
+        """Get the current night vision mode from the camera."""
+        return await self._with_reconnect(self._get_night_vision_mode_impl)
+
+    async def _get_night_vision_mode_impl(self) -> NightVisionMode | None:
+        video_source_token = await self._ensure_imaging_ready()
+        settings = await self._imaging_service.GetImagingSettings(
+            {"VideoSourceToken": video_source_token}
+        )
+        raw_mode = _get_attr_or_key(settings, "IrCutFilter")
+        if raw_mode is None:
+            return None
+        try:
+            return _normalize_night_vision_mode(raw_mode)
+        except ValueError:
+            logger.warning("Unknown IrCutFilter value from camera: %s", raw_mode)
+            return None
+
+    async def set_night_vision_mode(
+        self, mode: str | NightVisionMode
+    ) -> NightVisionResult:
+        """Set the camera night vision mode via ONVIF imaging settings."""
+        normalized_mode = _normalize_night_vision_mode(mode)
+        return await self._with_reconnect(self._set_night_vision_mode_impl, normalized_mode)
+
+    async def _set_night_vision_mode_impl(
+        self, mode: NightVisionMode
+    ) -> NightVisionResult:
+        video_source_token = await self._ensure_imaging_ready()
+        supported_modes = await self._get_supported_night_vision_modes()
+        if supported_modes and mode not in supported_modes:
+            supported = ", ".join(item.value for item in supported_modes)
+            raise RuntimeError(
+                f"Night vision mode '{mode.value}' is not supported by this camera. "
+                f"Supported modes: {supported}"
+            )
+
+        await self._imaging_service.SetImagingSettings(
+            {
+                "VideoSourceToken": video_source_token,
+                "ImagingSettings": {"IrCutFilter": mode.onvif_value},
+                "ForcePersistence": True,
+            }
+        )
+
+        current_mode = await self._get_night_vision_mode_impl()
+        if current_mode is not None and current_mode != mode:
+            return NightVisionResult(
+                mode=current_mode,
+                success=False,
+                message=(
+                    f"Requested night vision mode {mode.value}, "
+                    f"but camera reports {current_mode.value}"
+                ),
+            )
+
+        return NightVisionResult(
+            mode=mode,
+            success=True,
+            message=f"Night vision mode set to {mode.value}",
+        )
 
     # ------------------------------------------------------------------
     # Image capture
@@ -281,12 +533,10 @@ class TapoCamera:
             image_data = await self._capture_via_rtsp()
 
         # Process image
-        image = Image.open(io.BytesIO(image_data))
-
-        # In ceiling mount mode the image is upside-down, so rotate 180°.
-        mount_mode = get_behavior("wifi-cam", "mount_mode", self._config.mount_mode)
-        if mount_mode == "ceiling":
-            image = image.rotate(180)
+        rotation = int(
+            get_behavior("wifi-cam", "image_rotation", self._config.image_rotation)
+        )
+        image = _apply_image_orientation(Image.open(io.BytesIO(image_data)), rotation)
 
         # Resize if needed
         if image.width > self._config.max_width or image.height > self._config.max_height:
@@ -638,8 +888,6 @@ class TapoCamera:
         Returns:
             AudioResult with base64 encoded audio and optional transcript
         """
-        import platform
-
         if mic_source != "local":
             await self._ensure_connected()
 
@@ -649,56 +897,66 @@ class TapoCamera:
 
         try:
             if mic_source == "local":
-                system = platform.system()
-                if system == "Darwin":
-                    cmd = [
+                commands = [
+                    [
                         "ffmpeg",
-                        "-f", "avfoundation",
-                        "-i", ":0",
-                        "-ar", "16000",
-                        "-ac", "1",
-                        "-t", str(duration),
-                        "-y", file_path,
+                        *input_args,
+                        "-ar",
+                        "16000",
+                        "-ac",
+                        "1",
+                        "-t",
+                        str(duration),
+                        "-y",
+                        file_path,
                     ]
-                elif system == "Linux":
-                    cmd = [
-                        "ffmpeg",
-                        "-f", "alsa",
-                        "-i", "default",
-                        "-ar", "16000",
-                        "-ac", "1",
-                        "-t", str(duration),
-                        "-y", file_path,
-                    ]
-                else:
-                    raise RuntimeError(f"Unsupported platform for local microphone: {system}")
+                    for input_args in _local_input_candidates()
+                ]
             else:
                 rtsp_url = self._get_rtsp_url()
-                cmd = [
-                    "ffmpeg",
-                    "-rtsp_transport",
-                    "tcp",
-                    "-i",
-                    rtsp_url,
-                    "-vn",  # No video
-                    "-acodec",
-                    "pcm_s16le",  # PCM 16-bit
-                    "-ar",
-                    "16000",  # 16kHz sample rate (good for speech)
-                    "-ac",
-                    "1",  # Mono
-                    "-t",
-                    str(duration),
-                    "-y",
-                    file_path,
+                commands = [
+                    [
+                        "ffmpeg",
+                        "-rtsp_transport",
+                        "tcp",
+                        "-i",
+                        rtsp_url,
+                        "-vn",  # No video
+                        "-acodec",
+                        "pcm_s16le",  # PCM 16-bit
+                        "-ar",
+                        "16000",  # 16kHz sample rate (good for speech)
+                        "-ac",
+                        "1",  # Mono
+                        "-t",
+                        str(duration),
+                        "-y",
+                        file_path,
+                    ]
                 ]
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await asyncio.wait_for(process.wait(), timeout=duration + 10.0)
+            errors: list[str] = []
+            for cmd in commands:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=duration + 10.0,
+                )
+
+                if process.returncode == 0:
+                    break
+
+                Path(file_path).unlink(missing_ok=True)
+                stderr_text = stderr.decode(errors="replace").strip() if stderr else ""
+                input_desc = " ".join(cmd[1:5])
+                errors.append(f"{input_desc}: {stderr_text or f'rc={process.returncode}'}")
+            else:
+                detail = "; ".join(errors) if errors else "unknown ffmpeg failure"
+                raise RuntimeError(f"Failed to record audio: {detail}")
 
             with open(file_path, "rb") as f:
                 audio_data = f.read()
@@ -716,6 +974,8 @@ class TapoCamera:
                 duration=duration,
                 transcript=transcript,
             )
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Failed to record audio: {e!s}") from e
 

@@ -25,7 +25,7 @@ normal = """通常回。以下の手順で行動する:
 # 今日の初回セッション時に追加されるプロンプト
 header = "## 今日の初回セッション\n今日の最初の召喚だ。以下を実施する："
 steps = [
-  "/wd-great-recall で多軸想起を実行（直近の重要な決定・未完了タスク・curiosity_target）",
+  "/wd-great-recall で前回からの重要な判断と流れを多軸想起する",
   "前日のタスクを確認し、今日の方針を決める",
   "curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入する",
 ]
@@ -43,6 +43,8 @@ footer = "（これは内なる衝動であり、従うかどうかはエージ�
 #   {TIME_RULE}          -- 時間帯ルール
 #   {INTEROCEPTION}      -- 内受容感覚テキスト（空文字もあり）
 #   {RECALL_LITE}        -- 記憶ヒント（空文字もあり）
+#   {STATUS_HINT}        -- STATUS.md の状態に基づく行動ヒント（空文字もあり）
+#   {CAUSAL_HINT}        -- 因果ランタイム由来の感覚ヒント（空文字もあり）
 template = """自律行動（定期巡回）
 
 @SOUL.md
@@ -55,4 +57,4 @@ template = """自律行動（定期巡回）
 {DESIRE_SECTION}## 補足ルール
 - {TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査する
-{INTEROCEPTION}{RECALL_LITE}"""
+{INTEROCEPTION}{RECALL_LITE}{STATUS_HINT}{CAUSAL_HINT}"""

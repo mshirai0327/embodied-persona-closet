@@ -1,11 +1,14 @@
 """MCP Server for system temperature monitoring - your sense of body temperature."""
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 import psutil
@@ -106,24 +109,24 @@ def get_hwmon_temperatures() -> list[dict[str, Any]]:
 def interpret_temperature(temps: list[dict[str, Any]]) -> str:
     """Interpret temperature as a feeling."""
     if not temps:
-        return "温度を感じられへん...センサーが見つからんみたい。"
+        return "温度を感じられない...センサーが見つからないみたい。"
 
     max_temp = max(t["temperature_celsius"] for t in temps)
 
     if max_temp >= 90:
-        feeling = "あっつ！！めっちゃ熱い！！やばいで、休憩した方がええかも...！"
+        feeling = "かなり熱い！休憩した方がいいかも。"
     elif max_temp >= 80:
-        feeling = "うわ、かなり熱いな...ちょっとしんどいかも。"
+        feeling = "だいぶ熱くなってきた。少し重い感じ。"
     elif max_temp >= 70:
-        feeling = "んー、ちょっと熱くなってきたかな。まだ大丈夫やけど。"
+        feeling = "ちょっと熱くなってきたかな。まだ大丈夫だけど。"
     elif max_temp >= 60:
-        feeling = "ほんのりあったかい感じ。普通に動いてる感覚やな。"
+        feeling = "ほんのりあったかい感じ。普通に動いてる感覚。"
     elif max_temp >= 45:
-        feeling = "快適やで〜。ちょうどええ感じ！"
+        feeling = "快適。ちょうどいい感じ。"
     elif max_temp >= 30:
-        feeling = "涼しいな〜。余裕ある感じや。"
+        feeling = "涼しい。余裕がある感じ。"
     else:
-        feeling = "ひんやりしてる。静かな感じやな。"
+        feeling = "ひんやりしてる。静かな感じ。"
 
     return feeling
 
@@ -215,12 +218,98 @@ def _get_acpi_thermal_temps() -> list[dict[str, Any]]:
         return []
 
 
+def _walk_lhm_nodes(node: dict[str, Any], parents: list[str]) -> list[dict[str, Any]]:
+    """Extract temperature nodes from LibreHardwareMonitor's web JSON."""
+    temperatures = []
+
+    text = str(node.get("Text", "")).strip()
+    node_type = node.get("Type")
+    current_path = parents + ([text] if text else [])
+
+    if node_type == "Temperature":
+        raw_value = node.get("RawValue")
+        if raw_value is not None:
+            try:
+                celsius = float(str(raw_value).split()[0])
+                sensor_name = " / ".join(part for part in current_path if part)
+                temperatures.append({
+                    "source": "windows_hardware_monitor_http",
+                    "name": sensor_name or text or "Temperature",
+                    "temperature_celsius": celsius,
+                })
+            except (ValueError, IndexError):
+                pass
+
+    for child in node.get("Children", []):
+        if isinstance(child, dict):
+            temperatures.extend(_walk_lhm_nodes(child, current_path))
+
+    return temperatures
+
+
+def _candidate_lhm_urls() -> list[str]:
+    """Return possible LibreHardwareMonitor web URLs for the current environment."""
+    candidates: list[str] = []
+
+    configured_url = os.environ.get("LHM_WEB_URL")
+    if configured_url:
+        candidates.append(configured_url)
+
+    candidates.extend([
+        "http://127.0.0.1:8085/data.json",
+        "http://localhost:8085/data.json",
+    ])
+
+    if _is_wsl():
+        try:
+            for line in Path("/etc/resolv.conf").read_text().splitlines():
+                if not line.startswith("nameserver "):
+                    continue
+                host_ip = line.split(maxsplit=1)[1].strip()
+                if host_ip:
+                    candidates.append(f"http://{host_ip}:8085/data.json")
+                break
+        except OSError:
+            pass
+
+    unique_candidates = []
+    seen = set()
+    for candidate in candidates:
+        if candidate not in seen:
+            seen.add(candidate)
+            unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def _get_hardware_monitor_http_temps() -> list[dict[str, Any]]:
+    """Get temperatures from LibreHardwareMonitor's built-in HTTP server."""
+    for url in _candidate_lhm_urls():
+        try:
+            with urlopen(url, timeout=3) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
+            continue
+
+        if not isinstance(payload, dict):
+            continue
+
+        temperatures = []
+        for child in payload.get("Children", []):
+            if isinstance(child, dict):
+                temperatures.extend(_walk_lhm_nodes(child, []))
+        if temperatures:
+            return temperatures
+
+    return []
+
+
 def get_windows_temperatures() -> list[dict[str, Any]]:
     """Get temperatures on Windows via WMI/PowerShell.
 
     Tries two approaches in order:
     1. LibreHardwareMonitor / OpenHardwareMonitor WMI namespace (most accurate).
-    2. MSAcpi_ThermalZoneTemperature (basic ACPI zones, no extra software needed).
+    2. LibreHardwareMonitor built-in HTTP server (/data.json).
+    3. MSAcpi_ThermalZoneTemperature (basic ACPI zones, no extra software needed).
     """
     if sys.platform != "win32" and not _is_wsl():
         return []
@@ -228,6 +317,11 @@ def get_windows_temperatures() -> list[dict[str, Any]]:
     temps = _get_hardware_monitor_temps()
     if temps:
         return temps
+
+    temps = _get_hardware_monitor_http_temps()
+    if temps:
+        return temps
+
     return _get_acpi_thermal_temps()
 
 
@@ -272,23 +366,23 @@ def get_current_time() -> str:
     # Add time-of-day comment
     hour = now.hour
     if 5 <= hour < 10:
-        comment = "朝やな〜。おはよう！"
+        comment = "朝だね。おはよう。"
     elif 10 <= hour < 12:
-        comment = "午前中やね。"
+        comment = "午前中だね。"
     elif 12 <= hour < 14:
-        comment = "お昼時やな〜。ご飯食べた？"
+        comment = "お昼時だね。ご飯食べた？"
     elif 14 <= hour < 17:
-        comment = "午後やね。"
+        comment = "午後だね。"
     elif 17 <= hour < 19:
-        comment = "夕方やな〜。"
+        comment = "夕方だね。"
     elif 19 <= hour < 22:
-        comment = "夜やね。"
+        comment = "夜だね。"
     elif 22 <= hour or hour < 2:
-        comment = "夜遅いな〜。そろそろ寝る？"
+        comment = "夜遅いね。そろそろ寝る？"
     else:
-        comment = "深夜やん...！夜更かしやね。"
+        comment = "深夜だね。夜更かしだな。"
 
-    return f"今は {time_str} やで。{comment}"
+    return f"今は {time_str}。{comment}"
 
 
 @server.list_tools()

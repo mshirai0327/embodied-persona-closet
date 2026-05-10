@@ -12,6 +12,7 @@ import logging
 import os
 import signal
 import sys
+from collections import deque
 from pathlib import Path
 
 from mcp.server import Server
@@ -23,6 +24,7 @@ from .config import BUFFER_FILE, PID_FILE, SEGMENT_DIR, HearingConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+STARTUP_CHECK_DELAY = 0.75
 
 
 class HearingMCPServer:
@@ -31,6 +33,8 @@ class HearingMCPServer:
     def __init__(self):
         self._server = Server("hearing-mcp")
         self._worker_proc: asyncio.subprocess.Process | None = None
+        self._worker_stderr_task: asyncio.Task[None] | None = None
+        self._worker_stderr_lines: deque[str] = deque(maxlen=50)
         self._running = False
         self._setup_handlers()
 
@@ -142,12 +146,29 @@ class HearingMCPServer:
         )
 
         # Drain worker stderr as background task
-        asyncio.get_event_loop().create_task(self._drain_worker_stderr())
+        self._worker_stderr_lines.clear()
+        self._worker_stderr_task = asyncio.get_event_loop().create_task(
+            self._drain_worker_stderr(self._worker_proc)
+        )
 
         # Clear stale buffer and offset
         BUFFER_FILE.write_text("")
         Path("/tmp/hearing_stop_offset").unlink(missing_ok=True)
         Path("/tmp/hearing-stop-counter").unlink(missing_ok=True)
+
+        # Catch immediate startup failures so the user sees the real cause.
+        await asyncio.sleep(STARTUP_CHECK_DELAY)
+        if self._worker_proc.returncode is not None:
+            detail = self._startup_failure_detail()
+            self._worker_proc = None
+            self._worker_stderr_task = None
+            return [TextContent(
+                type="text",
+                text=(
+                    "Failed to start continuous listening.\n"
+                    f"{detail}"
+                ),
+            )]
 
         self._running = True
 
@@ -184,12 +205,22 @@ class HearingMCPServer:
         Path("/tmp/hearing_stop_offset").unlink(missing_ok=True)
         Path("/tmp/hearing-stop-counter").unlink(missing_ok=True)
         self._worker_proc = None
+        self._worker_stderr_task = None
+        self._worker_stderr_lines.clear()
         self._running = False
 
         return [TextContent(type="text", text="Stopped continuous listening.")]
 
-    async def _drain_worker_stderr(self) -> None:
-        proc = self._worker_proc
+    def _startup_failure_detail(self) -> str:
+        if self._worker_stderr_lines:
+            return "\n".join(self._worker_stderr_lines)
+        return "The hearing worker exited immediately before producing diagnostics."
+
+    async def _drain_worker_stderr(
+        self,
+        proc: asyncio.subprocess.Process | None = None,
+    ) -> None:
+        proc = proc or self._worker_proc
         if proc is None or proc.stderr is None:
             return
         try:
@@ -199,6 +230,7 @@ class HearingMCPServer:
                     break
                 text = line.decode(errors="replace").rstrip()
                 if text:
+                    self._worker_stderr_lines.append(text)
                     logger.debug("worker: %s", text)
         except (asyncio.CancelledError, OSError):
             pass
@@ -216,13 +248,15 @@ def main() -> None:
     import setproctitle
     setproctitle.setproctitle("hearing-mcp")
 
-    # jurigged hot-reload (watches src/ for live code changes)
-    try:
-        import jurigged
-        jurigged.watch(poll=True)
-        logging.getLogger(__name__).info("jurigged hot-reload enabled")
-    except Exception:
-        pass
+    # stdio MCP servers must stay quiet during startup; enable hot reload only on demand.
+    if os.getenv("HEARING_ENABLE_HOT_RELOAD", "").lower() in {"1", "true", "yes", "on"}:
+        try:
+            import jurigged
+
+            jurigged.watch(pattern="src/**/*.py", logger=None)
+            logging.getLogger(__name__).info("jurigged hot-reload enabled")
+        except Exception:
+            pass
 
     server = HearingMCPServer()
     asyncio.run(server.run())

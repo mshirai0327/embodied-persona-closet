@@ -156,7 +156,7 @@ const DEFAULTS: Record<string, string> = {
   routine_normal:
     "通常回。TODO.md を確認し、タスクがあれば一つ選んで実行。終わったら結果と感想を記憶に書く。なければ無理に何かを生産しない。",
   morning_section:
-    "## 今日の初回セッション\n今日の最初の召喚だ。以下を実施せよ：\n1. /wd-great-recall で多軸想起を実行（直近の重要な決定・未完了タスク・curiosity_target）\n2. 前日のタスクを確認し、今日の方針を決めよ\n3. curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入せよ\n",
+    "## 今日の初回セッション\n今日の最初の召喚だ。以下を実施せよ：\n1. /wd-great-recall で前回からの重要な判断と流れを多軸想起する\n2. 前日のタスクを確認し、今日の方針を決めよ\n3. curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入せよ\n",
   desire_footer:
     "（これは内なる衝動であり、従うかどうかはエージェントの判断。主たるタスクの妨げにならぬ範囲で。）",
   prompt_template: `自律行動（定期巡回）
@@ -171,7 +171,7 @@ const DEFAULTS: Record<string, string> = {
 {DESIRE_SECTION}## 補足ルール
 - {TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査せよ
-{INTEROCEPTION}{RECALL_LITE}`,
+{INTEROCEPTION}{RECALL_LITE}{STATUS_HINT}{CAUSAL_HINT}`,
 };
 
 async function main() {
@@ -226,7 +226,7 @@ async function main() {
         "## 今日の初回セッション\n今日の最初の召喚だ。以下を実施せよ：";
       const steps =
         (doc["morning"]?.["steps"] as string[] | undefined) ?? [
-          "/wd-great-recall で多軸想起を実行（直近の重要な決定・未完了タスク・curiosity_target）",
+          "/wd-great-recall で前回からの重要な判断と流れを多軸想起する",
           "前日のタスクを確認し、今日の方針を決めよ",
           "curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入せよ",
         ];

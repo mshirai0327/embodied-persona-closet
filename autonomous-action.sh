@@ -101,9 +101,11 @@ done
 if [ -n "$OVERRIDE_DATE" ]; then
   HOUR=$((10#$(date -j -f "%Y-%m-%d %H:%M" "$OVERRIDE_DATE" +%H 2>/dev/null || date -d "$OVERRIDE_DATE" +%H)))
   MINUTE=$((10#$(date -j -f "%Y-%m-%d %H:%M" "$OVERRIDE_DATE" +%M 2>/dev/null || date -d "$OVERRIDE_DATE" +%M)))
+  CURRENT_DATE_ISO=$(date -j -f "%Y-%m-%d %H:%M" "$OVERRIDE_DATE" +%F 2>/dev/null || date -d "$OVERRIDE_DATE" +%F)
 else
   HOUR=$((10#$(date +%H)))
   MINUTE=$((10#$(date +%M)))
+  CURRENT_DATE_ISO=$(date +%F)
 fi
 
 # timeout コマンド検出（GNU coreutils or macOS built-in）
@@ -131,7 +133,7 @@ fi
 kill_zombie_claude() {
   local ZOMBIE_THRESHOLD_MIN=25
   local zombie_list pid etime elapsed_min hh mm
-  zombie_list=$(ps -eo pid=,etime=,command= 2>/dev/null | grep claude | grep -v grep | grep "$(basename "$SCRIPT_DIR")" | grep -v "remote-control" | while read zpid zetime zrest; do echo "$zpid $zetime"; done)
+  zombie_list=$(ps -eo pid=,etime=,command= 2>/dev/null | grep claude | grep -v grep | grep "$(basename "$SCRIPT_DIR")" | grep -v "remote-control" | grep -v "\.claude/mcps/" | while read zpid zetime zrest; do echo "$zpid $zetime"; done)
   if [ -z "$zombie_list" ]; then return 0; fi
   while IFS= read -r proc_line; do
     pid=$(echo "$proc_line" | cut -d" " -f1)
@@ -215,6 +217,17 @@ if [ "$SKIP_SCHEDULE" = false ] && { [ "$HOUR" -eq 22 ] || [ "$HOUR" -eq 23 ]; }
   echo "[$BEDTIME_TS] BEDTIME_HEALTH: 就寝前ヘルスチェック実行" >> "$LOG_FILE"
   bun run "$SCRIPT_DIR/.claude/scripts/system-health.ts" --notify >> "$LOG_FILE" 2>&1 || \
     echo "[$BEDTIME_TS] BEDTIME_HEALTH: 通知失敗" >> "$LOG_FILE"
+fi
+
+if [ "$SKIP_SCHEDULE" = false ] && { [ "$HOUR" -eq 22 ] || [ "$HOUR" -eq 23 ]; }; then
+  DISCUSSION_MEMO_TS=$(date +%Y-%m-%d_%H:%M:%S)
+  echo "[$DISCUSSION_MEMO_TS] DISCUSSION_MEMO: 自動追記実行" >> "$LOG_FILE"
+  DISCUSSION_MEMO_ARGS=(bun run "$SCRIPT_DIR/.claude/scripts/update-discussion-memo.ts" --date "$CURRENT_DATE_ISO")
+  if [ "$DRY_RUN" = true ]; then
+    DISCUSSION_MEMO_ARGS+=("--dry-run")
+  fi
+  "${DISCUSSION_MEMO_ARGS[@]}" >> "$LOG_FILE" 2>&1 || \
+    echo "[$DISCUSSION_MEMO_TS] DISCUSSION_MEMO: 追記失敗" >> "$LOG_FILE"
 fi
 
 if [ "$SKIP_SCHEDULE" = false ]; then
@@ -310,6 +323,16 @@ else
   echo "通常回 (RAND=$ROUTINE_RAND >= $ROUTINE_THRESHOLD)" >> "$LOG_FILE"
 fi
 
+# --- 充足感の減衰（satiation-tick） ---
+if [ "$SKIP_SCHEDULE" = false ]; then
+  bun run "$SCRIPT_DIR/.claude/scripts/satiation-tick.ts" >> "$LOG_FILE" 2>/dev/null
+fi
+
+# --- 環境センサー → 内的状態（environment-tick） ---
+if [ "$SKIP_SCHEDULE" = false ]; then
+  bun run "$SCRIPT_DIR/.claude/scripts/environment-tick.ts" >> "$LOG_FILE" 2>/dev/null
+fi
+
 # --- 欲望システム（内部衝動） ---
 DESIRE_PROMPT=""
 if [ "$SKIP_SCHEDULE" = false ]; then
@@ -341,6 +364,24 @@ if [ "$SKIP_SCHEDULE" = false ]; then
   RECALL_LITE_TEXT=$(bun run "$SCRIPT_DIR/.claude/scripts/recall-lite.ts" 2>/dev/null)
   if [ -n "$RECALL_LITE_TEXT" ]; then
     echo "[recall-lite] $(echo "$RECALL_LITE_TEXT" | head -n1)" >> "$LOG_FILE"
+  fi
+fi
+
+# --- STATUS.md 行動ヒント（status-hint） ---
+STATUS_HINT_TEXT=""
+if [ "$SKIP_SCHEDULE" = false ]; then
+  STATUS_HINT_TEXT=$(bun run "$SCRIPT_DIR/.claude/scripts/status-hint.ts" 2>/dev/null)
+  if [ -n "$STATUS_HINT_TEXT" ]; then
+    echo "[status-hint] $STATUS_HINT_TEXT" >> "$LOG_FILE"
+  fi
+fi
+
+# --- 因果ヒント（causal-hint） ---
+CAUSAL_HINT_TEXT=""
+if [ "$SKIP_SCHEDULE" = false ]; then
+  CAUSAL_HINT_TEXT=$(bun run "$SCRIPT_DIR/.claude/scripts/causal-hint.ts" 2>/dev/null)
+  if [ -n "$CAUSAL_HINT_TEXT" ]; then
+    echo "[causal-hint] $(echo "$CAUSAL_HINT_TEXT" | head -n1)" >> "$LOG_FILE"
   fi
 fi
 
@@ -383,6 +424,18 @@ if [ -n "$RECALL_LITE_TEXT" ]; then
 $RECALL_LITE_TEXT"
 fi
 
+STATUS_HINT_SECTION=""
+if [ -n "$STATUS_HINT_TEXT" ]; then
+  STATUS_HINT_SECTION="
+$STATUS_HINT_TEXT"
+fi
+
+CAUSAL_HINT_SECTION=""
+if [ -n "$CAUSAL_HINT_TEXT" ]; then
+  CAUSAL_HINT_SECTION="
+$CAUSAL_HINT_TEXT"
+fi
+
 MORNING_SECTION=""
 if [ "$IS_FIRST_SESSION_TODAY" = true ]; then
   _MORNING=$(LOAD_PROMPT morning_section)
@@ -393,7 +446,7 @@ ${_MORNING}"
     MORNING_SECTION="
 ## 今日の初回セッション
 今日の最初の召喚だ。以下を実施せよ：
-1. /wd-great-recall で多軸想起を実行（直近の重要な決定・未完了タスク・curiosity_target）
+1. /wd-great-recall で前回からの重要な判断と流れを多軸想起する
 2. 前日のタスクを確認し、今日の方針を決めよ
 3. curiosity_target があれば bun run .claude/scripts/desire-tick.ts set-curiosity で注入せよ
 "
@@ -411,6 +464,8 @@ if [ -n "$_PROMPT_TEMPLATE" ]; then
     TIME_RULE="$TIME_RULE" \
     INTEROCEPTION_SECTION="$INTEROCEPTION_SECTION" \
     RECALL_LITE_SECTION="$RECALL_LITE_SECTION" \
+    STATUS_HINT_SECTION="$STATUS_HINT_SECTION" \
+    CAUSAL_HINT_SECTION="$CAUSAL_HINT_SECTION" \
     bun -e "
 const tmpl = process.env.TMPL;
 const result = tmpl
@@ -419,7 +474,9 @@ const result = tmpl
   .replace('{DESIRE_SECTION}', process.env.DESIRE_SECTION ?? '')
   .replace('{TIME_RULE}', process.env.TIME_RULE ?? '')
   .replace('{INTEROCEPTION}', process.env.INTEROCEPTION_SECTION ?? '')
-  .replace('{RECALL_LITE}', process.env.RECALL_LITE_SECTION ?? '');
+  .replace('{RECALL_LITE}', process.env.RECALL_LITE_SECTION ?? '')
+  .replace('{STATUS_HINT}', process.env.STATUS_HINT_SECTION ?? '')
+  .replace('{CAUSAL_HINT}', process.env.CAUSAL_HINT_SECTION ?? '');
 process.stdout.write(result);
 " 2>/dev/null)
 fi
@@ -439,7 +496,7 @@ ${DESIRE_SECTION}
 ## 補足ルール
 - ${TIME_RULE}
 - MCPが動作していなければ、デバッグのために関係があると思われる要素をallowedToolsの範囲で調査せよ
-${INTEROCEPTION_SECTION}${RECALL_LITE_SECTION}"
+${INTEROCEPTION_SECTION}${RECALL_LITE_SECTION}${STATUS_HINT_SECTION}${CAUSAL_HINT_SECTION}"
 fi
 
 cd "$SCRIPT_DIR"
@@ -613,6 +670,10 @@ else
         echo "[resume失敗/環境エラー] $RESULT_TEXT" >> "$LOG_FILE"
         echo "=== 自律行動終了: $(date) ===" >> "$LOG_FILE"
         exit 1
+      elif echo "$RESULT_TEXT" | grep -qi "Prompt is too long"; then
+        echo "[resume失敗/プロンプト長すぎ] セッションをリセットして新規起動" >> "$LOG_FILE"
+        rm -f "$SESSION_FILE"
+        run_new_session
       elif echo "$RESULT_TEXT" | grep -qi "No conversation found"; then
         echo "[resume失敗/セッション消失] $RESULT_TEXT" >> "$LOG_FILE"
         rm -f "$SESSION_FILE"
@@ -633,6 +694,10 @@ else
         echo "[resume失敗/環境エラー] $RESULT" >> "$LOG_FILE"
         echo "=== 自律行動終了: $(date) ===" >> "$LOG_FILE"
         exit 1
+      elif echo "$RESULT" | grep -qi "Prompt is too long"; then
+        echo "[resume失敗/プロンプト長すぎ] セッションをリセットして新規起動" >> "$LOG_FILE"
+        rm -f "$SESSION_FILE"
+        run_new_session
       elif echo "$RESULT" | grep -qi "No conversation found"; then
         echo "[resume失敗/セッション消失] $RESULT" >> "$LOG_FILE"
         rm -f "$SESSION_FILE"

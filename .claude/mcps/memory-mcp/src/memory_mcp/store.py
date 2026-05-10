@@ -1,4 +1,4 @@
-"""SQLite + numpy backed memory storage (Phase 11: ChromaDB → SQLite+numpy)."""
+"""SQLite + numpy backed memory storage."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import math
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -39,8 +39,8 @@ from .types import (
     ScoredMemory,
     SensoryData,
 )
-from .verb_chain import VerbChain, VerbChainStore, VerbStep
 from .vector import cosine_similarity, decode_vector, encode_vector
+from .verb_chain import VerbChain, VerbChainStore, VerbStep
 from .working_memory import WorkingMemoryBuffer
 from .workspace import (
     WorkspaceCandidate,
@@ -48,6 +48,9 @@ from .workspace import (
     diversity_score,
     select_workspace_candidates,
 )
+
+if TYPE_CHECKING:
+    from .chive import ChiVeEmbedding
 
 # ──────────────────────────────────────────────
 # DDL
@@ -363,7 +366,7 @@ class MemoryStore:
         self._embedding_fn = E5EmbeddingFunction(config.embedding_model)
         self._bm25_index = BM25Index()
         self._verb_chain_store: VerbChainStore | None = None
-        self._chive = None  # Lazy-loaded ChiVeEmbedding
+        self._chive: ChiVeEmbedding | None = None
 
     # ── Connection ──────────────────────────────
 
@@ -399,8 +402,9 @@ class MemoryStore:
                 # Initialize VerbChainStore (chiVe lazy-loads on first use)
                 try:
                     from .chive import ChiVeEmbedding
-                    self._chive = ChiVeEmbedding()
-                    self._verb_chain_store = VerbChainStore(self._db, self._chive)
+                    chive = ChiVeEmbedding()
+                    self._chive = chive
+                    self._verb_chain_store = VerbChainStore(self._db, chive)
                     await self._verb_chain_store.initialize()
                 except Exception as e:
                     import logging
@@ -609,7 +613,7 @@ class MemoryStore:
         vecs = np.stack([decode_vector(blob) for _, blob in rows_with_vecs])
         scores = cosine_similarity(query_vec, vecs)  # higher = more similar
 
-        # Convert similarity to distance (like ChromaDB cosine distance)
+        # Convert cosine similarity to distance.
         # cosine distance = 1 - similarity
         indexed = list(enumerate(rows_with_vecs))
         ranked = sorted(indexed, key=lambda t: scores[t[0]], reverse=True)
@@ -953,7 +957,6 @@ class MemoryStore:
             now = datetime.now(timezone.utc).isoformat()
             memory = await self.get_by_id(memory_id)
             if memory:
-                from .types import MemoryLink
                 new_link = MemoryLink(
                     target_id=memory_id,
                     link_type="related",
@@ -962,8 +965,7 @@ class MemoryStore:
                 )
                 existing = list(memory.links)
                 existing.append(new_link)
-                import json
-                links_json = json.dumps([l.to_dict() for l in existing])
+                links_json = json.dumps([link.to_dict() for link in existing])
                 await self.update_memory_fields(memory_id, links=links_json)
 
         # composite の importance を再計算
@@ -1159,6 +1161,7 @@ class MemoryStore:
         for target_id in linked_ids:
             await self._add_bidirectional_link(memory_id, target_id)
 
+        await self._working_memory.add(memory)
         return memory
 
     # ── _add_bidirectional_link ─────────────────
@@ -1797,13 +1800,17 @@ class MemoryStore:
             # composite_members
             for mid in member_ids:
                 db.execute(
-                    "INSERT OR IGNORE INTO composite_members (composite_id, member_id, contribution_weight) VALUES (?,?,?)",
+                    "INSERT OR IGNORE INTO composite_members "
+                    "(composite_id, member_id, contribution_weight) "
+                    "VALUES (?,?,?)",
                     (composite_id, mid, 1.0),
                 )
             # composite_axes (optional)
             if axis_vector is not None:
                 db.execute(
-                    "INSERT OR REPLACE INTO composite_axes (composite_id, axis_vector, explained_variance_ratio) VALUES (?,?,?)",
+                    "INSERT OR REPLACE INTO composite_axes "
+                    "(composite_id, axis_vector, explained_variance_ratio) "
+                    "VALUES (?,?,?)",
                     (composite_id, encode_vector(axis_vector), explained_variance_ratio),
                 )
             db.commit()
@@ -1894,7 +1901,12 @@ class MemoryStore:
     async def clear_boundary_layers(self) -> None:
         """Clear all boundary layer data."""
         db = self._ensure_connected()
-        await asyncio.to_thread(lambda: (db.execute("DELETE FROM boundary_layers"), db.commit()))
+
+        def _clear() -> None:
+            db.execute("DELETE FROM boundary_layers")
+            db.commit()
+
+        await asyncio.to_thread(_clear)
 
     async def fetch_all_composite_axes(self) -> dict[str, np.ndarray]:
         """Get all composite principal axes."""

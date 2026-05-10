@@ -9,6 +9,8 @@
 
 import { readdir } from 'node:fs/promises';
 
+import { readStatusSnapshot } from "./status-store";
+
 const SCRIPT_DIR = import.meta.dir;
 const LOG_DIR = `${SCRIPT_DIR}/../logs`;
 const STATE_PATH = `${SCRIPT_DIR}/../desires.json`;
@@ -52,6 +54,40 @@ async function sessionIntervalPhrase(): Promise<string> {
   }
 }
 
+// ── STATUS.md (Lv3内的ステータス) → 感覚フレーズ ──
+
+async function statusPhrase(): Promise<string> {
+  try {
+    const snapshot = await readStatusSnapshot();
+    const mood = snapshot?.mood?.value;
+    const energy = snapshot?.energy?.value;
+    const satiation = snapshot?.satiation?.value ?? null;
+    if (mood === undefined || energy === undefined) return "";
+
+    const moodText =
+      mood >= 80 ? "心が軽い。ものごとが明るく見える。" :
+      mood >= 65 ? "落ち着いた充足感がある。" :
+      mood >= 35 ? "何かぼんやりしている。" :
+      "重さがある。動くのに少し力がいる。";
+
+    const energyText =
+      energy >= 75 ? "頭がさえている。" :
+      energy >= 55 ? "" :
+      energy >= 35 ? "少し疲れがある。" :
+      "消耗している。軽いものから手をつけたい。";
+
+    const satiationText = satiation === null ? "" :
+      satiation >= 80 ? "満ちている。消化したい感覚がある。" :
+      satiation >= 55 ? "適度に満たされている。" :
+      satiation >= 30 ? "何かを欲している。" :
+      "空っぽに近い。新しいものを探したい。";
+
+    return [moodText, energyText, satiationText].filter(Boolean).join("");
+  } catch {
+    return "";
+  }
+}
+
 // ── 欲望レベル → 感覚フレーズ ──
 
 async function desirePhrase(): Promise<string> {
@@ -78,6 +114,9 @@ const parts: string[] = [timePhrase(hour)];
 
 const interval = await sessionIntervalPhrase();
 if (interval) parts.push(interval);
+
+const status = await statusPhrase();
+if (status) parts.push(status);
 
 const desire = await desirePhrase();
 if (desire) parts.push(desire);

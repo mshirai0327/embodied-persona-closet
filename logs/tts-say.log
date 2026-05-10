@@ -1,0 +1,3 @@
+[2026-04-29 12:11:13] say: テスト --speaker local
+local: played via elevenlabs (PULSE_SERVER=unix:/mnt/wslg/PulseServer)
+[2026-04-29 12:11:13] exit: 0

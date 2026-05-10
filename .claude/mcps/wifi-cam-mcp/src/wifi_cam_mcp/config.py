@@ -2,10 +2,41 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
+from ._behavior import get_behavior
+
 load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+
+def _get_wifi_cam_setting(*env_keys: str, behavior_key: str, default: Any) -> Any:
+    for key in env_keys:
+        value = os.getenv(key)
+        if value not in (None, ""):
+            return value
+
+    behavior_value = get_behavior("wifi-cam", behavior_key, default)
+    return default if behavior_value in (None, "") else behavior_value
+
+
+def _normalize_mount_mode(value: object) -> str:
+    mount_mode = str(value).strip().lower()
+    if mount_mode not in ("normal", "ceiling"):
+        raise ValueError(f"Invalid mount mode '{mount_mode}'. Must be 'normal' or 'ceiling'.")
+    return mount_mode
+
+
+def _normalize_image_rotation(value: object) -> int:
+    rotation = int(value)
+    if rotation not in (0, 90, 180, 270):
+        raise ValueError(
+            f"Invalid image rotation '{rotation}'. Must be one of 0, 90, 180, 270."
+        )
+    return rotation
 
 
 @dataclass(frozen=True)
@@ -20,6 +51,7 @@ class CameraConfig:
     max_width: int = 1920
     max_height: int = 1080
     mount_mode: str = "normal"  # "normal" (desktop) or "ceiling" (inverted)
+    image_rotation: int = 0
 
     @classmethod
     def from_env(cls, prefix: str = "TAPO") -> "CameraConfig":
@@ -33,16 +65,44 @@ class CameraConfig:
         username = os.getenv(f"{prefix}_USERNAME", "") or os.getenv("TAPO_USERNAME", "")
         password = os.getenv(f"{prefix}_PASSWORD", "") or os.getenv("TAPO_PASSWORD", "")
         onvif_port = int(
-            os.getenv(f"{prefix}_ONVIF_PORT", "") or os.getenv("TAPO_ONVIF_PORT", "") or "2020"
+            _get_wifi_cam_setting(
+                f"{prefix}_ONVIF_PORT",
+                "TAPO_ONVIF_PORT",
+                behavior_key="onvif_port",
+                default="2020",
+            )
         )
         stream_url = os.getenv(f"{prefix}_STREAM_URL") or os.getenv("TAPO_STREAM_URL")
-        mount_mode = (
-            os.getenv(f"{prefix}_MOUNT_MODE", "") or os.getenv("TAPO_MOUNT_MODE", "") or "normal"
-        ).lower()
-        if mount_mode not in ("normal", "ceiling"):
-            raise ValueError(f"Invalid mount mode '{mount_mode}'. Must be 'normal' or 'ceiling'.")
-        max_width = int(os.getenv("CAPTURE_MAX_WIDTH", "1920"))
-        max_height = int(os.getenv("CAPTURE_MAX_HEIGHT", "1080"))
+        mount_mode = _normalize_mount_mode(
+            _get_wifi_cam_setting(
+                f"{prefix}_MOUNT_MODE",
+                "TAPO_MOUNT_MODE",
+                behavior_key="mount_mode",
+                default="normal",
+            )
+        )
+        max_width = int(
+            _get_wifi_cam_setting(
+                "CAPTURE_MAX_WIDTH",
+                behavior_key="capture_max_width",
+                default="1920",
+            )
+        )
+        max_height = int(
+            _get_wifi_cam_setting(
+                "CAPTURE_MAX_HEIGHT",
+                behavior_key="capture_max_height",
+                default="1080",
+            )
+        )
+        image_rotation = _normalize_image_rotation(
+            _get_wifi_cam_setting(
+                f"{prefix}_IMAGE_ROTATION",
+                "TAPO_IMAGE_ROTATION",
+                behavior_key="image_rotation",
+                default="0",
+            )
+        )
 
         if not host:
             raise ValueError(f"{prefix}_CAMERA_HOST environment variable is required")
@@ -58,6 +118,7 @@ class CameraConfig:
             onvif_port=onvif_port,
             stream_url=stream_url,
             mount_mode=mount_mode,
+            image_rotation=image_rotation,
             max_width=max_width,
             max_height=max_height,
         )
@@ -77,14 +138,44 @@ class CameraConfig:
         username = os.getenv("TAPO_RIGHT_USERNAME", "") or os.getenv("TAPO_USERNAME", "")
         password = os.getenv("TAPO_RIGHT_PASSWORD", "") or os.getenv("TAPO_PASSWORD", "")
         onvif_port = int(
-            os.getenv("TAPO_RIGHT_ONVIF_PORT", "") or os.getenv("TAPO_ONVIF_PORT", "") or "2020"
+            _get_wifi_cam_setting(
+                "TAPO_RIGHT_ONVIF_PORT",
+                "TAPO_ONVIF_PORT",
+                behavior_key="onvif_port",
+                default="2020",
+            )
         )
         stream_url = os.getenv("TAPO_RIGHT_STREAM_URL")
-        mount_mode = (
-            os.getenv("TAPO_RIGHT_MOUNT_MODE", "") or os.getenv("TAPO_MOUNT_MODE", "") or "normal"
-        ).lower()
-        max_width = int(os.getenv("CAPTURE_MAX_WIDTH", "1920"))
-        max_height = int(os.getenv("CAPTURE_MAX_HEIGHT", "1080"))
+        mount_mode = _normalize_mount_mode(
+            _get_wifi_cam_setting(
+                "TAPO_RIGHT_MOUNT_MODE",
+                "TAPO_MOUNT_MODE",
+                behavior_key="mount_mode",
+                default="normal",
+            )
+        )
+        max_width = int(
+            _get_wifi_cam_setting(
+                "CAPTURE_MAX_WIDTH",
+                behavior_key="capture_max_width",
+                default="1920",
+            )
+        )
+        max_height = int(
+            _get_wifi_cam_setting(
+                "CAPTURE_MAX_HEIGHT",
+                behavior_key="capture_max_height",
+                default="1080",
+            )
+        )
+        image_rotation = _normalize_image_rotation(
+            _get_wifi_cam_setting(
+                "TAPO_RIGHT_IMAGE_ROTATION",
+                "TAPO_IMAGE_ROTATION",
+                behavior_key="image_rotation",
+                default="0",
+            )
+        )
 
         if not username or not password:
             return None
@@ -96,6 +187,7 @@ class CameraConfig:
             onvif_port=onvif_port,
             stream_url=stream_url,
             mount_mode=mount_mode,
+            image_rotation=image_rotation,
             max_width=max_width,
             max_height=max_height,
         )
@@ -113,12 +205,24 @@ class ServerConfig:
     @classmethod
     def from_env(cls) -> "ServerConfig":
         """Create config from environment variables."""
-        mic_source = os.getenv("MIC_SOURCE", "camera").lower()
+        mic_source = str(
+            _get_wifi_cam_setting(
+                "MIC_SOURCE",
+                behavior_key="mic_source",
+                default="camera",
+            )
+        ).lower()
         if mic_source not in ("camera", "local"):
             raise ValueError(f"Invalid MIC_SOURCE '{mic_source}'. Must be 'camera' or 'local'.")
         return cls(
             name=os.getenv("MCP_SERVER_NAME", "wifi-cam-mcp"),
             version=os.getenv("MCP_SERVER_VERSION", "0.1.0"),
-            capture_dir=os.getenv("CAPTURE_DIR", "/tmp/wifi-cam-mcp"),
+            capture_dir=str(
+                _get_wifi_cam_setting(
+                    "CAPTURE_DIR",
+                    behavior_key="capture_dir",
+                    default="/tmp/wifi-cam-mcp",
+                )
+            ),
             mic_source=mic_source,
         )

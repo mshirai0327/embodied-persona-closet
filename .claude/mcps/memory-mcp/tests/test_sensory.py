@@ -9,6 +9,7 @@ from src.memory_mcp.config import MemoryConfig
 from src.memory_mcp.memory import MemoryStore
 from src.memory_mcp.sensory import SensoryIntegration
 from src.memory_mcp.types import CameraPosition
+from tests.conftest import DummyEmbeddingFunction
 
 
 @pytest.fixture
@@ -22,6 +23,7 @@ async def memory_store():
         collection_name="test_memories",
     )
     store = MemoryStore(config)
+    store._embedding_fn = DummyEmbeddingFunction()
     await store.connect()
     yield store
     await store.disconnect()

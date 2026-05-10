@@ -60,7 +60,7 @@
 - [ ] `get_memory_calendar` — カレンダー表示が返る
 
 **既知の問題**
-- [ ] 埋め込みベクトルの次元不一致（768 vs 600）が発生しないこと。`scripts/migrate_embeddings.py` で修復可能
+- [ ] 埋め込みベクトルの次元不一致（768 vs 600）が発生しないこと。`scripts/migrate_embeddings_sqlite.py` で修復可能
 
 ### 1-2. interoception フック
 

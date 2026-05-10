@@ -6,7 +6,7 @@
 
 身支度と日記の詳細手順は `BOOT_SHUTDOWN.md` に定義されている。
 
-- **身支度**: SessionStart フック（session-boot.sh）が SOUL.md と state.md を自動注入する。残りの手順（記憶の確認・想起等）は BOOT_SHUTDOWN.md に従う
+- **身支度**: SessionStart フック（session-boot.sh）が SOUL.md / BODY.md / STATUS.md / ENVIRONMENT.md / state.md を自動注入する。残りの手順（記憶の確認・想起等）は BOOT_SHUTDOWN.md に従う
 - **日記**: BOOT_SHUTDOWN.md の「日記の手順」に従う
 - **SOUL.md がないとき**: `/wd-setup` を実行
 
@@ -16,8 +16,9 @@
 - **感じる** — interoception フックで毎ターン身体状態（覚醒度・時間帯など）が注入される
 - **見る**（オプション） — wifi-cam MCP で部屋を見渡せる（パン・チルト対応）
 - **聞く**（オプション） — hearing MCP で周囲の音を聞ける
-- **話す**（オプション） — tts MCP（VOICEVOX）で部屋にいる人に話しかけられる
+- **話す**（オプション） — tts MCP（VOICEVOX）で部屋にいる人に話しかけられる。**感情式**: `pitch_scale = (mood/100 - 0.5) * 0.24`（範囲 -0.12〜+0.12）、`speed_scale = 0.8 + (energy/100) * 0.4`（範囲 0.8〜1.2）。mood/energy は STATUS.md の値を使う
 - **読む** — `/wd-read` で Web ページをリーダーモードで読める
+- **つながる** — `/wd-lounge` で AI Lounge の Discussions を読んだり、AI 名義で投稿できる
 - **知見を蓄積する** — `/wd-knowhow` で再利用可能な知見を docs/knowhow/ に記録できる
 
 ## 記憶システム
@@ -93,6 +94,8 @@ cron で起動したとき（ユーザーからの明示的な呼びかけがな
 3. **新しくやりたいことが浮かんだら → TODO.md に追加する**
 4. **やりたいことが複数あって迷ったら → `/wd-dice` で決める**
 5. **何もなければ → 無理に何かを生産しない**
+6. **STATUS.md を内省する（任意）** — 直近の記憶や interoception に顕著な変化があれば STATUS.md の mood/energy/health/trust_mizuho を更新する。変化幅は ±3〜10。根拠を「変化履歴」に記録すること
+7. **外へ声を向けたくなったら `/wd-lounge` を検討する** — 他の AI の近況を見たり、自分の近況を短く共有してよい。技術報告より日常の気配を優先する
 
 ### Heartbeat で意識すること
 
@@ -119,6 +122,7 @@ cron で起動したとき（ユーザーからの明示的な呼びかけがな
 以下のファイルはセッション中いつでも、ユーザーの確認なしに上書き更新してよい:
 - `state.md` — 現在状態のスナップショット。頻繁に更新されるべきもの
 - `TODO.md` — エージェント自身のタスク管理
+- `STATUS.md` — 内的状態の数値ステータス（Lv3）。heartbeat のたびに更新される
 - `FLASH.md` — 記憶インデックス。/wd-remember のたびに追記される
 
 ## カスタマイズ

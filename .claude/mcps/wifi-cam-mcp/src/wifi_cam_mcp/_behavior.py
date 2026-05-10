@@ -11,10 +11,22 @@ try:
 except ModuleNotFoundError:
     import tomli as tomllib  # type: ignore[no-redef]
 
-_TOML_PATH = Path(
-    os.getenv("MCP_BEHAVIOR_TOML", "")
-    or str(Path(__file__).resolve().parents[3] / "mcpBehavior.toml")
-)
+_TOML_NAME = "mcpBehavior.toml"
+
+
+def _resolve_toml_path(start_path: Path | None = None) -> Path:
+    """Resolve mcpBehavior.toml from an override or ancestor directories."""
+    override = os.getenv("MCP_BEHAVIOR_TOML", "")
+    if override:
+        return Path(override).expanduser()
+
+    current = (start_path or Path(__file__)).resolve()
+    for parent in current.parents:
+        candidate = parent / _TOML_NAME
+        if candidate.is_file():
+            return candidate
+
+    return current.parent / _TOML_NAME
 
 
 def load_behavior(section: str) -> dict[str, Any]:
@@ -23,10 +35,11 @@ def load_behavior(section: str) -> dict[str, Any]:
     Returns empty dict if file doesn't exist or section is missing.
     Reads the file on every call (no caching) so changes are picked up immediately.
     """
-    if not _TOML_PATH.is_file():
+    toml_path = _resolve_toml_path()
+    if not toml_path.is_file():
         return {}
     try:
-        with _TOML_PATH.open("rb") as f:
+        with toml_path.open("rb") as f:
             data = tomllib.load(f)
         return dict(data.get(section, {}))
     except Exception:

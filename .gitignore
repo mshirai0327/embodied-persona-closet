@@ -42,18 +42,37 @@ ENV/
 # MCP config (may contain API keys)
 .mcp.json
 
+# Public export: private state files
+BODY.md
+ENVIRONMENT.md
+FLASH.md
+ROUTINES.md
+SOUL.md
+STATUS.md
+SYSTEM.md
+TODO.md
+state.md
+desires.conf
+desires.json
+schedule.conf
+memo/
+.claude/persona/
+.claude/settings.json
+
 # Captured images
 /captures/
 *.jpg
 *.jpeg
 *.png
+*.PNG
+*.JPG
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 
-# ChromaDB test data
+# SQLite in-memory test data marker
 :memory:/
 
 # OS
@@ -76,9 +95,9 @@ heartbeat-session-id
 last-session-date.txt
 
 # User-specific config (use *.sample.conf as template)
-schedule.conf
-desires.conf
-desires.json
+# schedule.conf
+# desires.conf
+# desires.json
 
 # Google API credentials (NEVER commit)
 scripts/credentials.json
@@ -112,15 +131,4 @@ tmp/*
 .claude/workingDirs/*
 !.claude/workingDirs/.keep
 
-# ダウンストリーム固有ファイル（アップストリームにはpushしない）
-ROUTINES.md
-SOUL.md
-state.md
-FLASH.md
-TODO.md
-
-# 経験ファイル（ダウンストリーム固有）
-*.exp.md
-BODY.md
-
-memo/discussionMemo/*.md
+.claude/secrets/*

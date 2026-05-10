@@ -6,7 +6,7 @@
 
 ## 前提
 
-- wardrobe のセットアップが完了していること（[セットアップガイド](setup.md)）
+- embodied-reflecta のセットアップが完了していること（[セットアップガイド](setup.md)）
 - memory-mcp がインストール済みであること
 - `/wd-configure` で自律行動を「有効」にしていること
 
@@ -30,7 +30,7 @@
 
 ```bash
 # 20分ごとに実行
-*/20 * * * * /path/to/embodied-claude-wardrobe/autonomous-action.sh
+*/20 * * * * /path/to/embodied-reflecta/autonomous-action.sh
 ```
 
 パスは絶対パスで指定する。`~` は cron では展開されないことがある。

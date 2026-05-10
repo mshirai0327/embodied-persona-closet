@@ -49,7 +49,7 @@ class BM25Index:
     """メモリ全体の BM25 インデックス。
 
     `is_dirty` フラグで管理し、記憶の追加後に次回検索時オンデマンドで再ビルドする。
-    ChromaDB のスキーマ変更なし・Migration 不要（全てインメモリ）。
+    SQLite スキーマに手を入れず、全てインメモリで保持する。
     """
 
     def __init__(self) -> None:

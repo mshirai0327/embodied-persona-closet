@@ -3,6 +3,7 @@
 import base64
 import io
 import os
+from pathlib import Path
 from typing import Any
 
 # Suppress OpenCV error messages
@@ -23,20 +24,72 @@ from PIL import Image
 server = Server("usb-webcam-mcp")
 
 
+def _iter_linux_video_devices() -> list[Path]:
+    """Return Linux video device nodes in numeric order."""
+    devices = list(Path("/dev").glob("video*"))
+
+    def sort_key(path: Path) -> tuple[int, str]:
+        suffix = path.name.removeprefix("video")
+        return (int(suffix), path.name) if suffix.isdigit() else (9999, path.name)
+
+    return sorted(devices, key=sort_key)
+
+
+def _open_capture(source: int | str) -> cv2.VideoCapture:
+    """Open a camera source with Linux-friendly fallbacks."""
+    if isinstance(source, str):
+        cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            return cap
+        cap.release()
+    return cv2.VideoCapture(source)
+
+
+def _probe_camera(source: int | str) -> dict[str, Any] | None:
+    """Probe a camera source and return its metadata if usable."""
+    cap = _open_capture(source)
+    if not cap.isOpened():
+        cap.release()
+        return None
+
+    try:
+        return {
+            "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        }
+    finally:
+        cap.release()
+
+
 def find_available_cameras(max_cameras: int = 10) -> list[dict[str, Any]]:
     """Find available camera devices."""
     cameras = []
-    for i in range(max_cameras):
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    linux_devices = _iter_linux_video_devices()
+    if linux_devices:
+        for device in linux_devices:
+            metadata = _probe_camera(str(device))
+            if metadata is None:
+                continue
             cameras.append({
-                "index": i,
-                "width": width,
-                "height": height,
+                "index": len(cameras),
+                "device_path": str(device),
+                **metadata,
             })
-            cap.release()
+            if len(cameras) >= max_cameras:
+                break
+        if cameras:
+            return cameras
+
+    for i in range(max_cameras):
+        metadata = _probe_camera(i)
+        if metadata is None:
+            continue
+        cameras.append({
+            "index": i,
+            **metadata,
+        })
     return cameras
 
 
@@ -46,7 +99,12 @@ def capture_from_camera(
     height: int | None = None,
 ) -> bytes:
     """Capture an image from the specified camera."""
-    cap = cv2.VideoCapture(camera_index)
+    available_cameras = find_available_cameras(max(camera_index + 1, 10))
+    camera_source: int | str = camera_index
+    if len(available_cameras) > camera_index:
+        camera_source = available_cameras[camera_index].get("device_path", camera_index)
+
+    cap = _open_capture(camera_source)
 
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera at index {camera_index}")
@@ -126,7 +184,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
 
         lines = ["Available cameras:"]
         for cam in cameras:
-            lines.append(f"  - Index {cam['index']}: {cam['width']}x{cam['height']}")
+            device_path = cam.get("device_path")
+            suffix = f" ({device_path})" if device_path else ""
+            lines.append(f"  - Index {cam['index']}: {cam['width']}x{cam['height']}{suffix}")
         return [TextContent(type="text", text="\n".join(lines))]
 
     elif name == "see":
